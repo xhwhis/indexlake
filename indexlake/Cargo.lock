@@ -5,11 +5,3 @@ version = 4
 [[package]]
 name = "indexlake"
 version = "0.1.0"
-
-[[package]]
-name = "indexlake-catalog-sqlite"
-version = "0.1.0"
-
-[[package]]
-name = "indexlake-integration-tests"
-version = "0.1.0"
