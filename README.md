@@ -1,3 +1,3 @@
 # IndexLake
 
-A table format with extensible index support.
+An experimental table format with extensible index support.

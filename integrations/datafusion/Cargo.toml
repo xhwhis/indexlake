@@ -1,5 +1,5 @@
 [package]
-name = "indexlake-catalog-sqlite"
+name = "indexlake-datafusion"
 version.workspace = true
 edition.workspace = true
 homepage.workspace = true
@@ -9,6 +9,4 @@ repository.workspace = true
 [dependencies]
 indexlake = { workspace = true }
 
-arrow = { workspace = true }
-async-trait = { workspace = true }
-rusqlite = { workspace = true }
+datafusion = { workspace = true }

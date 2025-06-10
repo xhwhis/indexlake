@@ -1,9 +1,11 @@
 [package]
 name = "indexlake-integration-tests"
-version = { workspace = true }
-edition = { workspace = true }
-homepage = { workspace = true }
-license = { workspace = true }
-repository = { workspace = true }
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
+uuid = { workspace = true }
+rusqlite = { workspace = true }

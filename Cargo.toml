@@ -3,6 +3,7 @@ members = [
     "catalogs/sqlite",
     "indexlake",
     "integration-tests",
+    "integrations/datafusion",
 ]
 resolver = "3"
 
@@ -12,3 +13,14 @@ edition = "2024"
 homepage = "https://github.com/lewiszlw/indexlake"
 license = "MIT"
 repository = "https://github.com/lewiszlw/indexlake"
+
+[workspace.dependencies]
+indexlake = { path = "indexlake" }
+indexlake-catalog-sqlite = { path = "catalogs/sqlite" }
+indexlake-datafusion = { path = "integrations/datafusion" }
+
+arrow = "55"
+datafusion = "47"
+async-trait = "0.1"
+rusqlite = "0.36"
+uuid = "1.17"
