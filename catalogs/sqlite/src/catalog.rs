@@ -1,4 +1,4 @@
-use indexlake::catalog::{Catalog, DataType, Row, Scalar, SchemaRef, Transaction};
+use indexlake::catalog::{Catalog, CatalogDataType, CatalogRow, CatalogScalar, CatalogSchemaRef, Transaction};
 use indexlake::{ILError, ILResult};
 use std::path::PathBuf;
 
@@ -38,7 +38,7 @@ pub struct SqliteTransaction {
 
 #[async_trait::async_trait(?Send)]
 impl Transaction for SqliteTransaction {
-    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
+    async fn query(&mut self, sql: &str, schema: CatalogSchemaRef) -> ILResult<Vec<CatalogRow>> {
         let mut stmt = self
             .conn
             .prepare(sql)
@@ -47,37 +47,37 @@ impl Transaction for SqliteTransaction {
             .query([])
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
 
-        let mut result_rows: Vec<Row> = Vec::new();
+        let mut catalog_rows: Vec<CatalogRow> = Vec::new();
         while let Some(row) = rows
             .next()
             .map_err(|e| ILError::CatalogError(e.to_string()))?
         {
-            let mut row_data = Vec::new();
+            let mut row_values = Vec::new();
             for (idx, col) in schema.columns.iter().enumerate() {
                 match col.data_type {
-                    DataType::BigInt => {
+                    CatalogDataType::BigInt => {
                         let v: Option<i64> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_data.push(Scalar::BigInt(v));
+                        row_values.push(CatalogScalar::BigInt(v));
                     }
-                    DataType::Varchar => {
+                    CatalogDataType::Varchar => {
                         let v: Option<String> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_data.push(Scalar::Varchar(v));
+                        row_values.push(CatalogScalar::Varchar(v));
                     }
-                    DataType::Boolean => {
+                    CatalogDataType::Boolean => {
                         let v: Option<bool> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_data.push(Scalar::Boolean(v));
+                        row_values.push(CatalogScalar::Boolean(v));
                     }
                 }
             }
-            result_rows.push(Row::new(schema.clone(), row_data));
+            catalog_rows.push(CatalogRow::new(schema.clone(), row_values));
         }
-        Ok(result_rows)
+        Ok(catalog_rows)
     }
 
     async fn execute(&mut self, sql: &str) -> ILResult<()> {
