@@ -1,4 +1,6 @@
-use indexlake::catalog::{Catalog, CatalogDataType, CatalogRow, CatalogScalar, CatalogSchemaRef, Transaction};
+use indexlake::{
+    Catalog, CatalogDataType, CatalogRow, CatalogScalar, CatalogSchemaRef, Transaction,
+};
 use indexlake::{ILError, ILResult};
 use std::path::PathBuf;
 

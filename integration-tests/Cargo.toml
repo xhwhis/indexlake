@@ -7,5 +7,9 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-uuid = { workspace = true }
-rusqlite = { workspace = true }
+indexlake = { workspace = true }
+indexlake-catalog-sqlite = { workspace = true }
+
+rusqlite = { workspace = true, features = ["bundled"] }
+tokio = { workspace = true, features = ["full"] }
+uuid = { workspace = true, features = ["v4"] }

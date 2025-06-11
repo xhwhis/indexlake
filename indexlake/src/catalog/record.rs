@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Display, sync::Arc};
 
 #[derive(Debug, Copy, Clone)]
 pub enum CatalogDataType {
@@ -44,6 +44,17 @@ pub enum CatalogScalar {
     Boolean(Option<bool>),
 }
 
+impl Display for CatalogScalar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CatalogScalar::BigInt(Some(value)) => write!(f, "{}", value),
+            CatalogScalar::Varchar(Some(value)) => write!(f, "{}", value),
+            CatalogScalar::Boolean(Some(value)) => write!(f, "{}", value),
+            _ => write!(f, "null"),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct CatalogRow {
     pub schema: CatalogSchemaRef,
@@ -55,4 +66,40 @@ impl CatalogRow {
         assert_eq!(schema.columns.len(), values.len());
         Self { schema, values }
     }
+}
+
+pub fn pretty_print_catalog_rows(
+    schema_opt: Option<CatalogSchemaRef>,
+    rows: &[CatalogRow],
+) -> impl Display {
+    let mut table = comfy_table::Table::new();
+    table.load_preset("||--+-++|    ++++++");
+
+    let schema_opt = schema_opt.or_else(|| {
+        if rows.is_empty() {
+            return None;
+        } else {
+            Some(rows[0].schema.clone())
+        }
+    });
+    if let Some(schema) = schema_opt {
+        let mut header = Vec::new();
+        for column in schema.columns.iter() {
+            header.push(column.name.clone());
+        }
+        table.set_header(header);
+    }
+
+    if rows.is_empty() {
+        return table;
+    }
+
+    for row in rows {
+        let mut cells = Vec::new();
+        for value in row.values.iter() {
+            cells.push(value.to_string());
+        }
+        table.add_row(cells);
+    }
+    table
 }

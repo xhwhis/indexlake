@@ -20,7 +20,11 @@ indexlake-catalog-sqlite = { path = "catalogs/sqlite" }
 indexlake-datafusion = { path = "integrations/datafusion" }
 
 arrow = "55"
-datafusion = "47"
 async-trait = "0.1"
+comfy-table = "7.0"
+datafusion = "47"
+opendal = "0.53"
 rusqlite = "0.36"
+tokio = "1"
+url = "2.5"
 uuid = "1.17"
