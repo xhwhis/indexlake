@@ -1,6 +1,7 @@
 mod helper;
 mod record;
 
+pub use helper::*;
 pub use record::*;
 
 use crate::ILResult;
@@ -12,14 +13,18 @@ pub trait Catalog: Debug + Send + Sync {
     async fn transaction(&self) -> ILResult<Box<dyn Transaction>>;
 }
 
+// Transaction should be rolled back when dropped.
 #[async_trait::async_trait(?Send)]
 pub trait Transaction: Debug {
     /// Execute a query and return the result.
     async fn query(&mut self, sql: &str, schema: CatalogSchemaRef) -> ILResult<Vec<CatalogRow>>;
+
     /// Execute a SQL statement.
     async fn execute(&mut self, sql: &str) -> ILResult<()>;
+
     /// Commit the transaction.
-    async fn commit(self) -> ILResult<()>;
+    async fn commit(&mut self) -> ILResult<()>;
+
     /// Rollback the transaction.
-    async fn rollback(self) -> ILResult<()>;
+    async fn rollback(&mut self) -> ILResult<()>;
 }

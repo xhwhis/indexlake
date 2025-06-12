@@ -77,4 +77,6 @@ async fn catalog_sqlite() {
 +----+------+
 +----+------+"#
     );
+
+    transaction.commit().await.unwrap();
 }

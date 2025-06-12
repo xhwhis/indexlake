@@ -66,6 +66,13 @@ impl CatalogRow {
         assert_eq!(schema.columns.len(), values.len());
         Self { schema, values }
     }
+
+    pub fn bigint(&self, index: usize) -> Option<i64> {
+        match self.values[index] {
+            CatalogScalar::BigInt(v) => v,
+            _ => panic!("Expected BigInt at index {index} for row {self:?}"),
+        }
+    }
 }
 
 pub fn pretty_print_catalog_rows(

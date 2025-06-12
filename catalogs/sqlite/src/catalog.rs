@@ -88,13 +88,13 @@ impl Transaction for SqliteTransaction {
             .map_err(|e| ILError::CatalogError(e.to_string()))
     }
 
-    async fn commit(self) -> ILResult<()> {
+    async fn commit(&mut self) -> ILResult<()> {
         self.conn
             .execute_batch("COMMIT")
             .map_err(|e| ILError::CatalogError(e.to_string()))
     }
 
-    async fn rollback(self) -> ILResult<()> {
+    async fn rollback(&mut self) -> ILResult<()> {
         self.conn
             .execute_batch("ROLLBACK")
             .map_err(|e| ILError::CatalogError(e.to_string()))
