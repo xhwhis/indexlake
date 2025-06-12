@@ -199,10 +199,31 @@ impl TransactionHelper {
         Ok(())
     }
 
+    pub(crate) async fn get_max_row_id(&mut self, table_id: i64) -> ILResult<i64> {
+        let schema = Arc::new(CatalogSchema::new(vec![CatalogColumn::new(
+            "max_row_id",
+            CatalogDataType::BigInt,
+            true,
+        )]));
+        let rows = self
+            .transaction
+            .query(
+                &format!("SELECT MAX(row_id) FROM indexlake_row_{table_id}"),
+                schema,
+            )
+            .await?;
+        if rows.is_empty() {
+            Ok(0)
+        } else {
+            let max_row_id = rows[0].bigint(0);
+            Ok(max_row_id.unwrap_or(0))
+        }
+    }
+
     pub(crate) async fn insert_rows(
         &mut self,
         table_id: i64,
-        schema: &SchemaRef,
+        schema: &CatalogSchema,
         rows: Vec<CatalogRow>,
     ) -> ILResult<()> {
         let mut values = Vec::new();
@@ -220,9 +241,9 @@ impl TransactionHelper {
             .execute(&format!(
                 "INSERT INTO indexlake_inline_{table_id} ({}) VALUES {}",
                 schema
-                    .fields
+                    .columns
                     .iter()
-                    .map(|f| f.name.clone())
+                    .map(|col| col.name.clone())
                     .collect::<Vec<_>>()
                     .join(", "),
                 values.join(", ")

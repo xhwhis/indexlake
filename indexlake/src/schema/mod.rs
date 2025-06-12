@@ -4,6 +4,7 @@ mod field;
 pub use datatype::*;
 pub use field::*;
 
+use crate::CatalogSchema;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -21,5 +22,14 @@ impl Schema {
             fields,
             metadata: HashMap::new(),
         }
+    }
+
+    pub fn to_catalog_schema(&self) -> CatalogSchema {
+        let columns = self
+            .fields
+            .iter()
+            .map(|field| field.to_catalog_column())
+            .collect();
+        CatalogSchema::new(columns)
     }
 }
