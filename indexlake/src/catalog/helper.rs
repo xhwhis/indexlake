@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    CatalogColumn, CatalogDataType, ILResult,
+    CatalogColumn, CatalogDataType, CatalogRow, ILResult,
     catalog::{CatalogSchema, Transaction},
     schema::{Field, SchemaRef},
 };
@@ -150,5 +150,61 @@ impl TransactionHelper {
         }
         self.transaction.execute(&format!("INSERT INTO indexlake_field (field_id, table_id, field_name, data_type, nullable, default_value) VALUES {}", values.join(", "))).await?;
         Ok(field_ids)
+    }
+
+    pub(crate) async fn create_row_table(&mut self, table_id: i64) -> ILResult<()> {
+        self.transaction
+            .execute(&format!(
+                "
+            CREATE TABLE indexlake_row_{table_id} (
+                row_id BIGINT PRIMARY KEY,
+                location VARCHAR,
+                deleted BOOLEAN
+            )"
+            ))
+            .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn create_inline_table(
+        &mut self,
+        table_id: i64,
+        schema: &SchemaRef,
+    ) -> ILResult<()> {
+        let mut columns = Vec::new();
+        columns.push("row_id BIGINT PRIMARY KEY".to_string());
+        for field in &schema.fields {
+            columns.push(format!(
+                "{} {} {} {}",
+                field.name,
+                field.data_type.to_catalog_data_type(),
+                if field.nullable {
+                    "NULL".to_string()
+                } else {
+                    "NOT NULL".to_string()
+                },
+                if let Some(default_value) = field.default_value.as_ref() {
+                    format!("DEFAULT {}", default_value)
+                } else {
+                    "".to_string()
+                }
+            ));
+        }
+        self.transaction
+            .execute(&format!(
+                "CREATE TABLE indexlake_inline_{table_id} ({})",
+                columns.join(", ")
+            ))
+            .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn insert_rows(
+        &mut self,
+        table_id: i64,
+        schema: &SchemaRef,
+        rows: Vec<CatalogRow>,
+    ) -> ILResult<()> {
+        todo!()
     }
 }

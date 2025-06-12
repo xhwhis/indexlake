@@ -24,6 +24,11 @@ pub(crate) async fn create_table(client: &LakeClient, creation: TableCreation) -
         .create_table_fields(table_id, &creation.schema.fields)
         .await?;
 
+    tx_helper.create_row_table(table_id).await?;
+    tx_helper
+        .create_inline_table(table_id, &creation.schema)
+        .await?;
+
     tx_helper.commit().await?;
 
     Ok(table_id)

@@ -25,12 +25,3 @@ CREATE TABLE indexlake_data_file (
     file_size_bytes BIGINT NOT NULL,
     record_count BIGINT NOT NULL
 );
-
-CREATE TABLE indexlake_delete_file (
-    delete_file_id BIGINT PRIMARY KEY,
-    table_id BIGINT NOT NULL,
-    data_file_id BIGINT NOT NULL,
-    file_path VARCHAR NOT NULL,
-    file_size_bytes BIGINT NOT NULL,
-    delete_count BIGINT NOT NULL
-);

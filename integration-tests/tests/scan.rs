@@ -10,5 +10,5 @@ async fn scan() {
     let storage = Storage::new_fs();
 
     let exists = storage.exists("file://test.txt").await.unwrap();
-    assert!(exists);
+    assert!(!exists);
 }

@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::ILError;
+use crate::{CatalogDataType, ILError};
 
 #[derive(Debug, Clone)]
 pub enum DataType {
@@ -11,6 +11,20 @@ pub enum DataType {
     Utf8,
     Binary,
     Boolean,
+}
+
+impl DataType {
+    pub(crate) fn to_catalog_data_type(&self) -> CatalogDataType {
+        match self {
+            DataType::Int32 => CatalogDataType::Integer,
+            DataType::Int64 => CatalogDataType::BigInt,
+            DataType::Float32 => CatalogDataType::Float,
+            DataType::Float64 => CatalogDataType::Double,
+            DataType::Utf8 => CatalogDataType::Varchar,
+            DataType::Binary => CatalogDataType::Varbinary,
+            DataType::Boolean => CatalogDataType::Boolean,
+        }
+    }
 }
 
 impl FromStr for DataType {

@@ -57,17 +57,41 @@ impl Transaction for SqliteTransaction {
             let mut row_values = Vec::new();
             for (idx, col) in schema.columns.iter().enumerate() {
                 match col.data_type {
+                    CatalogDataType::Integer => {
+                        let v: Option<i32> = row
+                            .get(idx)
+                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                        row_values.push(CatalogScalar::Integer(v));
+                    }
                     CatalogDataType::BigInt => {
                         let v: Option<i64> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
                         row_values.push(CatalogScalar::BigInt(v));
                     }
+                    CatalogDataType::Float => {
+                        let v: Option<f32> = row
+                            .get(idx)
+                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                        row_values.push(CatalogScalar::Float(v));
+                    }
+                    CatalogDataType::Double => {
+                        let v: Option<f64> = row
+                            .get(idx)
+                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                        row_values.push(CatalogScalar::Double(v));
+                    }
                     CatalogDataType::Varchar => {
                         let v: Option<String> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
                         row_values.push(CatalogScalar::Varchar(v));
+                    }
+                    CatalogDataType::Varbinary => {
+                        let v: Option<Vec<u8>> = row
+                            .get(idx)
+                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                        row_values.push(CatalogScalar::Varbinary(v));
                     }
                     CatalogDataType::Boolean => {
                         let v: Option<bool> = row

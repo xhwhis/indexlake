@@ -2,9 +2,27 @@ use std::{fmt::Display, sync::Arc};
 
 #[derive(Debug, Copy, Clone)]
 pub enum CatalogDataType {
+    Integer,
     BigInt,
+    Float,
+    Double,
     Varchar,
+    Varbinary,
     Boolean,
+}
+
+impl std::fmt::Display for CatalogDataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CatalogDataType::Integer => write!(f, "INTEGER"),
+            CatalogDataType::BigInt => write!(f, "BIGINT"),
+            CatalogDataType::Float => write!(f, "FLOAT"),
+            CatalogDataType::Double => write!(f, "DOUBLE"),
+            CatalogDataType::Varchar => write!(f, "VARCHAR"),
+            CatalogDataType::Varbinary => write!(f, "VARBINARY"),
+            CatalogDataType::Boolean => write!(f, "BOOLEAN"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -39,16 +57,24 @@ impl CatalogSchema {
 
 #[derive(Debug)]
 pub enum CatalogScalar {
+    Integer(Option<i32>),
     BigInt(Option<i64>),
+    Float(Option<f32>),
+    Double(Option<f64>),
     Varchar(Option<String>),
+    Varbinary(Option<Vec<u8>>),
     Boolean(Option<bool>),
 }
 
 impl Display for CatalogScalar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            CatalogScalar::Integer(Some(value)) => write!(f, "{}", value),
             CatalogScalar::BigInt(Some(value)) => write!(f, "{}", value),
+            CatalogScalar::Float(Some(value)) => write!(f, "{}", value),
+            CatalogScalar::Double(Some(value)) => write!(f, "{}", value),
             CatalogScalar::Varchar(Some(value)) => write!(f, "{}", value),
+            CatalogScalar::Varbinary(Some(value)) => write!(f, "{:?}", value),
             CatalogScalar::Boolean(Some(value)) => write!(f, "{}", value),
             _ => write!(f, "null"),
         }
