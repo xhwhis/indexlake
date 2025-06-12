@@ -70,13 +70,19 @@ impl Display for CatalogScalar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CatalogScalar::Integer(Some(value)) => write!(f, "{}", value),
+            CatalogScalar::Integer(None) => write!(f, "null"),
             CatalogScalar::BigInt(Some(value)) => write!(f, "{}", value),
+            CatalogScalar::BigInt(None) => write!(f, "null"),
             CatalogScalar::Float(Some(value)) => write!(f, "{}", value),
+            CatalogScalar::Float(None) => write!(f, "null"),
             CatalogScalar::Double(Some(value)) => write!(f, "{}", value),
-            CatalogScalar::Varchar(Some(value)) => write!(f, "{}", value),
-            CatalogScalar::Varbinary(Some(value)) => write!(f, "{:?}", value),
+            CatalogScalar::Double(None) => write!(f, "null"),
+            CatalogScalar::Varchar(Some(value)) => write!(f, "'{}'", value),
+            CatalogScalar::Varchar(None) => write!(f, "null"),
+            CatalogScalar::Varbinary(Some(value)) => write!(f, "X'{}'", hex::encode(value)),
+            CatalogScalar::Varbinary(None) => write!(f, "null"),
             CatalogScalar::Boolean(Some(value)) => write!(f, "{}", value),
-            _ => write!(f, "null"),
+            CatalogScalar::Boolean(None) => write!(f, "null"),
         }
     }
 }

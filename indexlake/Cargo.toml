@@ -11,5 +11,6 @@ description = "An experimental table format with extensible index support."
 arrow = { workspace = true }
 async-trait = { workspace = true }
 comfy-table = { workspace = true }
+hex = { workspace = true }
 opendal = { workspace = true, features = ["services-fs", "services-s3"] }
 url = { workspace = true }

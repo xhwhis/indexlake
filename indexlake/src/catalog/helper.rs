@@ -205,6 +205,29 @@ impl TransactionHelper {
         schema: &SchemaRef,
         rows: Vec<CatalogRow>,
     ) -> ILResult<()> {
-        todo!()
+        let mut values = Vec::new();
+        for row in rows {
+            values.push(format!(
+                "({})",
+                row.values
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        self.transaction
+            .execute(&format!(
+                "INSERT INTO indexlake_inline_{table_id} ({}) VALUES {}",
+                schema
+                    .fields
+                    .iter()
+                    .map(|f| f.name.clone())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                values.join(", ")
+            ))
+            .await?;
+        Ok(())
     }
 }
