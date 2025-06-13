@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     CatalogColumn, CatalogDataType, CatalogRow, ILResult,
     catalog::{CatalogSchema, Transaction},
-    schema::{Field, SchemaRef},
+    schema::{DataType, Field, Schema, SchemaRef},
 };
 
 pub(crate) struct TransactionHelper {
@@ -94,6 +94,26 @@ impl TransactionHelper {
         }
     }
 
+    pub(crate) async fn get_table_id(
+        &mut self,
+        namespace_id: i64,
+        table_name: &str,
+    ) -> ILResult<Option<i64>> {
+        let schema = Arc::new(CatalogSchema::new(vec![CatalogColumn::new(
+            "table_id",
+            CatalogDataType::BigInt,
+            false,
+        )]));
+        let rows = self.transaction.query(&format!("SELECT table_id FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'"), schema).await?;
+        if rows.is_empty() {
+            Ok(None)
+        } else {
+            let table_id_opt = rows[0].bigint(0);
+            assert!(table_id_opt.is_some());
+            Ok(table_id_opt)
+        }
+    }
+
     pub(crate) async fn create_table(
         &mut self,
         namespace_id: i64,
@@ -124,6 +144,28 @@ impl TransactionHelper {
         }
     }
 
+    pub(crate) async fn get_table_schema(&mut self, table_id: i64) -> ILResult<SchemaRef> {
+        let schema = Arc::new(CatalogSchema::new(vec![
+            CatalogColumn::new("field_name", CatalogDataType::Varchar, false),
+            CatalogColumn::new("data_type", CatalogDataType::Varchar, false),
+            CatalogColumn::new("nullable", CatalogDataType::Boolean, false),
+            CatalogColumn::new("default_value", CatalogDataType::Varchar, true),
+        ]));
+        let rows = self.transaction.query(&format!("SELECT field_name, data_type, nullable, default_value FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"), schema).await?;
+        let mut fields = Vec::new();
+        for row in rows {
+            fields.push(Field::new(
+                row.varchar(0).expect("field_name is not null"),
+                row.varchar(1)
+                    .expect("data_type is not null")
+                    .parse::<DataType>()?,
+                row.boolean(2).expect("nullable is not null"),
+                row.varchar(3).map(|v| v.to_string()),
+            ));
+        }
+        Ok(Arc::new(Schema::new(fields)))
+    }
+
     pub(crate) async fn create_table_fields(
         &mut self,
         table_id: i64,
@@ -135,15 +177,15 @@ impl TransactionHelper {
         let mut values = Vec::new();
         for field in fields {
             values.push(format!(
-                "({field_id}, {table_id}, '{}', '{}', {}, '{}')",
+                "({field_id}, {table_id}, '{}', '{}', {}, {})",
                 field.name,
                 field.data_type.to_string(),
                 field.nullable,
                 field
                     .default_value
                     .as_ref()
-                    .map(|v| format!("{v}"))
-                    .unwrap_or("".to_string())
+                    .map(|v| format!("'{v}'"))
+                    .unwrap_or("NULL".to_string())
             ));
             field_ids.push(field_id);
             field_id += 1;

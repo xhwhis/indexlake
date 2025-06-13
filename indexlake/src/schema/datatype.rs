@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::{CatalogDataType, ILError};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataType {
     Int32,
     Int64,

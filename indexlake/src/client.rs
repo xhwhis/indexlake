@@ -2,7 +2,7 @@ use crate::arrow::record_to_rows;
 use crate::catalog::TransactionHelper;
 use crate::schema::SchemaRef;
 use crate::table::{Table, TableCreation, create_table, insert_rows};
-use crate::{Catalog, ILResult, Storage};
+use crate::{Catalog, ILError, ILResult, Storage};
 use arrow::array::RecordBatch;
 use std::sync::Arc;
 
@@ -41,6 +41,30 @@ impl LakeClient {
     }
 
     pub async fn load_table(&self, namespace_name: &str, table_name: &str) -> ILResult<Table> {
-        todo!()
+        let mut tx_helper = self.transaction_helper().await?;
+        let namespace_id = tx_helper
+            .get_namespace_id(namespace_name)
+            .await?
+            .ok_or_else(|| {
+                ILError::CatalogError(format!("Namespace {namespace_name} not found"))
+            })?;
+        let table_id = tx_helper
+            .get_table_id(namespace_id, table_name)
+            .await?
+            .ok_or_else(|| {
+                ILError::CatalogError(format!(
+                    "Table {table_name} not found in namespace {namespace_name}"
+                ))
+            })?;
+        let schema = tx_helper.get_table_schema(table_id).await?;
+        Ok(Table {
+            namespace_id,
+            namespace_name: namespace_name.to_string(),
+            table_id,
+            table_name: table_name.to_string(),
+            schema,
+            catalog: self.catalog.clone(),
+            storage: self.storage.clone(),
+        })
     }
 }

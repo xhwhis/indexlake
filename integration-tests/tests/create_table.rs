@@ -17,19 +17,27 @@ async fn create_table() {
     let client = LakeClient::new(catalog, storage);
 
     let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name).await.unwrap();
+    let expected_namespace_id = client.create_namespace(namespace_name).await.unwrap();
 
-    let schema = Arc::new(Schema::new(vec![
-        Field::new("id", DataType::Int64, false),
-        Field::new("name", DataType::Utf8, false),
+    let expected_schema = Arc::new(Schema::new(vec![
+        Field::new("id", DataType::Int64, false, None),
+        Field::new("name", DataType::Utf8, false, None),
     ]));
 
+    let table_name = "test_table";
     let table_creation = TableCreation {
         namespace_name: namespace_name.to_string(),
-        table_name: "test_table".to_string(),
-        schema,
+        table_name: table_name.to_string(),
+        schema: expected_schema.clone(),
     };
 
-    let table_id = client.create_table(table_creation).await.unwrap();
-    assert_eq!(table_id, 1);
+    let expected_table_id = client.create_table(table_creation).await.unwrap();
+
+    let table = client.load_table(namespace_name, table_name).await.unwrap();
+    println!("table: {:?}", table);
+    assert_eq!(table.namespace_id, expected_namespace_id);
+    assert_eq!(table.namespace_name, namespace_name);
+    assert_eq!(table.table_id, expected_table_id);
+    assert_eq!(table.table_name, table_name);
+    assert_eq!(table.schema, expected_schema);
 }

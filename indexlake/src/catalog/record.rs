@@ -105,6 +105,20 @@ impl CatalogRow {
             _ => panic!("Expected BigInt at index {index} for row {self:?}"),
         }
     }
+
+    pub fn varchar(&self, index: usize) -> Option<String> {
+        match &self.values[index] {
+            CatalogScalar::Varchar(v) => v.clone(),
+            _ => panic!("Expected Varchar at index {index} for row {self:?}"),
+        }
+    }
+
+    pub fn boolean(&self, index: usize) -> Option<bool> {
+        match self.values[index] {
+            CatalogScalar::Boolean(v) => v,
+            _ => panic!("Expected Boolean at index {index} for row {self:?}"),
+        }
+    }
 }
 
 pub fn pretty_print_catalog_rows(

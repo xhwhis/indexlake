@@ -2,7 +2,7 @@ use crate::CatalogColumn;
 use crate::schema::DataType;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Field {
     pub name: String,
     pub data_type: DataType,
@@ -12,12 +12,17 @@ pub struct Field {
 }
 
 impl Field {
-    pub fn new(name: impl Into<String>, data_type: DataType, nullable: bool) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        data_type: DataType,
+        nullable: bool,
+        default_value: Option<String>,
+    ) -> Self {
         Self {
             name: name.into(),
             data_type,
             nullable,
-            default_value: None,
+            default_value,
             metadata: HashMap::new(),
         }
     }

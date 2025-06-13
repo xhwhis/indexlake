@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 pub type SchemaRef = Arc<Schema>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Schema {
     pub fields: Vec<Field>,
     pub metadata: HashMap<String, String>,

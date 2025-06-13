@@ -9,11 +9,13 @@ pub use insert::*;
 pub use scan::*;
 use std::sync::Arc;
 
+#[derive(Debug, Clone)]
 pub struct Table {
-    namespace_id: i64,
-    table_id: i64,
-    table_name: String,
-    schema: SchemaRef,
-    catalog: Arc<dyn Catalog>,
-    storage: Arc<Storage>,
+    pub namespace_id: i64,
+    pub namespace_name: String,
+    pub table_id: i64,
+    pub table_name: String,
+    pub schema: SchemaRef,
+    pub catalog: Arc<dyn Catalog>,
+    pub storage: Arc<Storage>,
 }
