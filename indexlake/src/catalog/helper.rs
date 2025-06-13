@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    CatalogColumn, CatalogDataType, CatalogRow, ILResult,
+    CatalogColumn, CatalogDataType, CatalogRow, CatalogSchemaRef, ILResult,
     catalog::{CatalogSchema, Transaction},
     schema::{DataType, Field, Schema, SchemaRef},
 };
@@ -198,7 +198,7 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "
-            CREATE TABLE indexlake_row_{table_id} (
+            CREATE TABLE indexlake_row_metadata_{table_id} (
                 row_id BIGINT PRIMARY KEY,
                 location VARCHAR,
                 deleted BOOLEAN
@@ -234,7 +234,7 @@ impl TransactionHelper {
         }
         self.transaction
             .execute(&format!(
-                "CREATE TABLE indexlake_inline_{table_id} ({})",
+                "CREATE TABLE indexlake_inline_row_{table_id} ({})",
                 columns.join(", ")
             ))
             .await?;
@@ -250,7 +250,7 @@ impl TransactionHelper {
         let rows = self
             .transaction
             .query(
-                &format!("SELECT MAX(row_id) FROM indexlake_row_{table_id}"),
+                &format!("SELECT MAX(row_id) FROM indexlake_row_metadata_{table_id}"),
                 schema,
             )
             .await?;
@@ -281,7 +281,7 @@ impl TransactionHelper {
         }
         self.transaction
             .execute(&format!(
-                "INSERT INTO indexlake_inline_{table_id} ({}) VALUES {}",
+                "INSERT INTO indexlake_inline_row_{table_id} ({}) VALUES {}",
                 schema
                     .columns
                     .iter()
@@ -292,5 +292,26 @@ impl TransactionHelper {
             ))
             .await?;
         Ok(())
+    }
+
+    pub(crate) async fn scan_rows(
+        &mut self,
+        table_id: i64,
+        schema: CatalogSchemaRef,
+    ) -> ILResult<Vec<CatalogRow>> {
+        self.transaction
+            .query(
+                &format!(
+                    "SELECT {}  FROM indexlake_inline_row_{table_id}",
+                    schema
+                        .columns
+                        .iter()
+                        .map(|col| col.name.clone())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                schema,
+            )
+            .await
     }
 }

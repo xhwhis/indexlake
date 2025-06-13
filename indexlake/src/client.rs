@@ -1,9 +1,6 @@
-use crate::arrow::record_to_rows;
 use crate::catalog::TransactionHelper;
-use crate::schema::SchemaRef;
-use crate::table::{Table, TableCreation, create_table, insert_rows};
+use crate::table::{Table, TableCreation, process_create_table};
 use crate::{Catalog, ILError, ILResult, Storage};
-use arrow::array::RecordBatch;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -37,7 +34,10 @@ impl LakeClient {
     }
 
     pub async fn create_table(&self, table_creation: TableCreation) -> ILResult<i64> {
-        create_table(self, table_creation).await
+        let mut tx_helper = self.transaction_helper().await?;
+        let table_id = process_create_table(&mut tx_helper, table_creation).await?;
+        tx_helper.commit().await?;
+        Ok(table_id)
     }
 
     pub async fn load_table(&self, namespace_name: &str, table_name: &str) -> ILResult<Table> {

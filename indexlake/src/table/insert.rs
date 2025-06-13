@@ -1,11 +1,11 @@
 use crate::{
-    CatalogColumn, CatalogDataType, CatalogRow, CatalogScalar, CatalogSchema, ILResult, LakeClient,
-    schema::SchemaRef,
+    CatalogColumn, CatalogDataType, CatalogRow, CatalogScalar, CatalogSchema, ILResult,
+    TransactionHelper, schema::SchemaRef,
 };
 use std::sync::Arc;
 
-pub async fn insert_rows(
-    client: &LakeClient,
+pub(crate) async fn process_insert_rows(
+    tx_helper: &mut TransactionHelper,
     table_id: i64,
     schema: &SchemaRef,
     rows: Vec<CatalogRow>,
@@ -20,7 +20,6 @@ pub async fn insert_rows(
     );
     let catalog_schema = Arc::new(CatalogSchema::new(columns));
 
-    let mut tx_helper = client.transaction_helper().await?;
     let max_row_id = tx_helper.get_max_row_id(table_id).await?;
 
     let mut full_rows = vec![];

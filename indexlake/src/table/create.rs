@@ -1,4 +1,4 @@
-use crate::{Catalog, ILError, ILResult, Storage, client::LakeClient, schema::SchemaRef};
+use crate::{ILError, ILResult, TransactionHelper, schema::SchemaRef};
 
 pub struct TableCreation {
     pub namespace_name: String,
@@ -6,9 +6,10 @@ pub struct TableCreation {
     pub schema: SchemaRef,
 }
 
-pub(crate) async fn create_table(client: &LakeClient, creation: TableCreation) -> ILResult<i64> {
-    let mut tx_helper = client.transaction_helper().await?;
-
+pub(crate) async fn process_create_table(
+    tx_helper: &mut TransactionHelper,
+    creation: TableCreation,
+) -> ILResult<i64> {
     let namespace_id = tx_helper
         .get_namespace_id(&creation.namespace_name)
         .await?
@@ -28,8 +29,6 @@ pub(crate) async fn create_table(client: &LakeClient, creation: TableCreation) -
     tx_helper
         .create_inline_table(table_id, &creation.schema)
         .await?;
-
-    tx_helper.commit().await?;
 
     Ok(table_id)
 }
