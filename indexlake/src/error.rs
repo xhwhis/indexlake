@@ -6,6 +6,7 @@ pub enum ILError {
     NotSupported(String),
     CatalogError(String),
     StorageError(String),
+    InvalidInput(String),
 }
 
 impl From<opendal::Error> for ILError {

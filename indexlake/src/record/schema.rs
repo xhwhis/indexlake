@@ -17,4 +17,17 @@ impl Schema {
             metadata: HashMap::new(),
         }
     }
+
+    pub fn project(&self, field_names: &[String]) -> Self {
+        let mut projected_fields = Vec::new();
+        for field in &self.fields {
+            if field_names.contains(&field.name) {
+                projected_fields.push(field.clone());
+            }
+        }
+        Self {
+            fields: projected_fields,
+            metadata: self.metadata.clone(),
+        }
+    }
 }

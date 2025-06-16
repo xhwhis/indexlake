@@ -1,13 +1,16 @@
 mod create;
+mod delete;
 mod insert;
 mod scan;
 
 pub use create::*;
+pub use delete::*;
 pub use insert::*;
 pub use scan::*;
 
-use crate::record::{Row, SchemaRef};
-use crate::{Catalog, ILResult, Storage, TransactionHelper};
+use crate::record::{Row, Scalar, SchemaRef};
+use crate::utils::has_duplicated_items;
+use crate::{Catalog, ILError, ILResult, Storage, TransactionHelper};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -27,13 +30,20 @@ impl Table {
         Ok(TransactionHelper::new(transaction))
     }
 
-    pub async fn insert_rows(&self, rows: Vec<Row>) -> ILResult<()> {
+    pub async fn insert(&self, columns: &[String], values: Vec<Vec<Scalar>>) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
-        process_insert_rows(&mut tx_helper, self.table_id, &self.schema, rows).await?;
+        if has_duplicated_items(columns.iter()) {
+            return Err(ILError::InvalidInput(
+                "Columns contain duplicated items".to_string(),
+            ));
+        }
+        let projected_schema = self.schema.project(columns);
+        process_insert_values(&mut tx_helper, self.table_id, &projected_schema, values).await?;
         tx_helper.commit().await?;
         Ok(())
     }
 
+    // TODO stream rows
     pub async fn scan(&self) -> ILResult<Vec<Row>> {
         let mut tx_helper = self.transaction_helper().await?;
         let rows = process_table_scan(&mut tx_helper, self.table_id, &self.schema).await?;

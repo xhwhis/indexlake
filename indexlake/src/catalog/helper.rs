@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::record::Scalar;
 use crate::{
     ILResult,
     catalog::Transaction,
@@ -268,17 +269,17 @@ impl TransactionHelper {
         }
     }
 
-    pub(crate) async fn insert_rows(
+    pub(crate) async fn insert_values(
         &mut self,
         table_id: i64,
-        schema: &SchemaRef,
-        rows: Vec<Row>,
+        fields: &[Field],
+        values: Vec<Vec<Scalar>>,
     ) -> ILResult<()> {
-        let mut values = Vec::new();
-        for row in rows {
-            values.push(format!(
+        let mut value_strings = Vec::new();
+        for value in values {
+            value_strings.push(format!(
                 "({})",
-                row.values
+                value
                     .iter()
                     .map(|v| v.to_string())
                     .collect::<Vec<_>>()
@@ -288,13 +289,12 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "INSERT INTO indexlake_inline_row_{table_id} ({}) VALUES {}",
-                schema
-                    .fields
+                fields
                     .iter()
                     .map(|field| field.name.clone())
                     .collect::<Vec<_>>()
                     .join(", "),
-                values.join(", ")
+                value_strings.join(", ")
             ))
             .await?;
         Ok(())
@@ -319,5 +319,21 @@ impl TransactionHelper {
                 Arc::clone(schema),
             )
             .await
+    }
+
+    pub(crate) async fn mark_rows_deleted(
+        &mut self,
+        table_id: i64,
+        row_ids: &[i64],
+    ) -> ILResult<()> {
+        if row_ids.is_empty() {
+            return Ok(());
+        }
+        let row_ids_str = row_ids
+            .iter()
+            .map(|id| id.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        self.transaction.execute(&format!("UPDATE indexlake_row_metadata_{table_id} SET deleted = TRUE WHERE row_id IN ({row_ids_str}")).await
     }
 }

@@ -1,14 +1,13 @@
 use crate::{
     ILResult, TransactionHelper,
-    record::{DataType, Field, INTERNAL_ROW_ID_FIELD_NAME, Row, Scalar, Schema, SchemaRef},
+    record::{DataType, Field, INTERNAL_ROW_ID_FIELD_NAME, Scalar, Schema},
 };
-use std::sync::Arc;
 
-pub(crate) async fn process_insert_rows(
+pub(crate) async fn process_insert_values(
     tx_helper: &mut TransactionHelper,
     table_id: i64,
-    schema: &SchemaRef,
-    rows: Vec<Row>,
+    schema: &Schema,
+    values: Vec<Vec<Scalar>>,
 ) -> ILResult<()> {
     let mut fields = vec![Field::new(
         INTERNAL_ROW_ID_FIELD_NAME,
@@ -17,22 +16,22 @@ pub(crate) async fn process_insert_rows(
         None,
     )];
     fields.extend_from_slice(&schema.fields);
-    let catalog_schema = Arc::new(Schema::new(fields));
 
     let max_row_id = tx_helper.get_max_row_id(table_id).await?;
 
-    let mut full_rows = vec![];
+    // Generate row id for each row
+    let mut new_values = vec![];
     let mut row_id = max_row_id + 1;
-    for row in rows {
-        let mut values = vec![Scalar::BigInt(Some(row_id))];
-        values.extend(row.values);
-        full_rows.push(Row::new(catalog_schema.clone(), values));
+    for value in values {
+        let mut new_value = vec![Scalar::BigInt(Some(row_id))];
+        new_value.extend(value);
+        new_values.push(new_value);
 
         row_id += 1;
     }
 
     tx_helper
-        .insert_rows(table_id, &catalog_schema, full_rows)
+        .insert_values(table_id, &fields, new_values)
         .await?;
 
     Ok(())

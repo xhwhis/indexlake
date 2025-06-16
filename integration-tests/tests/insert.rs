@@ -36,24 +36,19 @@ async fn insert_table(
 
     let table = client.load_table(namespace_name, table_name).await.unwrap();
 
-    let rows = vec![
-        Row::new(
-            table_schema.clone(),
-            vec![
-                Scalar::BigInt(Some(1)),
-                Scalar::Varchar(Some("Alice".to_string())),
-            ],
-        ),
-        Row::new(
-            table_schema.clone(),
-            vec![
-                Scalar::BigInt(Some(2)),
-                Scalar::Varchar(Some("Bob".to_string())),
-            ],
-        ),
+    let columns = vec!["id".to_string(), "name".to_string()];
+    let values = vec![
+        vec![
+            Scalar::BigInt(Some(1)),
+            Scalar::Varchar(Some("Alice".to_string())),
+        ],
+        vec![
+            Scalar::BigInt(Some(2)),
+            Scalar::Varchar(Some("Bob".to_string())),
+        ],
     ];
 
-    table.insert_rows(rows).await.unwrap();
+    table.insert(&columns, values).await.unwrap();
 
     let rows = table.scan().await.unwrap();
     let table_str = pretty_print_rows(Some(table_schema.clone()), &rows).to_string();
