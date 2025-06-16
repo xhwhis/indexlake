@@ -1,10 +1,11 @@
 mod helper;
-mod record;
 
 pub use helper::*;
-pub use record::*;
 
-use crate::ILResult;
+use crate::{
+    ILResult,
+    record::{Row, SchemaRef},
+};
 use std::fmt::Debug;
 
 #[async_trait::async_trait]
@@ -17,7 +18,7 @@ pub trait Catalog: Debug + Send + Sync {
 #[async_trait::async_trait(?Send)]
 pub trait Transaction: Debug {
     /// Execute a query and return the result.
-    async fn query(&mut self, sql: &str, schema: CatalogSchemaRef) -> ILResult<Vec<CatalogRow>>;
+    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>>;
 
     /// Execute a SQL statement.
     async fn execute(&mut self, sql: &str) -> ILResult<()>;

@@ -1,5 +1,6 @@
 use indexlake::{
-    Catalog, CatalogColumn, CatalogDataType, CatalogSchema, pretty_print_catalog_rows,
+    Catalog,
+    record::{DataType, Field, Row, Scalar, Schema, SchemaRef, pretty_print_rows},
 };
 use indexlake_catalog_sqlite::SqliteCatalog;
 use indexlake_integration_tests::setup_sqlite_db;
@@ -11,9 +12,9 @@ async fn catalog_sqlite() {
     let catalog = SqliteCatalog::try_new(db_path).unwrap();
     let mut transaction = catalog.transaction().await.unwrap();
 
-    let schema = Arc::new(CatalogSchema::new(vec![
-        CatalogColumn::new("id", CatalogDataType::BigInt, false),
-        CatalogColumn::new("name", CatalogDataType::Varchar, false),
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("id", DataType::BigInt, false, None),
+        Field::new("name", DataType::Varchar, false, None),
     ]));
 
     transaction
@@ -30,7 +31,7 @@ async fn catalog_sqlite() {
         .query("SELECT * FROM test", schema.clone())
         .await
         .unwrap();
-    let table_str = pretty_print_catalog_rows(Some(schema.clone()), &rows).to_string();
+    let table_str = pretty_print_rows(Some(schema.clone()), &rows).to_string();
     println!("{}", table_str);
     assert_eq!(
         table_str,
@@ -49,7 +50,7 @@ async fn catalog_sqlite() {
         .query("SELECT * FROM test", schema.clone())
         .await
         .unwrap();
-    let table_str = pretty_print_catalog_rows(Some(schema.clone()), &rows).to_string();
+    let table_str = pretty_print_rows(Some(schema.clone()), &rows).to_string();
     println!("{}", table_str);
     assert_eq!(
         table_str,
@@ -68,7 +69,7 @@ async fn catalog_sqlite() {
         .query("SELECT * FROM test", schema.clone())
         .await
         .unwrap();
-    let table_str = pretty_print_catalog_rows(Some(schema.clone()), &rows).to_string();
+    let table_str = pretty_print_rows(Some(schema.clone()), &rows).to_string();
     println!("{}", table_str);
     assert_eq!(
         table_str,

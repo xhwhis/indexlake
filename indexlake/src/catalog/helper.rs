@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use crate::{
-    CatalogColumn, CatalogDataType, CatalogRow, CatalogSchemaRef, ILResult,
-    catalog::{CatalogSchema, Transaction},
-    schema::{DataType, Field, Schema, SchemaRef},
+    ILResult,
+    catalog::Transaction,
+    record::{DataType, Field, Schema},
+    record::{Row, SchemaRef},
 };
 
 pub(crate) struct TransactionHelper {
@@ -24,10 +25,11 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn get_max_namespace_id(&mut self) -> ILResult<i64> {
-        let schema = Arc::new(CatalogSchema::new(vec![CatalogColumn::new(
+        let schema = Arc::new(Schema::new(vec![Field::new(
             "max_namespace_id",
-            CatalogDataType::BigInt,
+            DataType::BigInt,
             true,
+            None,
         )]));
         let rows = self
             .transaction
@@ -42,10 +44,11 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn get_namespace_id(&mut self, namespace_name: &str) -> ILResult<Option<i64>> {
-        let schema = Arc::new(CatalogSchema::new(vec![CatalogColumn::new(
+        let schema = Arc::new(Schema::new(vec![Field::new(
             "namespace_id",
-            CatalogDataType::BigInt,
+            DataType::BigInt,
             false,
+            None,
         )]));
         let rows = self
             .transaction
@@ -77,10 +80,11 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn get_max_table_id(&mut self) -> ILResult<i64> {
-        let schema = Arc::new(CatalogSchema::new(vec![CatalogColumn::new(
+        let schema = Arc::new(Schema::new(vec![Field::new(
             "max_table_id",
-            CatalogDataType::BigInt,
+            DataType::BigInt,
             true,
+            None,
         )]));
         let rows = self
             .transaction
@@ -99,10 +103,11 @@ impl TransactionHelper {
         namespace_id: i64,
         table_name: &str,
     ) -> ILResult<Option<i64>> {
-        let schema = Arc::new(CatalogSchema::new(vec![CatalogColumn::new(
+        let schema = Arc::new(Schema::new(vec![Field::new(
             "table_id",
-            CatalogDataType::BigInt,
+            DataType::BigInt,
             false,
+            None,
         )]));
         let rows = self.transaction.query(&format!("SELECT table_id FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'"), schema).await?;
         if rows.is_empty() {
@@ -126,10 +131,11 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn get_max_field_id(&mut self) -> ILResult<i64> {
-        let schema = Arc::new(CatalogSchema::new(vec![CatalogColumn::new(
+        let schema = Arc::new(Schema::new(vec![Field::new(
             "max_field_id",
-            CatalogDataType::BigInt,
+            DataType::BigInt,
             true,
+            None,
         )]));
 
         let rows = self
@@ -145,11 +151,11 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn get_table_schema(&mut self, table_id: i64) -> ILResult<SchemaRef> {
-        let schema = Arc::new(CatalogSchema::new(vec![
-            CatalogColumn::new("field_name", CatalogDataType::Varchar, false),
-            CatalogColumn::new("data_type", CatalogDataType::Varchar, false),
-            CatalogColumn::new("nullable", CatalogDataType::Boolean, false),
-            CatalogColumn::new("default_value", CatalogDataType::Varchar, true),
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("field_name", DataType::Varchar, false, None),
+            Field::new("data_type", DataType::Varchar, false, None),
+            Field::new("nullable", DataType::Boolean, false, None),
+            Field::new("default_value", DataType::Varchar, true, None),
         ]));
         let rows = self.transaction.query(&format!("SELECT field_name, data_type, nullable, default_value FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"), schema).await?;
         let mut fields = Vec::new();
@@ -194,7 +200,7 @@ impl TransactionHelper {
         Ok(field_ids)
     }
 
-    pub(crate) async fn create_row_table(&mut self, table_id: i64) -> ILResult<()> {
+    pub(crate) async fn create_row_metadata_table(&mut self, table_id: i64) -> ILResult<()> {
         self.transaction
             .execute(&format!(
                 "
@@ -208,7 +214,7 @@ impl TransactionHelper {
         Ok(())
     }
 
-    pub(crate) async fn create_inline_table(
+    pub(crate) async fn create_inline_row_table(
         &mut self,
         table_id: i64,
         schema: &SchemaRef,
@@ -219,7 +225,7 @@ impl TransactionHelper {
             columns.push(format!(
                 "{} {} {} {}",
                 field.name,
-                field.data_type.to_catalog_data_type(),
+                field.data_type,
                 if field.nullable {
                     "NULL".to_string()
                 } else {
@@ -242,10 +248,11 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn get_max_row_id(&mut self, table_id: i64) -> ILResult<i64> {
-        let schema = Arc::new(CatalogSchema::new(vec![CatalogColumn::new(
+        let schema = Arc::new(Schema::new(vec![Field::new(
             "max_row_id",
-            CatalogDataType::BigInt,
+            DataType::BigInt,
             true,
+            None,
         )]));
         let rows = self
             .transaction
@@ -265,8 +272,8 @@ impl TransactionHelper {
     pub(crate) async fn insert_rows(
         &mut self,
         table_id: i64,
-        schema: &CatalogSchema,
-        rows: Vec<CatalogRow>,
+        schema: &SchemaRef,
+        rows: Vec<Row>,
     ) -> ILResult<()> {
         let mut values = Vec::new();
         for row in rows {
@@ -283,9 +290,9 @@ impl TransactionHelper {
             .execute(&format!(
                 "INSERT INTO indexlake_inline_row_{table_id} ({}) VALUES {}",
                 schema
-                    .columns
+                    .fields
                     .iter()
-                    .map(|col| col.name.clone())
+                    .map(|field| field.name.clone())
                     .collect::<Vec<_>>()
                     .join(", "),
                 values.join(", ")
@@ -297,20 +304,20 @@ impl TransactionHelper {
     pub(crate) async fn scan_rows(
         &mut self,
         table_id: i64,
-        schema: CatalogSchemaRef,
-    ) -> ILResult<Vec<CatalogRow>> {
+        schema: &SchemaRef,
+    ) -> ILResult<Vec<Row>> {
         self.transaction
             .query(
                 &format!(
                     "SELECT {}  FROM indexlake_inline_row_{table_id}",
                     schema
-                        .columns
+                        .fields
                         .iter()
-                        .map(|col| col.name.clone())
+                        .map(|field| field.name.clone())
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),
-                schema,
+                Arc::clone(schema),
             )
             .await
     }

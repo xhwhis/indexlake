@@ -1,6 +1,6 @@
 use indexlake::{
     LakeClient, Storage,
-    schema::{DataType, Field, Schema, SchemaRef},
+    record::{DataType, Field, Schema, SchemaRef},
     table::TableCreation,
 };
 use indexlake_catalog_sqlite::SqliteCatalog;
@@ -20,8 +20,8 @@ async fn create_table() {
     let expected_namespace_id = client.create_namespace(namespace_name).await.unwrap();
 
     let expected_schema = Arc::new(Schema::new(vec![
-        Field::new("id", DataType::Int64, false, None),
-        Field::new("name", DataType::Utf8, false, None),
+        Field::new("id", DataType::BigInt, false, None),
+        Field::new("name", DataType::Varchar, false, None),
     ]));
 
     let table_name = "test_table";

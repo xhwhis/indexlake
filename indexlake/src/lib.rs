@@ -3,7 +3,7 @@ mod catalog;
 mod client;
 mod error;
 mod index;
-pub mod schema;
+pub mod record;
 mod storage;
 pub mod table;
 

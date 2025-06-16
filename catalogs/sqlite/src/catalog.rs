@@ -1,5 +1,6 @@
 use indexlake::{
-    Catalog, CatalogDataType, CatalogRow, CatalogScalar, CatalogSchemaRef, Transaction,
+    Catalog, Transaction,
+    record::{DataType, Row, Scalar, SchemaRef},
 };
 use indexlake::{ILError, ILResult};
 use std::path::PathBuf;
@@ -40,7 +41,7 @@ pub struct SqliteTransaction {
 
 #[async_trait::async_trait(?Send)]
 impl Transaction for SqliteTransaction {
-    async fn query(&mut self, sql: &str, schema: CatalogSchemaRef) -> ILResult<Vec<CatalogRow>> {
+    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
         let mut stmt = self
             .conn
             .prepare(sql)
@@ -49,59 +50,59 @@ impl Transaction for SqliteTransaction {
             .query([])
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
 
-        let mut catalog_rows: Vec<CatalogRow> = Vec::new();
+        let mut catalog_rows: Vec<Row> = Vec::new();
         while let Some(row) = rows
             .next()
             .map_err(|e| ILError::CatalogError(e.to_string()))?
         {
             let mut row_values = Vec::new();
-            for (idx, col) in schema.columns.iter().enumerate() {
-                match col.data_type {
-                    CatalogDataType::Integer => {
+            for (idx, field) in schema.fields.iter().enumerate() {
+                match field.data_type {
+                    DataType::Integer => {
                         let v: Option<i32> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_values.push(CatalogScalar::Integer(v));
+                        row_values.push(Scalar::Integer(v));
                     }
-                    CatalogDataType::BigInt => {
+                    DataType::BigInt => {
                         let v: Option<i64> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_values.push(CatalogScalar::BigInt(v));
+                        row_values.push(Scalar::BigInt(v));
                     }
-                    CatalogDataType::Float => {
+                    DataType::Float => {
                         let v: Option<f32> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_values.push(CatalogScalar::Float(v));
+                        row_values.push(Scalar::Float(v));
                     }
-                    CatalogDataType::Double => {
+                    DataType::Double => {
                         let v: Option<f64> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_values.push(CatalogScalar::Double(v));
+                        row_values.push(Scalar::Double(v));
                     }
-                    CatalogDataType::Varchar => {
+                    DataType::Varchar => {
                         let v: Option<String> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_values.push(CatalogScalar::Varchar(v));
+                        row_values.push(Scalar::Varchar(v));
                     }
-                    CatalogDataType::Varbinary => {
+                    DataType::Varbinary => {
                         let v: Option<Vec<u8>> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_values.push(CatalogScalar::Varbinary(v));
+                        row_values.push(Scalar::Varbinary(v));
                     }
-                    CatalogDataType::Boolean => {
+                    DataType::Boolean => {
                         let v: Option<bool> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_values.push(CatalogScalar::Boolean(v));
+                        row_values.push(Scalar::Boolean(v));
                     }
                 }
             }
-            catalog_rows.push(CatalogRow::new(schema.clone(), row_values));
+            catalog_rows.push(Row::new(schema.clone(), row_values));
         }
         Ok(catalog_rows)
     }

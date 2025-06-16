@@ -2,8 +2,8 @@ mod create;
 mod insert;
 mod scan;
 
-use crate::schema::SchemaRef;
-use crate::{Catalog, CatalogRow, ILResult, Storage, TransactionHelper};
+use crate::record::{Row, SchemaRef};
+use crate::{Catalog, ILResult, Storage, TransactionHelper};
 pub use create::*;
 pub use scan::*;
 use std::sync::Arc;
@@ -25,14 +25,14 @@ impl Table {
         Ok(TransactionHelper::new(transaction))
     }
 
-    pub async fn insert_rows(&self, rows: Vec<CatalogRow>) -> ILResult<()> {
+    pub async fn insert_rows(&self, rows: Vec<Row>) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
         insert::process_insert_rows(&mut tx_helper, self.table_id, &self.schema, rows).await?;
         tx_helper.commit().await?;
         Ok(())
     }
 
-    pub async fn scan(&self) -> ILResult<Vec<CatalogRow>> {
+    pub async fn scan(&self) -> ILResult<Vec<Row>> {
         let mut tx_helper = self.transaction_helper().await?;
         let rows = scan::process_table_scan(&mut tx_helper, self.table_id, &self.schema).await?;
         tx_helper.commit().await?;

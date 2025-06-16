@@ -1,4 +1,4 @@
-use crate::{ILError, ILResult, TransactionHelper, schema::SchemaRef};
+use crate::{ILError, ILResult, TransactionHelper, record::SchemaRef};
 
 pub struct TableCreation {
     pub namespace_name: String,
@@ -25,9 +25,9 @@ pub(crate) async fn process_create_table(
         .create_table_fields(table_id, &creation.schema.fields)
         .await?;
 
-    tx_helper.create_row_table(table_id).await?;
+    tx_helper.create_row_metadata_table(table_id).await?;
     tx_helper
-        .create_inline_table(table_id, &creation.schema)
+        .create_inline_row_table(table_id, &creation.schema)
         .await?;
 
     Ok(table_id)

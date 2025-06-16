@@ -1,6 +1,6 @@
 use indexlake::{
-    CatalogRow, CatalogScalar, LakeClient, Storage, pretty_print_catalog_rows,
-    schema::{DataType, Field, Schema},
+    LakeClient, Storage,
+    record::{DataType, Field, Row, Scalar, Schema, pretty_print_rows},
     table::TableCreation,
 };
 use indexlake_catalog_sqlite::SqliteCatalog;
@@ -19,8 +19,8 @@ async fn insert_table() {
     client.create_namespace(namespace_name).await.unwrap();
 
     let table_schema = Arc::new(Schema::new(vec![
-        Field::new("id", DataType::Int64, false, None),
-        Field::new("name", DataType::Utf8, false, None),
+        Field::new("id", DataType::BigInt, false, None),
+        Field::new("name", DataType::Varchar, false, None),
     ]));
     let table_name = "test_table";
     let table_creation = TableCreation {
@@ -32,20 +32,19 @@ async fn insert_table() {
 
     let table = client.load_table(namespace_name, table_name).await.unwrap();
 
-    let catalog_schema = Arc::new(table_schema.to_catalog_schema());
     let rows = vec![
-        CatalogRow::new(
-            catalog_schema.clone(),
+        Row::new(
+            table_schema.clone(),
             vec![
-                CatalogScalar::BigInt(Some(1)),
-                CatalogScalar::Varchar(Some("Alice".to_string())),
+                Scalar::BigInt(Some(1)),
+                Scalar::Varchar(Some("Alice".to_string())),
             ],
         ),
-        CatalogRow::new(
-            catalog_schema.clone(),
+        Row::new(
+            table_schema.clone(),
             vec![
-                CatalogScalar::BigInt(Some(2)),
-                CatalogScalar::Varchar(Some("Bob".to_string())),
+                Scalar::BigInt(Some(2)),
+                Scalar::Varchar(Some("Bob".to_string())),
             ],
         ),
     ];
@@ -53,7 +52,7 @@ async fn insert_table() {
     table.insert_rows(rows).await.unwrap();
 
     let rows = table.scan().await.unwrap();
-    let table_str = pretty_print_catalog_rows(Some(catalog_schema.clone()), &rows).to_string();
+    let table_str = pretty_print_rows(Some(table_schema.clone()), &rows).to_string();
     println!("{}", table_str);
     assert_eq!(
         table_str,

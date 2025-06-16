@@ -1,5 +1,4 @@
-use crate::CatalogColumn;
-use crate::schema::DataType;
+use crate::record::DataType;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,13 +24,5 @@ impl Field {
             default_value,
             metadata: HashMap::new(),
         }
-    }
-
-    pub fn to_catalog_column(&self) -> CatalogColumn {
-        CatalogColumn::new(
-            self.name.clone(),
-            self.data_type.to_catalog_data_type(),
-            self.nullable,
-        )
     }
 }
