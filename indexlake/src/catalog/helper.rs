@@ -3,8 +3,7 @@ use std::sync::Arc;
 use crate::{
     ILResult,
     catalog::Transaction,
-    record::{DataType, Field, Schema},
-    record::{Row, SchemaRef},
+    record::{DataType, Field, INTERNAL_ROW_ID_FIELD_NAME, Row, Schema, SchemaRef},
 };
 
 pub(crate) struct TransactionHelper {
@@ -220,7 +219,7 @@ impl TransactionHelper {
         schema: &SchemaRef,
     ) -> ILResult<()> {
         let mut columns = Vec::new();
-        columns.push("row_id BIGINT PRIMARY KEY".to_string());
+        columns.push(format!("{} BIGINT PRIMARY KEY", INTERNAL_ROW_ID_FIELD_NAME));
         for field in &schema.fields {
             columns.push(format!(
                 "{} {} {} {}",

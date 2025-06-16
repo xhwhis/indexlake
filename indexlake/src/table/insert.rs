@@ -1,6 +1,6 @@
 use crate::{
     ILResult, TransactionHelper,
-    record::{DataType, Field, Row, Scalar, Schema, SchemaRef},
+    record::{DataType, Field, INTERNAL_ROW_ID_FIELD_NAME, Row, Scalar, Schema, SchemaRef},
 };
 use std::sync::Arc;
 
@@ -10,9 +10,14 @@ pub(crate) async fn process_insert_rows(
     schema: &SchemaRef,
     rows: Vec<Row>,
 ) -> ILResult<()> {
-    let mut columns = vec![Field::new("row_id", DataType::BigInt, false, None)];
-    columns.extend_from_slice(&schema.fields);
-    let catalog_schema = Arc::new(Schema::new(columns));
+    let mut fields = vec![Field::new(
+        INTERNAL_ROW_ID_FIELD_NAME,
+        DataType::BigInt,
+        false,
+        None,
+    )];
+    fields.extend_from_slice(&schema.fields);
+    let catalog_schema = Arc::new(Schema::new(fields));
 
     let max_row_id = tx_helper.get_max_row_id(table_id).await?;
 

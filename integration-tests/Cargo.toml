@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 indexlake = { workspace = true }
+indexlake-catalog-postgres = { workspace = true }
 indexlake-catalog-sqlite = { workspace = true }
 
 rusqlite = { workspace = true, features = ["bundled"] }

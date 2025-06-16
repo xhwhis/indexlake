@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "catalogs/postgres",
     "catalogs/sqlite",
     "indexlake",
     "integration-tests",
@@ -16,11 +17,14 @@ repository = "https://github.com/lewiszlw/indexlake"
 
 [workspace.dependencies]
 indexlake = { path = "indexlake" }
+indexlake-catalog-postgres = { path = "catalogs/postgres" }
 indexlake-catalog-sqlite = { path = "catalogs/sqlite" }
 indexlake-datafusion = { path = "integrations/datafusion" }
 
 arrow = "55"
 async-trait = "0.1"
+bb8 = "0.9"
+bb8-postgres = "0.9"
 comfy-table = "7.0"
 datafusion = "47"
 hex = "0.4"

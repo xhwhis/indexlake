@@ -30,18 +30,24 @@ impl Catalog for SqliteCatalog {
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
         conn.execute_batch("BEGIN DEFERRED")
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-        Ok(Box::new(SqliteTransaction { conn }))
+        Ok(Box::new(SqliteTransaction { conn, done: false }))
     }
 }
 
 #[derive(Debug)]
 pub struct SqliteTransaction {
     conn: rusqlite::Connection,
+    done: bool,
 }
 
 #[async_trait::async_trait(?Send)]
 impl Transaction for SqliteTransaction {
     async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
+        if self.done {
+            return Err(ILError::CatalogError(
+                "Transaction already committed or rolled back".to_string(),
+            ));
+        }
         let mut stmt = self
             .conn
             .prepare(sql)
@@ -108,20 +114,48 @@ impl Transaction for SqliteTransaction {
     }
 
     async fn execute(&mut self, sql: &str) -> ILResult<()> {
+        if self.done {
+            return Err(ILError::CatalogError(
+                "Transaction already committed or rolled back".to_string(),
+            ));
+        }
         self.conn
             .execute_batch(sql)
             .map_err(|e| ILError::CatalogError(e.to_string()))
     }
 
     async fn commit(&mut self) -> ILResult<()> {
+        if self.done {
+            return Err(ILError::CatalogError(
+                "Transaction already committed or rolled back".to_string(),
+            ));
+        }
         self.conn
             .execute_batch("COMMIT")
-            .map_err(|e| ILError::CatalogError(e.to_string()))
+            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+        self.done = true;
+        Ok(())
     }
 
     async fn rollback(&mut self) -> ILResult<()> {
+        if self.done {
+            return Err(ILError::CatalogError(
+                "Transaction already committed or rolled back".to_string(),
+            ));
+        }
         self.conn
             .execute_batch("ROLLBACK")
-            .map_err(|e| ILError::CatalogError(e.to_string()))
+            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+        self.done = true;
+        Ok(())
+    }
+}
+
+impl Drop for SqliteTransaction {
+    fn drop(&mut self) {
+        if self.done {
+            return;
+        }
+        self.conn.execute_batch("ROLLBACK").unwrap();
     }
 }
