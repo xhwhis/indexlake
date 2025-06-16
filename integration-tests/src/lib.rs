@@ -1,6 +1,10 @@
 mod docker;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
+
+use indexlake::Catalog;
+use indexlake_catalog_postgres::PostgresCatalog;
+use indexlake_catalog_sqlite::SqliteCatalog;
 
 use crate::docker::DockerCompose;
 
@@ -13,12 +17,27 @@ pub fn setup_sqlite_db() -> PathBuf {
     db_path
 }
 
-pub fn setup_postgres_db() -> DockerCompose {
+pub async fn setup_postgres_db() -> DockerCompose {
     let docker_compose = DockerCompose::new(
         "postgres",
         format!("{}/testdata/postgres", env!("CARGO_MANIFEST_DIR")),
     );
     docker_compose.down();
     docker_compose.up();
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
     docker_compose
+}
+
+pub fn catalog_sqlite() -> Arc<dyn Catalog> {
+    let db_path = setup_sqlite_db();
+    Arc::new(SqliteCatalog::try_new(db_path.to_string_lossy().to_string()).unwrap())
+}
+
+pub async fn catalog_postgres() -> Arc<dyn Catalog> {
+    let _ = setup_postgres_db().await;
+    Arc::new(
+        PostgresCatalog::try_new("localhost", 5432, "postgres", "password", Some("postgres"))
+            .await
+            .unwrap(),
+    )
 }

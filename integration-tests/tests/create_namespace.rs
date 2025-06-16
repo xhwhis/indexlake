@@ -1,13 +1,16 @@
-use indexlake::{LakeClient, Storage};
-use indexlake_catalog_sqlite::SqliteCatalog;
-use indexlake_integration_tests::setup_sqlite_db;
+use indexlake::{Catalog, LakeClient, Storage};
+use indexlake_integration_tests::{catalog_postgres, catalog_sqlite};
 use std::sync::Arc;
 
-#[tokio::test]
-async fn create_namespace() {
-    let db_path = setup_sqlite_db().display().to_string();
-    let catalog = Arc::new(SqliteCatalog::try_new(db_path).unwrap());
-
+#[rstest::rstest]
+#[case(async { catalog_sqlite() })]
+#[case(async { catalog_postgres().await })]
+#[tokio::test(flavor = "multi_thread")]
+async fn create_namespace(
+    #[future(awt)]
+    #[case]
+    catalog: Arc<dyn Catalog>,
+) {
     let storage = Arc::new(Storage::new_fs());
 
     let client = LakeClient::new(catalog, storage);

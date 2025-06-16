@@ -1,6 +1,6 @@
 use indexlake::{
     Catalog,
-    record::{DataType, Field, Row, Scalar, Schema, SchemaRef, pretty_print_rows},
+    record::{DataType, Field, Schema, pretty_print_rows},
 };
 use indexlake_catalog_sqlite::SqliteCatalog;
 use indexlake_integration_tests::setup_sqlite_db;
