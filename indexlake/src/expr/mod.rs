@@ -8,6 +8,7 @@ use crate::{
 };
 
 /// Represents logical expressions such as `A + 1`
+#[derive(Debug, Clone)]
 pub enum Expr {
     /// A named reference
     Column(String),
@@ -113,9 +114,18 @@ impl Expr {
             }
         }
     }
+
+    pub fn eq(self, other: Expr) -> Expr {
+        Expr::BinaryExpr(BinaryExpr {
+            left: Box::new(self),
+            op: BinaryOp::Eq,
+            right: Box::new(other),
+        })
+    }
 }
 
 /// InList expression
+#[derive(Debug, Clone)]
 pub struct InList {
     /// The expression to compare
     pub expr: Box<Expr>,

@@ -21,8 +21,16 @@ impl LakeClient {
 
     pub async fn create_namespace(&self, namespace_name: &str) -> ILResult<i64> {
         let mut tx_helper = self.transaction_helper().await?;
-        let namespace_id = tx_helper.create_namespace(namespace_name).await?;
+
+        let max_namespace_id = tx_helper.get_max_namespace_id().await?;
+        let namespace_id = max_namespace_id + 1;
+
+        tx_helper
+            .insert_namespace(namespace_id, namespace_name)
+            .await?;
+
         tx_helper.commit().await?;
+
         Ok(namespace_id)
     }
 

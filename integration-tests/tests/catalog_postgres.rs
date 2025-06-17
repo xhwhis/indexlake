@@ -17,8 +17,8 @@ async fn catalog_postgres() {
     let mut transaction = catalog.transaction().await.unwrap();
 
     let schema = Arc::new(Schema::new(vec![
-        Field::new("id", DataType::BigInt, false, None),
-        Field::new("name", DataType::Varchar, false, None),
+        Field::new("id", DataType::BigInt, false),
+        Field::new("name", DataType::Varchar, false),
     ]));
 
     transaction

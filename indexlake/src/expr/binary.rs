@@ -4,6 +4,7 @@ use crate::{
     record::{Row, Scalar},
 };
 
+#[derive(Debug, Clone)]
 pub enum BinaryOp {
     /// Expressions are equal
     Eq,
@@ -34,6 +35,7 @@ pub enum BinaryOp {
 }
 
 /// Binary expression
+#[derive(Debug, Clone)]
 pub struct BinaryExpr {
     /// Left-hand side of the expression
     pub left: Box<Expr>,

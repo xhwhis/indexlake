@@ -4,38 +4,37 @@ use crate::{
 };
 
 impl TransactionHelper {
-    pub(crate) async fn create_namespace(&mut self, namespace_name: &str) -> ILResult<i64> {
-        let max_namespace_id = self.get_max_namespace_id().await?;
-        let namespace_id = max_namespace_id + 1;
+    pub(crate) async fn insert_namespace(
+        &mut self,
+        namespace_id: i64,
+        namespace_name: &str,
+    ) -> ILResult<()> {
         self.transaction
             .execute(&format!(
                 "INSERT INTO indexlake_namespace (namespace_id, namespace_name) VALUES ({namespace_id}, '{namespace_name}')"
             ))
             .await?;
-        Ok(namespace_id)
+        Ok(())
     }
 
-    pub(crate) async fn create_table(
+    pub(crate) async fn insert_table(
         &mut self,
         namespace_id: i64,
+        table_id: i64,
         table_name: &str,
-    ) -> ILResult<i64> {
-        let max_table_id = self.get_max_table_id().await?;
-        let table_id = max_table_id + 1;
+    ) -> ILResult<()> {
         self.transaction.execute(&format!("INSERT INTO indexlake_table (table_id, table_name, namespace_id) VALUES ({table_id}, '{table_name}', {namespace_id})")).await?;
-        Ok(table_id)
+        Ok(())
     }
 
-    pub(crate) async fn create_table_fields(
+    pub(crate) async fn insert_fields(
         &mut self,
         table_id: i64,
+        field_ids: &[i64],
         fields: &[Field],
-    ) -> ILResult<Vec<i64>> {
-        let max_field_id = self.get_max_field_id().await?;
-        let mut field_ids = Vec::new();
-        let mut field_id = max_field_id + 1;
+    ) -> ILResult<()> {
         let mut values = Vec::new();
-        for field in fields {
+        for (field_id, field) in field_ids.iter().zip(fields.iter()) {
             values.push(format!(
                 "({field_id}, {table_id}, '{}', '{}', {}, {})",
                 field.name,
@@ -47,11 +46,9 @@ impl TransactionHelper {
                     .map(|v| format!("'{v}'"))
                     .unwrap_or("NULL".to_string())
             ));
-            field_ids.push(field_id);
-            field_id += 1;
         }
         self.transaction.execute(&format!("INSERT INTO indexlake_field (field_id, table_id, field_name, data_type, nullable, default_value) VALUES {}", values.join(", "))).await?;
-        Ok(field_ids)
+        Ok(())
     }
 
     pub(crate) async fn insert_inline_rows(

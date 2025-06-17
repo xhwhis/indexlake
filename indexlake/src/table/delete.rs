@@ -26,5 +26,8 @@ pub(crate) async fn process_delete_rows(
     }
     // Delete rows by their internal row IDs
     tx_helper.mark_rows_deleted(table_id, &row_ids).await?;
+
+    // Directly delete inline rows
+    tx_helper.delete_inline_rows(table_id, &row_ids).await?;
     Ok(())
 }

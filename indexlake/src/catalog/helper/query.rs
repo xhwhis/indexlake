@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     ILResult,
     catalog::TransactionHelper,
-    record::{DataType, Field, Row, Schema, SchemaRef},
+    record::{DataType, Field, INTERNAL_ROW_ID_FIELD_NAME, Row, Schema, SchemaRef},
 };
 
 impl TransactionHelper {
@@ -12,7 +12,6 @@ impl TransactionHelper {
             "max_namespace_id",
             DataType::BigInt,
             true,
-            None,
         )]));
         let rows = self
             .transaction
@@ -31,7 +30,6 @@ impl TransactionHelper {
             "namespace_id",
             DataType::BigInt,
             false,
-            None,
         )]));
         let rows = self
             .transaction
@@ -56,7 +54,6 @@ impl TransactionHelper {
             "max_table_id",
             DataType::BigInt,
             true,
-            None,
         )]));
         let rows = self
             .transaction
@@ -79,7 +76,6 @@ impl TransactionHelper {
             "table_id",
             DataType::BigInt,
             false,
-            None,
         )]));
         let rows = self.transaction.query(&format!("SELECT table_id FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'"), schema).await?;
         if rows.is_empty() {
@@ -96,7 +92,6 @@ impl TransactionHelper {
             "max_field_id",
             DataType::BigInt,
             true,
-            None,
         )]));
 
         let rows = self
@@ -113,22 +108,24 @@ impl TransactionHelper {
 
     pub(crate) async fn get_table_schema(&mut self, table_id: i64) -> ILResult<SchemaRef> {
         let schema = Arc::new(Schema::new(vec![
-            Field::new("field_name", DataType::Varchar, false, None),
-            Field::new("data_type", DataType::Varchar, false, None),
-            Field::new("nullable", DataType::Boolean, false, None),
-            Field::new("default_value", DataType::Varchar, true, None),
+            Field::new("field_name", DataType::Varchar, false),
+            Field::new("data_type", DataType::Varchar, false),
+            Field::new("nullable", DataType::Boolean, false),
+            Field::new("default_value", DataType::Varchar, true),
         ]));
         let rows = self.transaction.query(&format!("SELECT field_name, data_type, nullable, default_value FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"), schema).await?;
         let mut fields = Vec::new();
         for row in rows {
-            fields.push(Field::new(
-                row.varchar(0).expect("field_name is not null"),
-                row.varchar(1)
-                    .expect("data_type is not null")
-                    .parse::<DataType>()?,
-                row.boolean(2).expect("nullable is not null"),
-                row.varchar(3).map(|v| v.to_string()),
-            ));
+            fields.push(
+                Field::new(
+                    row.varchar(0).expect("field_name is not null"),
+                    row.varchar(1)
+                        .expect("data_type is not null")
+                        .parse::<DataType>()?,
+                    row.boolean(2).expect("nullable is not null"),
+                )
+                .with_default_value(row.varchar(3).map(|v| v.to_string())),
+            );
         }
         Ok(Arc::new(Schema::new(fields)))
     }
@@ -138,7 +135,6 @@ impl TransactionHelper {
             "max_row_id",
             DataType::BigInt,
             true,
-            None,
         )]));
         let rows = self
             .transaction
@@ -155,6 +151,14 @@ impl TransactionHelper {
         }
     }
 
+    pub(crate) async fn scan_row_metadata(&mut self, table_id: i64) -> ILResult<Vec<Row>> {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("row_id", DataType::BigInt, false),
+            Field::new("location", DataType::Varchar, true),
+        ]));
+        self.transaction.query(&format!("SELECT row_id, location FROM indexlake_row_metadata_{table_id} WHERE deleted = FALSE"), schema).await
+    }
+
     pub(crate) async fn scan_inline_rows(
         &mut self,
         table_id: i64,
@@ -168,6 +172,34 @@ impl TransactionHelper {
                         .fields
                         .iter()
                         .map(|field| field.name.clone())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                Arc::clone(schema),
+            )
+            .await
+    }
+
+    pub(crate) async fn scan_inline_rows_by_row_ids(
+        &mut self,
+        table_id: i64,
+        schema: &SchemaRef,
+        row_ids: &[i64],
+    ) -> ILResult<Vec<Row>> {
+        self.transaction
+            .query(
+                &format!(
+                    "SELECT {} FROM indexlake_inline_row_{table_id} WHERE {} IN ({})",
+                    schema
+                        .fields
+                        .iter()
+                        .map(|field| field.name.clone())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    INTERNAL_ROW_ID_FIELD_NAME,
+                    row_ids
+                        .iter()
+                        .map(|id| id.to_string())
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),

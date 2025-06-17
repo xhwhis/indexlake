@@ -17,12 +17,17 @@ pub(crate) async fn process_create_table(
             ILError::CatalogError(format!("Namespace {} not found", creation.namespace_name))
         })?;
 
-    let table_id = tx_helper
-        .create_table(namespace_id, &creation.table_name)
+    let max_table_id = tx_helper.get_max_table_id().await?;
+    let table_id = max_table_id + 1;
+    tx_helper
+        .insert_table(namespace_id, table_id, &creation.table_name)
         .await?;
 
+    let max_field_id = tx_helper.get_max_field_id().await?;
+    let field_ids = (max_field_id + 1..max_field_id + 1 + creation.schema.fields.len() as i64)
+        .collect::<Vec<_>>();
     tx_helper
-        .create_table_fields(table_id, &creation.schema.fields)
+        .insert_fields(table_id, &field_ids, &creation.schema.fields)
         .await?;
 
     tx_helper.create_row_metadata_table(table_id).await?;

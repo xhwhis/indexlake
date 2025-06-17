@@ -1,6 +1,9 @@
 use std::fmt::Display;
 
-use crate::record::{Scalar, SchemaRef};
+use crate::{
+    ILError, ILResult,
+    record::{Scalar, SchemaRef},
+};
 
 #[derive(Debug)]
 pub struct Row {
@@ -12,6 +15,13 @@ impl Row {
     pub fn new(schema: SchemaRef, values: Vec<Scalar>) -> Self {
         assert_eq!(schema.fields.len(), values.len());
         Self { schema, values }
+    }
+
+    pub fn bigint_by_name(&self, field_name: &str) -> ILResult<Option<i64>> {
+        let index = self.schema.index_of(field_name).ok_or_else(|| {
+            ILError::InvalidInput(format!("Field {field_name} not found in schema {self:?}"))
+        })?;
+        Ok(self.bigint(index))
     }
 
     pub fn bigint(&self, index: usize) -> Option<i64> {

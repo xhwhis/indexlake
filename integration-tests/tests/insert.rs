@@ -23,8 +23,8 @@ async fn insert_table(
     client.create_namespace(namespace_name).await.unwrap();
 
     let table_schema = Arc::new(Schema::new(vec![
-        Field::new("id", DataType::BigInt, false, None),
-        Field::new("name", DataType::Varchar, false, None),
+        Field::new("id", DataType::BigInt, false),
+        Field::new("name", DataType::Varchar, false),
     ]));
     let table_name = "test_table";
     let table_creation = TableCreation {
