@@ -18,6 +18,14 @@ impl Schema {
         }
     }
 
+    pub fn push_front(&mut self, field: Field) {
+        self.fields.insert(0, field);
+    }
+
+    pub fn push_back(&mut self, field: Field) {
+        self.fields.push(field);
+    }
+
     pub fn index_of(&self, field_name: &str) -> Option<usize> {
         self.fields.iter().position(|f| f.name == field_name)
     }

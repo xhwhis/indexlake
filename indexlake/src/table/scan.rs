@@ -8,5 +8,5 @@ pub(crate) async fn process_table_scan(
     table_id: i64,
     schema: &SchemaRef,
 ) -> ILResult<Vec<Row>> {
-    tx_helper.scan_rows(table_id, schema).await
+    tx_helper.scan_inline_rows(table_id, schema).await
 }

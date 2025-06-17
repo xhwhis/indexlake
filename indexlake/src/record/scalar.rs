@@ -30,6 +30,13 @@ impl Scalar {
             Scalar::Boolean(Some(_)) => false,
         }
     }
+
+    pub fn is_true(&self) -> bool {
+        match self {
+            Scalar::Boolean(Some(true)) => true,
+            _ => false,
+        }
+    }
 }
 
 impl PartialEq for Scalar {

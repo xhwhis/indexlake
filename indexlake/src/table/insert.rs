@@ -1,6 +1,6 @@
 use crate::{
     ILResult, TransactionHelper,
-    record::{DataType, Field, INTERNAL_ROW_ID_FIELD_NAME, Scalar, Schema},
+    record::{INTERNAL_ROW_ID_FIELD, Scalar, Schema},
 };
 
 pub(crate) async fn process_insert_values(
@@ -9,12 +9,7 @@ pub(crate) async fn process_insert_values(
     schema: &Schema,
     values: Vec<Vec<Scalar>>,
 ) -> ILResult<()> {
-    let mut fields = vec![Field::new(
-        INTERNAL_ROW_ID_FIELD_NAME,
-        DataType::BigInt,
-        false,
-        None,
-    )];
+    let mut fields = vec![INTERNAL_ROW_ID_FIELD.clone()];
     fields.extend_from_slice(&schema.fields);
 
     let max_row_id = tx_helper.get_max_row_id(table_id).await?;
@@ -31,7 +26,7 @@ pub(crate) async fn process_insert_values(
     }
 
     tx_helper
-        .insert_values(table_id, &fields, new_values)
+        .insert_inline_rows(table_id, &fields, new_values)
         .await?;
 
     Ok(())

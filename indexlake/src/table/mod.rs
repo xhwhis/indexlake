@@ -59,7 +59,10 @@ impl Table {
         todo!()
     }
 
-    pub async fn delete(&self, condition: Expr) -> ILResult<()> {
-        todo!()
+    pub async fn delete(&self, condition: &Expr) -> ILResult<()> {
+        let mut tx_helper = self.transaction_helper().await?;
+        process_delete_rows(&mut tx_helper, self.table_id, &self.schema, condition).await?;
+        tx_helper.commit().await?;
+        Ok(())
     }
 }
