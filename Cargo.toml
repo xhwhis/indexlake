@@ -29,7 +29,7 @@ comfy-table = "7.0"
 datafusion = "47"
 hex = "0.4"
 opendal = "0.53"
-rstest = { git = "https://github.com/la10736/rstest.git", rev = "2e28584b03b88edf3c1638e2e28dc2474df92811"}
+rstest = "0.25"
 rusqlite = "0.36"
 tokio = "1"
 url = "2.5"

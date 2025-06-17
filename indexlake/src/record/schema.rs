@@ -18,6 +18,10 @@ impl Schema {
         }
     }
 
+    pub fn index_of(&self, field_name: &str) -> Option<usize> {
+        self.fields.iter().position(|f| f.name == field_name)
+    }
+
     pub fn project(&self, field_names: &[String]) -> Self {
         let mut projected_fields = Vec::new();
         for field in &self.fields {

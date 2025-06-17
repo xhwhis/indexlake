@@ -1,4 +1,11 @@
-use crate::record::Scalar;
+mod binary;
+
+pub use binary::*;
+
+use crate::{
+    ILError, ILResult,
+    record::{Row, Scalar},
+};
 
 /// Represents logical expressions such as `A + 1`
 pub enum Expr {
@@ -18,8 +25,6 @@ pub enum Expr {
     IsTrue(Box<Expr>),
     /// True if argument is false, false otherwise
     IsFalse(Box<Expr>),
-    /// True if argument is NULL, false otherwise
-    IsUnknown(Box<Expr>),
     /// True if argument is FALSE or NULL, false otherwise
     IsNotTrue(Box<Expr>),
     /// True if argument is TRUE or NULL, false otherwise
@@ -28,43 +33,86 @@ pub enum Expr {
     InList(InList),
 }
 
-/// Binary expression
-pub struct BinaryExpr {
-    /// Left-hand side of the expression
-    pub left: Box<Expr>,
-    /// The comparison operator
-    pub op: BinaryOp,
-    /// Right-hand side of the expression
-    pub right: Box<Expr>,
-}
-
-pub enum BinaryOp {
-    /// Expressions are equal
-    Eq,
-    /// Expressions are not equal
-    NotEq,
-    /// Left side is smaller than right side
-    Lt,
-    /// Left side is smaller or equal to right side
-    LtEq,
-    /// Left side is greater than right side
-    Gt,
-    /// Left side is greater or equal to right side
-    GtEq,
-    /// Addition
-    Plus,
-    /// Subtraction
-    Minus,
-    /// Multiplication operator, like `*`
-    Multiply,
-    /// Division operator, like `/`
-    Divide,
-    /// Remainder operator, like `%`
-    Modulo,
-    /// Logical AND, like `&&`
-    And,
-    /// Logical OR, like `||`
-    Or,
+impl Expr {
+    pub fn eval(&self, row: &Row) -> ILResult<Scalar> {
+        match self {
+            Expr::Column(name) => {
+                let index = row
+                    .schema
+                    .index_of(name)
+                    .ok_or_else(|| ILError::InvalidInput(format!("Column {} not found", name)))?;
+                Ok(row.values[index].clone())
+            }
+            Expr::Literal(scalar) => Ok(scalar.clone()),
+            Expr::BinaryExpr(binary_expr) => binary_expr.eval(row),
+            Expr::Not(expr) => {
+                let scalar = expr.eval(row)?;
+                match scalar {
+                    Scalar::Boolean(Some(value)) => Ok(Scalar::Boolean(Some(!value))),
+                    _ => Err(ILError::InvalidInput(
+                        "Not expression must be a boolean".to_string(),
+                    )),
+                }
+            }
+            Expr::IsNull(expr) => {
+                let scalar = expr.eval(row)?;
+                Ok(Scalar::Boolean(Some(scalar.is_null())))
+            }
+            Expr::IsNotNull(expr) => {
+                let scalar = expr.eval(row)?;
+                Ok(Scalar::Boolean(Some(!scalar.is_null())))
+            }
+            Expr::IsTrue(expr) => {
+                let scalar = expr.eval(row)?;
+                match scalar {
+                    Scalar::Boolean(Some(value)) => Ok(Scalar::Boolean(Some(value))),
+                    _ => Ok(Scalar::Boolean(Some(false))),
+                }
+            }
+            Expr::IsFalse(expr) => {
+                let scalar = expr.eval(row)?;
+                match scalar {
+                    Scalar::Boolean(Some(value)) => Ok(Scalar::Boolean(Some(!value))),
+                    _ => Ok(Scalar::Boolean(Some(false))),
+                }
+            }
+            Expr::IsNotTrue(expr) => {
+                let scalar = expr.eval(row)?;
+                match scalar {
+                    Scalar::Boolean(Some(value)) => Ok(Scalar::Boolean(Some(!value))),
+                    _ => {
+                        if scalar.is_null() {
+                            Ok(Scalar::Boolean(Some(true)))
+                        } else {
+                            Ok(Scalar::Boolean(Some(false)))
+                        }
+                    }
+                }
+            }
+            Expr::IsNotFalse(expr) => {
+                let scalar = expr.eval(row)?;
+                match scalar {
+                    Scalar::Boolean(Some(value)) => Ok(Scalar::Boolean(Some(value))),
+                    _ => {
+                        if scalar.is_null() {
+                            Ok(Scalar::Boolean(Some(true)))
+                        } else {
+                            Ok(Scalar::Boolean(Some(false)))
+                        }
+                    }
+                }
+            }
+            Expr::InList(in_list) => {
+                let scalar = in_list.expr.eval(row)?;
+                let list = in_list
+                    .list
+                    .iter()
+                    .map(|expr| expr.eval(row))
+                    .collect::<ILResult<Vec<Scalar>>>()?;
+                Ok(Scalar::Boolean(Some(list.contains(&scalar))))
+            }
+        }
+    }
 }
 
 /// InList expression

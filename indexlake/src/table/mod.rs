@@ -8,6 +8,7 @@ pub use delete::*;
 pub use insert::*;
 pub use scan::*;
 
+use crate::expr::Expr;
 use crate::record::{Row, Scalar, SchemaRef};
 use crate::utils::has_duplicated_items;
 use crate::{Catalog, ILError, ILResult, Storage, TransactionHelper};
@@ -33,9 +34,7 @@ impl Table {
     pub async fn insert(&self, columns: &[String], values: Vec<Vec<Scalar>>) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
         if has_duplicated_items(columns.iter()) {
-            return Err(ILError::InvalidInput(
-                "Columns contain duplicated items".to_string(),
-            ));
+            return Err(ILError::InvalidInput("Duplicated column names".to_string()));
         }
         let projected_schema = self.schema.project(columns);
         process_insert_values(&mut tx_helper, self.table_id, &projected_schema, values).await?;
@@ -49,5 +48,18 @@ impl Table {
         let rows = process_table_scan(&mut tx_helper, self.table_id, &self.schema).await?;
         tx_helper.commit().await?;
         Ok(rows)
+    }
+
+    pub async fn update(
+        &self,
+        condition: Expr,
+        columns: &[String],
+        values: Vec<Scalar>,
+    ) -> ILResult<()> {
+        todo!()
+    }
+
+    pub async fn delete(&self, condition: Expr) -> ILResult<()> {
+        todo!()
     }
 }

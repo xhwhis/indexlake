@@ -1,12 +1,12 @@
-pub fn has_duplicated_items(mut container: impl Iterator<Item = impl PartialEq>) -> bool {
-    // TODO better solution
-    let vec = container.collect::<Vec<_>>();
-    for i in 0..vec.len() {
-        for j in (i + 1)..vec.len() {
-            if vec[i] == vec[j] {
-                return true;
-            }
+use std::{collections::HashSet, hash::Hash};
+
+pub fn has_duplicated_items(container: impl Iterator<Item = impl Eq + Hash>) -> bool {
+    let mut set = HashSet::new();
+    for item in container {
+        if set.contains(&item) {
+            return true;
         }
+        set.insert(item);
     }
     false
 }
