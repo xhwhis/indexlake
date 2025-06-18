@@ -74,50 +74,57 @@ impl Transaction for PostgresTransaction {
         for pg_row in pg_rows {
             let mut values = Vec::new();
             for (idx, field) in schema.fields.iter().enumerate() {
-                match field.data_type {
+                let scalar = match field.data_type {
                     DataType::Integer => {
                         let v: Option<i32> = pg_row
                             .try_get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        values.push(Scalar::Integer(v));
+                        Scalar::Integer(v)
                     }
                     DataType::BigInt => {
                         let v: Option<i64> = pg_row
                             .try_get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        values.push(Scalar::BigInt(v));
+                        Scalar::BigInt(v)
                     }
                     DataType::Float => {
                         let v: Option<f32> = pg_row
                             .try_get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        values.push(Scalar::Float(v));
+                        Scalar::Float(v)
                     }
                     DataType::Double => {
                         let v: Option<f64> = pg_row
                             .try_get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        values.push(Scalar::Double(v));
+                        Scalar::Double(v)
                     }
                     DataType::Varchar => {
                         let v: Option<String> = pg_row
                             .try_get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        values.push(Scalar::Varchar(v));
+                        Scalar::Varchar(v)
                     }
                     DataType::Varbinary => {
                         let v: Option<Vec<u8>> = pg_row
                             .try_get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        values.push(Scalar::Varbinary(v));
+                        Scalar::Varbinary(v)
                     }
                     DataType::Boolean => {
                         let v: Option<bool> = pg_row
                             .try_get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        values.push(Scalar::Boolean(v));
+                        Scalar::Boolean(v)
                     }
+                };
+                if !field.nullable && scalar.is_null() {
+                    return Err(ILError::CatalogError(format!(
+                        "column {} is not nullable but got null value",
+                        field.name
+                    )));
                 }
+                values.push(scalar);
             }
             result.push(Row::new(schema.clone(), values));
         }

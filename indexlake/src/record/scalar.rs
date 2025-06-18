@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-#[derive(Debug, Clone)]
+use derive_visitor::Drive;
+
+#[derive(Debug, Clone, Drive)]
 pub enum Scalar {
     Integer(Option<i32>),
     BigInt(Option<i64>),

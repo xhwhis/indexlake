@@ -1,10 +1,12 @@
+use derive_visitor::Drive;
+
 use crate::{
     ILResult,
     expr::Expr,
     record::{Row, Scalar},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Drive)]
 pub enum BinaryOp {
     /// Expressions are equal
     Eq,
@@ -55,7 +57,7 @@ impl std::fmt::Display for BinaryOp {
 }
 
 /// Binary expression
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Drive)]
 pub struct BinaryExpr {
     /// Left-hand side of the expression
     pub left: Box<Expr>,

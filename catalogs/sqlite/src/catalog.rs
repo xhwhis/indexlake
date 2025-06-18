@@ -65,50 +65,57 @@ impl Transaction for SqliteTransaction {
         {
             let mut row_values = Vec::new();
             for (idx, field) in schema.fields.iter().enumerate() {
-                match field.data_type {
+                let scalar = match field.data_type {
                     DataType::Integer => {
                         let v: Option<i32> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_values.push(Scalar::Integer(v));
+                        Scalar::Integer(v)
                     }
                     DataType::BigInt => {
                         let v: Option<i64> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_values.push(Scalar::BigInt(v));
+                        Scalar::BigInt(v)
                     }
                     DataType::Float => {
                         let v: Option<f32> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_values.push(Scalar::Float(v));
+                        Scalar::Float(v)
                     }
                     DataType::Double => {
                         let v: Option<f64> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_values.push(Scalar::Double(v));
+                        Scalar::Double(v)
                     }
                     DataType::Varchar => {
                         let v: Option<String> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_values.push(Scalar::Varchar(v));
+                        Scalar::Varchar(v)
                     }
                     DataType::Varbinary => {
                         let v: Option<Vec<u8>> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_values.push(Scalar::Varbinary(v));
+                        Scalar::Varbinary(v)
                     }
                     DataType::Boolean => {
                         let v: Option<bool> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        row_values.push(Scalar::Boolean(v));
+                        Scalar::Boolean(v)
                     }
+                };
+                if !field.nullable && scalar.is_null() {
+                    return Err(ILError::CatalogError(format!(
+                        "column {} is not nullable but got null value",
+                        field.name
+                    )));
                 }
+                row_values.push(scalar);
             }
             catalog_rows.push(Row::new(schema.clone(), row_values));
         }

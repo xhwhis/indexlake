@@ -72,4 +72,14 @@ impl Table {
         tx_helper.commit().await?;
         Ok(())
     }
+
+    // Delete all rows in the table
+    pub async fn truncate(&self) -> ILResult<()> {
+        todo!()
+    }
+
+    // Drop the table
+    pub async fn drop(self) -> ILResult<()> {
+        todo!()
+    }
 }

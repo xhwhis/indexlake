@@ -1,6 +1,10 @@
 mod binary;
+mod visitor;
 
 pub use binary::*;
+pub use visitor::*;
+
+use derive_visitor::Drive;
 
 use crate::{
     ILError, ILResult,
@@ -8,7 +12,7 @@ use crate::{
 };
 
 /// Represents logical expressions such as `A + 1`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Drive)]
 pub enum Expr {
     /// A named reference
     Column(String),
@@ -122,6 +126,14 @@ impl Expr {
             right: Box::new(other),
         })
     }
+
+    pub fn plus(self, other: Expr) -> Expr {
+        Expr::BinaryExpr(BinaryExpr {
+            left: Box::new(self),
+            op: BinaryOp::Plus,
+            right: Box::new(other),
+        })
+    }
 }
 
 impl std::fmt::Display for Expr {
@@ -153,7 +165,7 @@ impl std::fmt::Display for Expr {
 }
 
 /// InList expression
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Drive)]
 pub struct InList {
     /// The expression to compare
     pub expr: Box<Expr>,
