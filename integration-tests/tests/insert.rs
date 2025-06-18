@@ -1,3 +1,4 @@
+use futures::TryStreamExt;
 use indexlake::{
     Catalog, LakeClient, Storage,
     record::{DataType, Field, Row, Scalar, Schema, pretty_print_rows},
@@ -50,7 +51,8 @@ async fn insert_table(
 
     table.insert(&columns, values).await.unwrap();
 
-    let rows = table.scan().await.unwrap();
+    let row_stream = table.scan().await.unwrap();
+    let rows = row_stream.try_collect::<Vec<_>>().await.unwrap();
     let table_str = pretty_print_rows(Some(table_schema.clone()), &rows).to_string();
     println!("{}", table_str);
     assert_eq!(

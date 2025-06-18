@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    ILResult,
+    ILResult, RowStream,
     catalog::TransactionHelper,
     record::{DataType, Field, INTERNAL_ROW_ID_FIELD_NAME, Row, Schema, SchemaRef},
 };
@@ -158,20 +158,21 @@ impl TransactionHelper {
         &mut self,
         table_id: i64,
         schema: &SchemaRef,
-    ) -> ILResult<Vec<Row>> {
-        self.query_rows(
-            &format!(
-                "SELECT {}  FROM indexlake_inline_row_{table_id}",
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| field.name.clone())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            Arc::clone(schema),
-        )
-        .await
+    ) -> ILResult<RowStream> {
+        self.transaction
+            .query(
+                &format!(
+                    "SELECT {}  FROM indexlake_inline_row_{table_id}",
+                    schema
+                        .fields
+                        .iter()
+                        .map(|field| field.name.clone())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                Arc::clone(schema),
+            )
+            .await
     }
 
     pub(crate) async fn scan_inline_rows_by_row_ids(

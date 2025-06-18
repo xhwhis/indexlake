@@ -2062,6 +2062,7 @@ name = "indexlake-integration-tests"
 version = "0.1.0"
 dependencies = [
  "env_logger",
+ "futures",
  "indexlake",
  "indexlake-catalog-postgres",
  "indexlake-catalog-sqlite",

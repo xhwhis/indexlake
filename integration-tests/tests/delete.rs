@@ -1,3 +1,4 @@
+use futures::TryStreamExt;
 use indexlake::expr::Expr;
 use indexlake::{
     Catalog, LakeClient, Storage,
@@ -54,7 +55,8 @@ async fn delete_table(
     let condition = Expr::Column("id".to_string()).eq(Expr::Literal(Scalar::BigInt(Some(1))));
     table.delete(&condition).await.unwrap();
 
-    let rows = table.scan().await.unwrap();
+    let row_stream = table.scan().await.unwrap();
+    let rows = row_stream.try_collect::<Vec<_>>().await.unwrap();
     let table_str = pretty_print_rows(Some(table_schema.clone()), &rows).to_string();
     println!("{}", table_str);
     assert_eq!(

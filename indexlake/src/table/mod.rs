@@ -13,7 +13,7 @@ pub(crate) use update::*;
 use crate::expr::Expr;
 use crate::record::{Row, Scalar, SchemaRef};
 use crate::utils::has_duplicated_items;
-use crate::{Catalog, ILError, ILResult, Storage, TransactionHelper};
+use crate::{Catalog, ILError, ILResult, RowStream, Storage, TransactionHelper};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -51,12 +51,11 @@ impl Table {
         Ok(())
     }
 
-    // TODO stream rows
-    pub async fn scan(&self) -> ILResult<Vec<Row>> {
+    pub async fn scan(&self) -> ILResult<RowStream> {
         let mut tx_helper = self.transaction_helper().await?;
-        let rows = process_table_scan(&mut tx_helper, self.table_id, &self.schema).await?;
+        let row_stream = process_table_scan(&mut tx_helper, self.table_id, &self.schema).await?;
         tx_helper.commit().await?;
-        Ok(rows)
+        Ok(row_stream)
     }
 
     pub async fn update(&self, set: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {

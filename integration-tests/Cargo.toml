@@ -12,6 +12,7 @@ indexlake-catalog-postgres = { workspace = true }
 indexlake-catalog-sqlite = { workspace = true }
 
 env_logger = { workspace = true }
+futures = { workspace = true }
 rstest = { workspace = true }
 rusqlite = { workspace = true, features = ["bundled"] }
 tokio = { workspace = true, features = ["full"] }

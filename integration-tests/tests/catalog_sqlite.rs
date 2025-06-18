@@ -1,3 +1,4 @@
+use futures::TryStreamExt;
 use indexlake::{
     Catalog,
     record::{DataType, Field, Schema, pretty_print_rows},
@@ -27,10 +28,11 @@ async fn catalog_sqlite() {
         .await
         .unwrap();
 
-    let rows = transaction
+    let row_stream = transaction
         .query("SELECT * FROM test", schema.clone())
         .await
         .unwrap();
+    let rows = row_stream.try_collect::<Vec<_>>().await.unwrap();
     let table_str = pretty_print_rows(Some(schema.clone()), &rows).to_string();
     println!("{}", table_str);
     assert_eq!(
@@ -46,10 +48,11 @@ async fn catalog_sqlite() {
         .execute("UPDATE test SET name = 'b' WHERE id = 1")
         .await
         .unwrap();
-    let rows = transaction
+    let row_stream = transaction
         .query("SELECT * FROM test", schema.clone())
         .await
         .unwrap();
+    let rows = row_stream.try_collect::<Vec<_>>().await.unwrap();
     let table_str = pretty_print_rows(Some(schema.clone()), &rows).to_string();
     println!("{}", table_str);
     assert_eq!(
@@ -65,10 +68,11 @@ async fn catalog_sqlite() {
         .execute("DELETE FROM test WHERE id = 1")
         .await
         .unwrap();
-    let rows = transaction
+    let row_stream = transaction
         .query("SELECT * FROM test", schema.clone())
         .await
         .unwrap();
+    let rows = row_stream.try_collect::<Vec<_>>().await.unwrap();
     let table_str = pretty_print_rows(Some(schema.clone()), &rows).to_string();
     println!("{}", table_str);
     assert_eq!(
