@@ -16,11 +16,14 @@ pub(crate) async fn process_insert_values(
 
     // Generate row id for each row
     let mut new_values = vec![];
+    let mut row_metadatas = vec![];
     let mut row_id = max_row_id + 1;
     for value in values {
         let mut new_value = vec![Scalar::BigInt(Some(row_id))];
         new_value.extend(value);
         new_values.push(new_value);
+
+        row_metadatas.push((row_id, "inline".to_string()));
 
         row_id += 1;
     }
@@ -29,5 +32,8 @@ pub(crate) async fn process_insert_values(
         .insert_inline_rows(table_id, &fields, new_values)
         .await?;
 
+    tx_helper
+        .insert_row_metadatas(table_id, &row_metadatas)
+        .await?;
     Ok(())
 }

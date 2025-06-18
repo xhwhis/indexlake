@@ -81,4 +81,17 @@ impl TransactionHelper {
             .await?;
         Ok(())
     }
+
+    pub(crate) async fn insert_row_metadatas(
+        &mut self,
+        table_id: i64,
+        metadatas: &[(i64, String)],
+    ) -> ILResult<()> {
+        let mut values = Vec::new();
+        for (row_id, location) in metadatas {
+            values.push(format!("({row_id}, '{location}', FALSE)"));
+        }
+        self.transaction.execute(&format!("INSERT INTO indexlake_row_metadata_{table_id} (row_id, location, deleted) VALUES {}", values.join(", "))).await?;
+        Ok(())
+    }
 }
