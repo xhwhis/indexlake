@@ -14,6 +14,6 @@ impl TransactionHelper {
             .map(|id| id.to_string())
             .collect::<Vec<_>>()
             .join(", ");
-        self.transaction.execute(&format!("UPDATE indexlake_row_metadata_{table_id} SET deleted = TRUE WHERE row_id IN ({row_ids_str}")).await
+        self.transaction.execute(&format!("UPDATE indexlake_row_metadata_{table_id} SET deleted = TRUE WHERE row_id IN ({row_ids_str})")).await
     }
 }

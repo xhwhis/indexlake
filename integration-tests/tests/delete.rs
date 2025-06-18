@@ -4,7 +4,7 @@ use indexlake::{
     record::{DataType, Field, Row, Scalar, Schema, pretty_print_rows},
     table::TableCreation,
 };
-use indexlake_integration_tests::{catalog_postgres, catalog_sqlite};
+use indexlake_integration_tests::{catalog_postgres, catalog_sqlite, init_env_logger};
 use std::sync::Arc;
 
 #[rstest::rstest]
@@ -16,6 +16,8 @@ async fn delete_table(
     #[case]
     catalog: Arc<dyn Catalog>,
 ) {
+    init_env_logger();
+
     let storage = Arc::new(Storage::new_fs());
     let client = LakeClient::new(catalog, storage);
 
@@ -57,10 +59,10 @@ async fn delete_table(
     println!("{}", table_str);
     assert_eq!(
         table_str,
-        r#"+----+---------+
-| id | name    |
-+----+---------+
-| 2  | 'Bob'   |
-+----+---------+"#
+        r#"+----+-------+
+| id | name  |
++----+-------+
+| 2  | 'Bob' |
++----+-------+"#
     );
 }

@@ -4,6 +4,7 @@ use indexlake::{
     Catalog, ILError, ILResult, Transaction,
     record::{DataType, Row, Scalar, SchemaRef},
 };
+use log::debug;
 
 #[derive(Debug, Clone)]
 pub struct PostgresCatalog {
@@ -56,6 +57,7 @@ pub struct PostgresTransaction {
 #[async_trait::async_trait(?Send)]
 impl Transaction for PostgresTransaction {
     async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
+        debug!("postgres transaction query: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),
@@ -123,6 +125,7 @@ impl Transaction for PostgresTransaction {
     }
 
     async fn execute(&mut self, sql: &str) -> ILResult<()> {
+        debug!("postgres transaction execute: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),

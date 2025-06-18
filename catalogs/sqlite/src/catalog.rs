@@ -3,6 +3,7 @@ use indexlake::{
     record::{DataType, Row, Scalar, SchemaRef},
 };
 use indexlake::{ILError, ILResult};
+use log::debug;
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -43,6 +44,7 @@ pub struct SqliteTransaction {
 #[async_trait::async_trait(?Send)]
 impl Transaction for SqliteTransaction {
     async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
+        debug!("sqlite transaction query: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),
@@ -114,6 +116,7 @@ impl Transaction for SqliteTransaction {
     }
 
     async fn execute(&mut self, sql: &str) -> ILResult<()> {
+        debug!("sqlite transaction execute: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),

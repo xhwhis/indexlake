@@ -1,12 +1,27 @@
 mod docker;
 
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::{Arc, OnceLock},
+};
 
 use indexlake::Catalog;
 use indexlake_catalog_postgres::PostgresCatalog;
 use indexlake_catalog_sqlite::SqliteCatalog;
 
 use crate::docker::DockerCompose;
+
+static ENV_LOGGER: OnceLock<()> = OnceLock::new();
+
+pub fn init_env_logger() {
+    unsafe {
+        std::env::set_var("RUST_LOG", "debug");
+    }
+    ENV_LOGGER.get_or_init(|| {
+        env_logger::init();
+        ()
+    });
+}
 
 pub fn setup_sqlite_db() -> PathBuf {
     let tmpdir = std::env::temp_dir();
