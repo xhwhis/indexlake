@@ -1,5 +1,6 @@
+use futures::StreamExt;
 use indexlake::{
-    Catalog, Transaction,
+    Catalog, RowStream, Transaction,
     record::{DataType, Row, Scalar, SchemaRef},
 };
 use indexlake::{ILError, ILResult};
@@ -43,7 +44,7 @@ pub struct SqliteTransaction {
 
 #[async_trait::async_trait(?Send)]
 impl Transaction for SqliteTransaction {
-    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
+    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<RowStream> {
         debug!("sqlite transaction query: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
@@ -119,7 +120,7 @@ impl Transaction for SqliteTransaction {
             }
             catalog_rows.push(Row::new(schema.clone(), row_values));
         }
-        Ok(catalog_rows)
+        Ok(Box::pin(futures::stream::iter(catalog_rows).map(Ok)))
     }
 
     async fn execute(&mut self, sql: &str) -> ILResult<()> {

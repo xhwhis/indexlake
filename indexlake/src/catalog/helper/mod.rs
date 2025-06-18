@@ -4,7 +4,13 @@ mod insert;
 mod query;
 mod update;
 
-use crate::{ILResult, catalog::Transaction};
+use futures::TryStreamExt;
+
+use crate::{
+    ILResult,
+    catalog::Transaction,
+    record::{Row, SchemaRef},
+};
 
 pub(crate) struct TransactionHelper {
     transaction: Box<dyn Transaction>,
@@ -13,6 +19,11 @@ pub(crate) struct TransactionHelper {
 impl TransactionHelper {
     pub(crate) fn new(transaction: Box<dyn Transaction>) -> Self {
         Self { transaction }
+    }
+
+    pub(crate) async fn query_rows(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
+        let stream = self.transaction.query(sql, schema).await?;
+        stream.try_collect::<Vec<_>>().await
     }
 
     pub(crate) async fn commit(&mut self) -> ILResult<()> {

@@ -2018,6 +2018,7 @@ dependencies = [
  "async-trait",
  "comfy-table",
  "derive-visitor",
+ "futures",
  "hex",
  "opendal",
  "url",
@@ -2030,6 +2031,7 @@ dependencies = [
  "async-trait",
  "bb8",
  "bb8-postgres",
+ "futures",
  "indexlake",
  "log",
  "tokio",
@@ -2041,6 +2043,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "async-trait",
+ "futures",
  "indexlake",
  "log",
  "rusqlite",

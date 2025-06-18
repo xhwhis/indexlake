@@ -1,7 +1,8 @@
 use bb8::Pool;
 use bb8_postgres::{PostgresConnectionManager, tokio_postgres::NoTls};
+use futures::StreamExt;
 use indexlake::{
-    Catalog, ILError, ILResult, Transaction,
+    Catalog, ILError, ILResult, RowStream, Transaction,
     record::{DataType, Row, Scalar, SchemaRef},
 };
 use log::debug;
@@ -56,7 +57,7 @@ pub struct PostgresTransaction {
 
 #[async_trait::async_trait(?Send)]
 impl Transaction for PostgresTransaction {
-    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
+    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<RowStream> {
         debug!("postgres transaction query: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
@@ -64,71 +65,17 @@ impl Transaction for PostgresTransaction {
             ));
         }
 
-        let pg_rows = self
+        let pg_row_stream = self
             .conn
-            .query(sql, &[])
+            .query_raw(sql, Vec::<String>::new())
             .await
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
 
-        let mut result = Vec::new();
-        for pg_row in pg_rows {
-            let mut values = Vec::new();
-            for (idx, field) in schema.fields.iter().enumerate() {
-                let scalar = match field.data_type {
-                    DataType::Integer => {
-                        let v: Option<i32> = pg_row
-                            .try_get(idx)
-                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Integer(v)
-                    }
-                    DataType::BigInt => {
-                        let v: Option<i64> = pg_row
-                            .try_get(idx)
-                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::BigInt(v)
-                    }
-                    DataType::Float => {
-                        let v: Option<f32> = pg_row
-                            .try_get(idx)
-                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Float(v)
-                    }
-                    DataType::Double => {
-                        let v: Option<f64> = pg_row
-                            .try_get(idx)
-                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Double(v)
-                    }
-                    DataType::Varchar => {
-                        let v: Option<String> = pg_row
-                            .try_get(idx)
-                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Varchar(v)
-                    }
-                    DataType::Varbinary => {
-                        let v: Option<Vec<u8>> = pg_row
-                            .try_get(idx)
-                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Varbinary(v)
-                    }
-                    DataType::Boolean => {
-                        let v: Option<bool> = pg_row
-                            .try_get(idx)
-                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Boolean(v)
-                    }
-                };
-                if !field.nullable && scalar.is_null() {
-                    return Err(ILError::CatalogError(format!(
-                        "column {} is not nullable but got null value",
-                        field.name
-                    )));
-                }
-                values.push(scalar);
-            }
-            result.push(Row::new(schema.clone(), values));
-        }
-        Ok(result)
+        let stream = pg_row_stream.map(move |row| {
+            let pg_row = row.map_err(|e| ILError::CatalogError(e.to_string()))?;
+            pg_row_to_row(&pg_row, &schema)
+        });
+        Ok(Box::pin(stream))
     }
 
     async fn execute(&mut self, sql: &str) -> ILResult<()> {
@@ -187,4 +134,62 @@ impl Drop for PostgresTransaction {
             });
         });
     }
+}
+
+fn pg_row_to_row(pg_row: &bb8_postgres::tokio_postgres::Row, schema: &SchemaRef) -> ILResult<Row> {
+    let mut values = Vec::new();
+    for (idx, field) in schema.fields.iter().enumerate() {
+        let scalar = match field.data_type {
+            DataType::Integer => {
+                let v: Option<i32> = pg_row
+                    .try_get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Integer(v)
+            }
+            DataType::BigInt => {
+                let v: Option<i64> = pg_row
+                    .try_get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::BigInt(v)
+            }
+            DataType::Float => {
+                let v: Option<f32> = pg_row
+                    .try_get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Float(v)
+            }
+            DataType::Double => {
+                let v: Option<f64> = pg_row
+                    .try_get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Double(v)
+            }
+            DataType::Varchar => {
+                let v: Option<String> = pg_row
+                    .try_get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Varchar(v)
+            }
+            DataType::Varbinary => {
+                let v: Option<Vec<u8>> = pg_row
+                    .try_get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Varbinary(v)
+            }
+            DataType::Boolean => {
+                let v: Option<bool> = pg_row
+                    .try_get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Boolean(v)
+            }
+        };
+        if !field.nullable && scalar.is_null() {
+            return Err(ILError::CatalogError(format!(
+                "column {} is not nullable but got null value",
+                field.name
+            )));
+        }
+        values.push(scalar);
+    }
+    Ok(Row::new(schema.clone(), values))
 }
