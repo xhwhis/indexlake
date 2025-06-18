@@ -34,6 +34,26 @@ pub enum BinaryOp {
     Or,
 }
 
+impl std::fmt::Display for BinaryOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BinaryOp::Eq => write!(f, "="),
+            BinaryOp::NotEq => write!(f, "!="),
+            BinaryOp::Lt => write!(f, "<"),
+            BinaryOp::LtEq => write!(f, "<="),
+            BinaryOp::Gt => write!(f, ">"),
+            BinaryOp::GtEq => write!(f, ">="),
+            BinaryOp::Plus => write!(f, "+"),
+            BinaryOp::Minus => write!(f, "-"),
+            BinaryOp::Multiply => write!(f, "*"),
+            BinaryOp::Divide => write!(f, "/"),
+            BinaryOp::Modulo => write!(f, "%"),
+            BinaryOp::And => write!(f, "AND"),
+            BinaryOp::Or => write!(f, "OR"),
+        }
+    }
+}
+
 /// Binary expression
 #[derive(Debug, Clone)]
 pub struct BinaryExpr {
@@ -58,5 +78,11 @@ impl BinaryExpr {
             BinaryOp::GtEq => Ok(Scalar::Boolean(Some(left >= right))),
             _ => todo!(),
         }
+    }
+}
+
+impl std::fmt::Display for BinaryExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({} {} {})", self.left, self.op, self.right)
     }
 }

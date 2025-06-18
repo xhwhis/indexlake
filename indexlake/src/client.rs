@@ -1,4 +1,5 @@
 use crate::catalog::TransactionHelper;
+use crate::record::SchemaRef;
 use crate::table::{Table, TableCreation, process_create_table};
 use crate::{Catalog, ILError, ILResult, Storage};
 use std::sync::Arc;

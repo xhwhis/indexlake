@@ -1,5 +1,5 @@
 use crate::{
-    ILResult, TransactionHelper,
+    ILError, ILResult, TransactionHelper,
     record::{INTERNAL_ROW_ID_FIELD, Scalar, Schema},
 };
 
@@ -21,6 +21,13 @@ pub(crate) async fn process_insert_values(
     for value in values {
         let mut new_value = vec![Scalar::BigInt(Some(row_id))];
         new_value.extend(value);
+
+        if fields.len() != new_value.len() {
+            return Err(ILError::InvalidInput(
+                "column count does not match value count".to_string(),
+            ));
+        }
+
         new_values.push(new_value);
 
         row_metadatas.push((row_id, "inline".to_string()));

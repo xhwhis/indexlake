@@ -124,6 +124,34 @@ impl Expr {
     }
 }
 
+impl std::fmt::Display for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Expr::Column(name) => write!(f, "{}", name),
+            Expr::Literal(scalar) => write!(f, "{}", scalar),
+            Expr::BinaryExpr(binary_expr) => write!(f, "{}", binary_expr),
+            Expr::Not(expr) => write!(f, "NOT {}", expr),
+            Expr::IsNull(expr) => write!(f, "{} IS NULL", expr),
+            Expr::IsNotNull(expr) => write!(f, "{} IS NOT NULL", expr),
+            Expr::IsTrue(expr) => write!(f, "{} IS TRUE", expr),
+            Expr::IsFalse(expr) => write!(f, "{} IS FALSE", expr),
+            Expr::IsNotTrue(expr) => write!(f, "{} IS NOT TRUE", expr),
+            Expr::IsNotFalse(expr) => write!(f, "{} IS NOT FALSE", expr),
+            Expr::InList(in_list) => write!(
+                f,
+                "{} IN ({})",
+                in_list.expr,
+                in_list
+                    .list
+                    .iter()
+                    .map(|expr| expr.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        }
+    }
+}
+
 /// InList expression
 #[derive(Debug, Clone)]
 pub struct InList {

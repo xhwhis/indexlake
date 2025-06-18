@@ -2,17 +2,26 @@ mod create;
 mod delete;
 mod insert;
 mod scan;
+mod update;
 
-pub use create::*;
-pub use delete::*;
-pub use insert::*;
-pub use scan::*;
+pub(crate) use create::*;
+pub(crate) use delete::*;
+pub(crate) use insert::*;
+pub(crate) use scan::*;
+pub(crate) use update::*;
 
 use crate::expr::Expr;
 use crate::record::{Row, Scalar, SchemaRef};
 use crate::utils::has_duplicated_items;
 use crate::{Catalog, ILError, ILResult, Storage, TransactionHelper};
+use std::collections::HashMap;
 use std::sync::Arc;
+
+pub struct TableCreation {
+    pub namespace_name: String,
+    pub table_name: String,
+    pub schema: SchemaRef,
+}
 
 #[derive(Debug, Clone)]
 pub struct Table {
@@ -50,13 +59,11 @@ impl Table {
         Ok(rows)
     }
 
-    pub async fn update(
-        &self,
-        condition: Expr,
-        columns: &[String],
-        values: Vec<Scalar>,
-    ) -> ILResult<()> {
-        todo!()
+    pub async fn update(&self, set: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {
+        let mut tx_helper = self.transaction_helper().await?;
+        process_update_rows(&mut tx_helper, self.table_id, &self.schema, set, &condition).await?;
+        tx_helper.commit().await?;
+        Ok(())
     }
 
     pub async fn delete(&self, condition: &Expr) -> ILResult<()> {

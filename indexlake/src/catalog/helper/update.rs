@@ -1,4 +1,11 @@
-use crate::{ILResult, catalog::TransactionHelper};
+use std::collections::HashMap;
+
+use crate::{
+    ILResult,
+    catalog::TransactionHelper,
+    expr::Expr,
+    record::{Scalar, SchemaRef},
+};
 
 impl TransactionHelper {
     pub(crate) async fn mark_rows_deleted(
@@ -15,5 +22,27 @@ impl TransactionHelper {
             .collect::<Vec<_>>()
             .join(", ");
         self.transaction.execute(&format!("UPDATE indexlake_row_metadata_{table_id} SET deleted = TRUE WHERE row_id IN ({row_ids_str})")).await
+    }
+
+    pub(crate) async fn update_inline_rows(
+        &mut self,
+        table_id: i64,
+        set: &HashMap<String, Scalar>,
+        condition: &Expr,
+    ) -> ILResult<()> {
+        let mut set_strs = Vec::new();
+        for (col_name, value) in set {
+            set_strs.push(format!("{} = {}", col_name, value));
+        }
+
+        self.transaction
+            .execute(&format!(
+                "UPDATE indexlake_inline_row_{table_id} SET {} WHERE {}",
+                set_strs.join(", "),
+                condition
+            ))
+            .await?;
+
+        Ok(())
     }
 }
