@@ -6,8 +6,9 @@ pub use visitor::*;
 
 use derive_visitor::{Drive, DriveMut};
 
+use crate::record::sql_identifier;
 use crate::{
-    ILError, ILResult,
+    CatalogDatabase, ILError, ILResult,
     record::{Row, Scalar},
 };
 
@@ -125,6 +126,30 @@ impl Expr {
             op: BinaryOp::Eq,
             right: Box::new(other),
         })
+    }
+
+    pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
+        match self {
+            Expr::Column(name) => sql_identifier(name, database),
+            Expr::Literal(scalar) => scalar.to_sql(database),
+            Expr::BinaryExpr(binary_expr) => binary_expr.to_sql(database),
+            Expr::Not(expr) => format!("NOT {}", expr.to_sql(database)),
+            Expr::IsNull(expr) => format!("{} IS NULL", expr.to_sql(database)),
+            Expr::IsNotNull(expr) => format!("{} IS NOT NULL", expr.to_sql(database)),
+            Expr::IsTrue(expr) => format!("{} IS TRUE", expr.to_sql(database)),
+            Expr::IsFalse(expr) => format!("{} IS FALSE", expr.to_sql(database)),
+            Expr::IsNotTrue(expr) => format!("{} IS NOT TRUE", expr.to_sql(database)),
+            Expr::IsNotFalse(expr) => format!("{} IS NOT FALSE", expr.to_sql(database)),
+            Expr::InList(in_list) => {
+                let list = in_list
+                    .list
+                    .iter()
+                    .map(|expr| expr.to_sql(database))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{} IN ({})", in_list.expr.to_sql(database), list)
+            }
+        }
     }
 
     pub fn plus(self, other: Expr) -> Expr {

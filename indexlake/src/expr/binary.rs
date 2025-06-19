@@ -1,7 +1,7 @@
 use derive_visitor::{Drive, DriveMut};
 
 use crate::{
-    ILResult,
+    CatalogDatabase, ILResult,
     expr::Expr,
     record::{Row, Scalar},
 };
@@ -80,6 +80,12 @@ impl BinaryExpr {
             BinaryOp::GtEq => Ok(Scalar::Boolean(Some(left >= right))),
             _ => todo!(),
         }
+    }
+
+    pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
+        let left_sql = self.left.to_sql(database);
+        let right_sql = self.right.to_sql(database);
+        format!("({} {} {})", left_sql, self.op, right_sql)
     }
 }
 

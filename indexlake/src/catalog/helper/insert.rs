@@ -38,7 +38,7 @@ impl TransactionHelper {
             values.push(format!(
                 "({field_id}, {table_id}, '{}', '{}', {}, {})",
                 field.name,
-                field.data_type.to_sql_type(self.database),
+                field.data_type.to_sql(self.database),
                 field.nullable,
                 field
                     .default_value
@@ -63,7 +63,7 @@ impl TransactionHelper {
                 "({})",
                 value
                     .iter()
-                    .map(|v| v.to_sql_value(self.database))
+                    .map(|v| v.to_sql(self.database))
                     .collect::<Vec<_>>()
                     .join(", ")
             ));

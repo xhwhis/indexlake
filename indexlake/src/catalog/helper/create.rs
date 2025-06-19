@@ -27,7 +27,7 @@ impl TransactionHelper {
             columns.push(format!(
                 "{} {} {} {}",
                 sql_identifier(&field.name, self.database),
-                field.data_type.to_sql_type(self.database),
+                field.data_type.to_sql(self.database),
                 if field.nullable {
                     "NULL".to_string()
                 } else {

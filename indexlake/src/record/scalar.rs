@@ -42,7 +42,7 @@ impl Scalar {
         }
     }
 
-    pub fn to_sql_value(&self, database: CatalogDatabase) -> String {
+    pub fn to_sql(&self, database: CatalogDatabase) -> String {
         match self {
             Scalar::Int32(Some(value)) => value.to_string(),
             Scalar::Int32(None) => "null".to_string(),

@@ -35,16 +35,15 @@ impl TransactionHelper {
             set_strs.push(format!(
                 "{} = {}",
                 sql_identifier(field_name, self.database),
-                new_value.to_sql_value(self.database),
+                new_value.to_sql(self.database),
             ));
         }
 
-        // TODO condition to sql string
         self.transaction
             .execute(&format!(
                 "UPDATE indexlake_inline_row_{table_id} SET {} WHERE {}",
                 set_strs.join(", "),
-                condition
+                condition.to_sql(self.database)
             ))
             .await?;
 

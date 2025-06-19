@@ -14,7 +14,7 @@ pub enum DataType {
 }
 
 impl DataType {
-    pub(crate) fn to_sql_type(&self, database: CatalogDatabase) -> String {
+    pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
         match self {
             DataType::Int32 => "INTEGER".to_string(),
             DataType::Int64 => "BIGINT".to_string(),
