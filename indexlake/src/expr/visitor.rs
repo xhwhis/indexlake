@@ -47,8 +47,8 @@ impl InlineColumnNameRewriter {
         match expr {
             Expr::Column(name) => {
                 let field = self.table_schema.get_field_by_name(name).unwrap();
-                let field_id = field.id.unwrap();
-                *name = format!("{INLINE_COLUMN_NAME_PREFIX}{field_id}");
+                let inline_column_name = field.inline_field_name().unwrap();
+                *name = inline_column_name;
             }
             _ => {}
         }

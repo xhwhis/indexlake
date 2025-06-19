@@ -163,14 +163,7 @@ impl TransactionHelper {
     ) -> ILResult<RowStream> {
         let mut select_items = Vec::new();
         for field in &schema.fields {
-            if field.name == INTERNAL_ROW_ID_FIELD_NAME {
-                select_items.push(field.name.clone());
-            } else {
-                let field_id = field.id.ok_or_else(|| {
-                    ILError::InvalidInput(format!("Field id is not set for field {}", field.name))
-                })?;
-                select_items.push(format!("{INLINE_COLUMN_NAME_PREFIX}{field_id}"));
-            }
+            select_items.push(field.inline_field_name()?);
         }
         self.transaction
             .query(

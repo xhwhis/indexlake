@@ -1,4 +1,4 @@
-use crate::record::DataType;
+use crate::{ILError, ILResult, catalog::INLINE_COLUMN_NAME_PREFIX, record::DataType};
 use std::{collections::HashMap, sync::LazyLock};
 
 pub static INTERNAL_ROW_ID_FIELD_NAME: &str = "_indexlake_row_id";
@@ -40,5 +40,16 @@ impl Field {
     pub fn with_metadata(mut self, metadata: HashMap<String, String>) -> Self {
         self.metadata = metadata;
         self
+    }
+
+    pub fn inline_field_name(&self) -> ILResult<String> {
+        if self.name == INTERNAL_ROW_ID_FIELD_NAME {
+            Ok(self.name.clone())
+        } else {
+            let field_id = self
+                .id
+                .ok_or_else(|| ILError::InternalError("Field id is not set".to_string()))?;
+            Ok(format!("{INLINE_COLUMN_NAME_PREFIX}{field_id}"))
+        }
     }
 }

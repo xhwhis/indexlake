@@ -29,10 +29,7 @@ pub(crate) async fn process_insert_values(
 
     let mut inline_field_names = vec![INTERNAL_ROW_ID_FIELD.name.clone()];
     for field in &schema.fields {
-        let field_id = field
-            .id
-            .ok_or_else(|| ILError::InvalidInput("Field id is not set".to_string()))?;
-        inline_field_names.push(format!("{INLINE_COLUMN_NAME_PREFIX}{field_id}"));
+        inline_field_names.push(field.inline_field_name()?);
     }
     tx_helper
         .insert_inline_rows(table_id, &inline_field_names, new_values)

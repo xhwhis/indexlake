@@ -2,7 +2,7 @@ pub type ILResult<T> = Result<T, ILError>;
 
 #[derive(Debug)]
 pub enum ILError {
-    Internal(String),
+    InternalError(String),
     NotSupported(String),
     CatalogError(String),
     StorageError(String),
