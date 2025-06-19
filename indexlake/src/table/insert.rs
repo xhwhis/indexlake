@@ -1,7 +1,6 @@
 use crate::{
-    ILError, ILResult, TransactionHelper,
-    catalog::INLINE_COLUMN_NAME_PREFIX,
-    record::{INTERNAL_ROW_ID_FIELD, Scalar, Schema},
+    ILResult, TransactionHelper,
+    record::{INTERNAL_ROW_ID_FIELD, Scalar, Schema, sql_identifier},
 };
 
 pub(crate) async fn process_insert_values(
@@ -29,7 +28,7 @@ pub(crate) async fn process_insert_values(
 
     let mut inline_field_names = vec![INTERNAL_ROW_ID_FIELD.name.clone()];
     for field in &schema.fields {
-        inline_field_names.push(field.inline_field_name()?);
+        inline_field_names.push(field.name.clone());
     }
     tx_helper
         .insert_inline_rows(table_id, &inline_field_names, new_values)

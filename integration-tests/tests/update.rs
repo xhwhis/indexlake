@@ -54,9 +54,9 @@ async fn update_table(
     ];
     table.insert(&columns, values).await.unwrap();
 
-    let set = HashMap::from([("name".to_string(), Scalar::Utf8(Some("Alice2".to_string())))]);
+    let set_map = HashMap::from([("name".to_string(), Scalar::Utf8(Some("Alice2".to_string())))]);
     let condition = Expr::Column("id".to_string()).eq(Expr::Literal(Scalar::Int64(Some(1))));
-    table.update(set, condition).await.unwrap();
+    table.update(set_map, &condition).await.unwrap();
 
     let row_stream = table.scan().await.unwrap();
     let mut rows = row_stream.try_collect::<Vec<_>>().await.unwrap();

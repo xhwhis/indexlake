@@ -1,5 +1,4 @@
-use crate::catalog::INLINE_COLUMN_NAME_PREFIX;
-use crate::record::{Field, INTERNAL_ROW_ID_FIELD_NAME};
+use crate::record::{Field, INTERNAL_ROW_ID_FIELD_NAME, sql_identifier};
 use crate::{ILResult, TransactionHelper};
 
 impl TransactionHelper {
@@ -20,15 +19,14 @@ impl TransactionHelper {
     pub(crate) async fn create_inline_row_table(
         &mut self,
         table_id: i64,
-        field_ids: &[i64],
         fields: &[Field],
     ) -> ILResult<()> {
         let mut columns = Vec::new();
         columns.push(format!("{} BIGINT PRIMARY KEY", INTERNAL_ROW_ID_FIELD_NAME));
-        for (field_id, field) in field_ids.iter().zip(fields.iter()) {
+        for field in fields {
             columns.push(format!(
                 "{} {} {} {}",
-                format!("{INLINE_COLUMN_NAME_PREFIX}{field_id}"),
+                sql_identifier(&field.name, self.database),
                 field.data_type.to_sql_type(self.database),
                 if field.nullable {
                     "NULL".to_string()

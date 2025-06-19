@@ -1,7 +1,6 @@
 use crate::{
     ILResult, TransactionHelper,
-    catalog::INLINE_COLUMN_NAME_PREFIX,
-    record::{Field, Scalar},
+    record::{Field, Scalar, sql_identifier},
 };
 
 impl TransactionHelper {
@@ -72,7 +71,11 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "INSERT INTO indexlake_inline_row_{table_id} ({}) VALUES {}",
-                field_names.join(", "),
+                field_names
+                    .iter()
+                    .map(|name| sql_identifier(name, self.database))
+                    .collect::<Vec<_>>()
+                    .join(", "),
                 value_strings.join(", ")
             ))
             .await?;

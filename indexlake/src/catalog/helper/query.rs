@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use crate::{
     ILError, ILResult, RowStream,
-    catalog::{INLINE_COLUMN_NAME_PREFIX, TransactionHelper},
-    record::{DataType, Field, INTERNAL_ROW_ID_FIELD_NAME, Row, Schema, SchemaRef},
+    catalog::TransactionHelper,
+    record::{DataType, Field, Row, Schema, SchemaRef, sql_identifier},
 };
 
 impl TransactionHelper {
@@ -104,26 +104,24 @@ impl TransactionHelper {
 
     pub(crate) async fn get_table_schema(&mut self, table_id: i64) -> ILResult<SchemaRef> {
         let schema = Arc::new(Schema::new(vec![
-            Field::new("field_id", DataType::Int64, false),
             Field::new("field_name", DataType::Utf8, false),
             Field::new("data_type", DataType::Utf8, false),
             Field::new("nullable", DataType::Boolean, false),
             Field::new("default_value", DataType::Utf8, true),
         ]));
-        let rows = self.query_rows(&format!("SELECT field_id, field_name, data_type, nullable, default_value FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"), schema).await?;
+        let rows = self.query_rows(&format!("SELECT field_name, data_type, nullable, default_value FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"), schema).await?;
         let mut fields = Vec::new();
         for row in rows {
             fields.push(
                 Field::new(
-                    row.varchar(1).expect("field_name is not null"),
+                    row.varchar(0).expect("field_name is not null"),
                     DataType::parse_sql_type(
-                        &row.varchar(2).expect("data_type is not null"),
+                        &row.varchar(1).expect("data_type is not null"),
                         self.database,
                     )?,
-                    row.boolean(3).expect("nullable is not null"),
+                    row.boolean(2).expect("nullable is not null"),
                 )
-                .with_id(Some(row.bigint(0).expect("field_id is not null")))
-                .with_default_value(row.varchar(4).map(|v| v.to_string())),
+                .with_default_value(row.varchar(3).map(|v| v.to_string())),
             );
         }
         Ok(Arc::new(Schema::new(fields)))
@@ -162,10 +160,11 @@ impl TransactionHelper {
         table_id: i64,
         schema: &SchemaRef,
     ) -> ILResult<RowStream> {
-        let mut select_items = Vec::new();
-        for field in &schema.fields {
-            select_items.push(field.inline_field_name()?);
-        }
+        let select_items = schema
+            .fields
+            .iter()
+            .map(|f| sql_identifier(&f.name, self.database))
+            .collect::<Vec<_>>();
         self.transaction
             .query(
                 &format!(

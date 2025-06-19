@@ -12,11 +12,9 @@ use crate::{
     record::{Row, SchemaRef},
 };
 
-pub(crate) const INLINE_COLUMN_NAME_PREFIX: &str = "col_";
-
 pub(crate) struct TransactionHelper {
-    transaction: Box<dyn Transaction>,
-    database: CatalogDatabase,
+    pub(crate) transaction: Box<dyn Transaction>,
+    pub(crate) database: CatalogDatabase,
 }
 
 impl TransactionHelper {
