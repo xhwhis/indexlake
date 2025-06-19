@@ -70,7 +70,7 @@ mod tests {
     fn test_visited_columns() {
         let col_a = Expr::Column("a".to_string());
         let col_b = Expr::Column("b".to_string());
-        let scalar_1 = Expr::Literal(Scalar::Integer(Some(1)));
+        let scalar_1 = Expr::Literal(Scalar::Int32(Some(1)));
         let expr = col_a.eq(col_b.plus(scalar_1));
         let columns = visited_columns(&expr);
         assert_eq!(columns, vec!["a", "b"]);

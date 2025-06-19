@@ -75,37 +75,37 @@ impl Transaction for SqliteTransaction {
                         let v: Option<i32> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Integer(v)
+                        Scalar::Int32(v)
                     }
                     DataType::Int64 => {
                         let v: Option<i64> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::BigInt(v)
+                        Scalar::Int64(v)
                     }
                     DataType::Float32 => {
                         let v: Option<f32> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Float(v)
+                        Scalar::Float32(v)
                     }
                     DataType::Float64 => {
                         let v: Option<f64> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Double(v)
+                        Scalar::Float64(v)
                     }
                     DataType::Utf8 => {
                         let v: Option<String> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Varchar(v)
+                        Scalar::Utf8(v)
                     }
                     DataType::Binary => {
                         let v: Option<Vec<u8>> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Varbinary(v)
+                        Scalar::Binary(v)
                     }
                     DataType::Boolean => {
                         let v: Option<bool> = row

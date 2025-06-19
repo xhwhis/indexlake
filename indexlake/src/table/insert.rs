@@ -17,7 +17,7 @@ pub(crate) async fn process_insert_values(
     let mut row_metadatas = vec![];
     let mut row_id = max_row_id + 1;
     for value in values {
-        let mut new_value = vec![Scalar::BigInt(Some(row_id))];
+        let mut new_value = vec![Scalar::Int64(Some(row_id))];
         new_value.extend(value);
 
         new_values.push(new_value);

@@ -27,7 +27,10 @@ impl DataType {
                 CatalogDatabase::Postgres => "FLOAT8".to_string(),
             },
             DataType::Utf8 => "VARCHAR".to_string(),
-            DataType::Binary => "VARBINARY".to_string(),
+            DataType::Binary => match database {
+                CatalogDatabase::Sqlite => "BLOB".to_string(),
+                CatalogDatabase::Postgres => "BYTEA".to_string(),
+            },
             DataType::Boolean => "BOOLEAN".to_string(),
         }
     }
@@ -39,14 +42,14 @@ impl DataType {
             ("FLOAT", CatalogDatabase::Sqlite) => Ok(DataType::Float32),
             ("DOUBLE", CatalogDatabase::Sqlite) => Ok(DataType::Float64),
             ("VARCHAR", CatalogDatabase::Sqlite) => Ok(DataType::Utf8),
-            ("VARBINARY", CatalogDatabase::Sqlite) => Ok(DataType::Binary),
+            ("BLOB", CatalogDatabase::Sqlite) => Ok(DataType::Binary),
             ("BOOLEAN", CatalogDatabase::Sqlite) => Ok(DataType::Boolean),
             ("INTEGER", CatalogDatabase::Postgres) => Ok(DataType::Int32),
             ("BIGINT", CatalogDatabase::Postgres) => Ok(DataType::Int64),
             ("FLOAT4", CatalogDatabase::Postgres) => Ok(DataType::Float32),
             ("FLOAT8", CatalogDatabase::Postgres) => Ok(DataType::Float64),
             ("VARCHAR", CatalogDatabase::Postgres) => Ok(DataType::Utf8),
-            ("VARBINARY", CatalogDatabase::Postgres) => Ok(DataType::Binary),
+            ("BYTEA", CatalogDatabase::Postgres) => Ok(DataType::Binary),
             ("BOOLEAN", CatalogDatabase::Postgres) => Ok(DataType::Boolean),
             _ => Err(ILError::NotSupported(format!(
                 "Unsupported data type: {s} for database: {database}"

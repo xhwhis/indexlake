@@ -26,14 +26,14 @@ impl Row {
 
     pub fn bigint(&self, index: usize) -> Option<i64> {
         match self.values[index] {
-            Scalar::BigInt(v) => v,
+            Scalar::Int64(v) => v,
             _ => panic!("Expected BigInt at index {index} for row {self:?}"),
         }
     }
 
     pub fn varchar(&self, index: usize) -> Option<String> {
         match &self.values[index] {
-            Scalar::Varchar(v) => v.clone(),
+            Scalar::Utf8(v) => v.clone(),
             _ => panic!("Expected Varchar at index {index} for row {self:?}"),
         }
     }

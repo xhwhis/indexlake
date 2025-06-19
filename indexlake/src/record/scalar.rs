@@ -2,32 +2,34 @@ use std::fmt::Display;
 
 use derive_visitor::{Drive, DriveMut};
 
+use crate::CatalogDatabase;
+
 #[derive(Debug, Clone, Drive, DriveMut)]
 pub enum Scalar {
-    Integer(Option<i32>),
-    BigInt(Option<i64>),
-    Float(Option<f32>),
-    Double(Option<f64>),
-    Varchar(Option<String>),
-    Varbinary(Option<Vec<u8>>),
+    Int32(Option<i32>),
+    Int64(Option<i64>),
+    Float32(Option<f32>),
+    Float64(Option<f64>),
+    Utf8(Option<String>),
+    Binary(Option<Vec<u8>>),
     Boolean(Option<bool>),
 }
 
 impl Scalar {
     pub fn is_null(&self) -> bool {
         match self {
-            Scalar::Integer(None) => true,
-            Scalar::Integer(Some(_)) => false,
-            Scalar::BigInt(None) => true,
-            Scalar::BigInt(Some(_)) => false,
-            Scalar::Float(None) => true,
-            Scalar::Float(Some(_)) => false,
-            Scalar::Double(None) => true,
-            Scalar::Double(Some(_)) => false,
-            Scalar::Varchar(None) => true,
-            Scalar::Varchar(Some(_)) => false,
-            Scalar::Varbinary(None) => true,
-            Scalar::Varbinary(Some(_)) => false,
+            Scalar::Int32(None) => true,
+            Scalar::Int32(Some(_)) => false,
+            Scalar::Int64(None) => true,
+            Scalar::Int64(Some(_)) => false,
+            Scalar::Float32(None) => true,
+            Scalar::Float32(Some(_)) => false,
+            Scalar::Float64(None) => true,
+            Scalar::Float64(Some(_)) => false,
+            Scalar::Utf8(None) => true,
+            Scalar::Utf8(Some(_)) => false,
+            Scalar::Binary(None) => true,
+            Scalar::Binary(Some(_)) => false,
             Scalar::Boolean(None) => true,
             Scalar::Boolean(Some(_)) => false,
         }
@@ -39,29 +41,51 @@ impl Scalar {
             _ => false,
         }
     }
+
+    pub fn to_sql_value(&self, database: CatalogDatabase) -> String {
+        match self {
+            Scalar::Int32(Some(value)) => value.to_string(),
+            Scalar::Int32(None) => "null".to_string(),
+            Scalar::Int64(Some(value)) => value.to_string(),
+            Scalar::Int64(None) => "null".to_string(),
+            Scalar::Float32(Some(value)) => value.to_string(),
+            Scalar::Float32(None) => "null".to_string(),
+            Scalar::Float64(Some(value)) => value.to_string(),
+            Scalar::Float64(None) => "null".to_string(),
+            Scalar::Utf8(Some(value)) => format!("'{}'", value),
+            Scalar::Utf8(None) => "null".to_string(),
+            Scalar::Binary(Some(value)) => match database {
+                CatalogDatabase::Sqlite => format!("X'{}'", hex::encode(value)),
+                CatalogDatabase::Postgres => format!("E'\\\\x{}'", hex::encode(value)),
+            },
+            Scalar::Binary(None) => "null".to_string(),
+            Scalar::Boolean(Some(value)) => value.to_string(),
+            Scalar::Boolean(None) => "null".to_string(),
+        }
+    }
 }
 
 impl PartialEq for Scalar {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Scalar::Integer(v1), Scalar::Integer(v2)) => v1.eq(v2),
-            (Scalar::Integer(_), _) => false,
-            (Scalar::BigInt(v1), Scalar::BigInt(v2)) => v1.eq(v2),
-            (Scalar::BigInt(_), _) => false,
-            (Scalar::Float(v1), Scalar::Float(v2)) => match (v1, v2) {
+            (Scalar::Int32(v1), Scalar::Int32(v2)) => v1.eq(v2),
+            (Scalar::Int32(_), _) => false,
+            (Scalar::Int64(v1), Scalar::Int64(v2)) => v1.eq(v2),
+            (Scalar::Int64(_), _) => false,
+            (Scalar::Float32(v1), Scalar::Float32(v2)) => match (v1, v2) {
                 (Some(f1), Some(f2)) => f1.to_bits() == f2.to_bits(),
                 _ => v1.eq(v2),
             },
-            (Scalar::Float(_), _) => false,
-            (Scalar::Double(v1), Scalar::Double(v2)) => match (v1, v2) {
+            (Scalar::Float32(_), _) => false,
+            (Scalar::Float64(v1), Scalar::Float64(v2)) => match (v1, v2) {
                 (Some(d1), Some(d2)) => d1.to_bits() == d2.to_bits(),
                 _ => v1.eq(v2),
             },
-            (Scalar::Double(_), _) => false,
-            (Scalar::Varchar(v1), Scalar::Varchar(v2)) => v1.eq(v2),
-            (Scalar::Varchar(_), _) => false,
-            (Scalar::Varbinary(v1), Scalar::Varbinary(v2)) => v1.eq(v2),
-            (Scalar::Varbinary(_), _) => false,
+            (Scalar::Float64(_), _) => false,
+            (Scalar::Utf8(v1), Scalar::Utf8(v2)) => v1.eq(v2),
+            (Scalar::Utf8(_), _) => false,
+            (Scalar::Binary(v1), Scalar::Binary(v2)) => v1.eq(v2),
+            (Scalar::Binary(_), _) => false,
             (Scalar::Boolean(v1), Scalar::Boolean(v2)) => v1.eq(v2),
             (Scalar::Boolean(_), _) => false,
         }
@@ -73,24 +97,24 @@ impl Eq for Scalar {}
 impl PartialOrd for Scalar {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
-            (Scalar::Integer(v1), Scalar::Integer(v2)) => v1.partial_cmp(v2),
-            (Scalar::Integer(_), _) => None,
-            (Scalar::BigInt(v1), Scalar::BigInt(v2)) => v1.partial_cmp(v2),
-            (Scalar::BigInt(_), _) => None,
-            (Scalar::Float(v1), Scalar::Float(v2)) => match (v1, v2) {
+            (Scalar::Int32(v1), Scalar::Int32(v2)) => v1.partial_cmp(v2),
+            (Scalar::Int32(_), _) => None,
+            (Scalar::Int64(v1), Scalar::Int64(v2)) => v1.partial_cmp(v2),
+            (Scalar::Int64(_), _) => None,
+            (Scalar::Float32(v1), Scalar::Float32(v2)) => match (v1, v2) {
                 (Some(f1), Some(f2)) => f1.partial_cmp(f2),
                 _ => v1.partial_cmp(v2),
             },
-            (Scalar::Float(_), _) => None,
-            (Scalar::Double(v1), Scalar::Double(v2)) => match (v1, v2) {
+            (Scalar::Float32(_), _) => None,
+            (Scalar::Float64(v1), Scalar::Float64(v2)) => match (v1, v2) {
                 (Some(d1), Some(d2)) => d1.partial_cmp(d2),
                 _ => v1.partial_cmp(v2),
             },
-            (Scalar::Double(_), _) => None,
-            (Scalar::Varchar(v1), Scalar::Varchar(v2)) => v1.partial_cmp(v2),
-            (Scalar::Varchar(_), _) => None,
-            (Scalar::Varbinary(v1), Scalar::Varbinary(v2)) => v1.partial_cmp(v2),
-            (Scalar::Varbinary(_), _) => None,
+            (Scalar::Float64(_), _) => None,
+            (Scalar::Utf8(v1), Scalar::Utf8(v2)) => v1.partial_cmp(v2),
+            (Scalar::Utf8(_), _) => None,
+            (Scalar::Binary(v1), Scalar::Binary(v2)) => v1.partial_cmp(v2),
+            (Scalar::Binary(_), _) => None,
             (Scalar::Boolean(v1), Scalar::Boolean(v2)) => v1.partial_cmp(v2),
             (Scalar::Boolean(_), _) => None,
         }
@@ -100,18 +124,18 @@ impl PartialOrd for Scalar {
 impl Display for Scalar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Scalar::Integer(Some(value)) => write!(f, "{}", value),
-            Scalar::Integer(None) => write!(f, "null"),
-            Scalar::BigInt(Some(value)) => write!(f, "{}", value),
-            Scalar::BigInt(None) => write!(f, "null"),
-            Scalar::Float(Some(value)) => write!(f, "{}", value),
-            Scalar::Float(None) => write!(f, "null"),
-            Scalar::Double(Some(value)) => write!(f, "{}", value),
-            Scalar::Double(None) => write!(f, "null"),
-            Scalar::Varchar(Some(value)) => write!(f, "'{}'", value),
-            Scalar::Varchar(None) => write!(f, "null"),
-            Scalar::Varbinary(Some(value)) => write!(f, "X'{}'", hex::encode(value)),
-            Scalar::Varbinary(None) => write!(f, "null"),
+            Scalar::Int32(Some(value)) => write!(f, "{}", value),
+            Scalar::Int32(None) => write!(f, "null"),
+            Scalar::Int64(Some(value)) => write!(f, "{}", value),
+            Scalar::Int64(None) => write!(f, "null"),
+            Scalar::Float32(Some(value)) => write!(f, "{}", value),
+            Scalar::Float32(None) => write!(f, "null"),
+            Scalar::Float64(Some(value)) => write!(f, "{}", value),
+            Scalar::Float64(None) => write!(f, "null"),
+            Scalar::Utf8(Some(value)) => write!(f, "'{}'", value),
+            Scalar::Utf8(None) => write!(f, "null"),
+            Scalar::Binary(Some(value)) => write!(f, "{}", hex::encode(value)),
+            Scalar::Binary(None) => write!(f, "null"),
             Scalar::Boolean(Some(value)) => write!(f, "{}", value),
             Scalar::Boolean(None) => write!(f, "null"),
         }

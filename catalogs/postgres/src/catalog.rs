@@ -148,37 +148,37 @@ fn pg_row_to_row(pg_row: &bb8_postgres::tokio_postgres::Row, schema: &SchemaRef)
                 let v: Option<i32> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Integer(v)
+                Scalar::Int32(v)
             }
             DataType::Int64 => {
                 let v: Option<i64> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::BigInt(v)
+                Scalar::Int64(v)
             }
             DataType::Float32 => {
                 let v: Option<f32> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Float(v)
+                Scalar::Float32(v)
             }
             DataType::Float64 => {
                 let v: Option<f64> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Double(v)
+                Scalar::Float64(v)
             }
             DataType::Utf8 => {
                 let v: Option<String> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Varchar(v)
+                Scalar::Utf8(v)
             }
             DataType::Binary => {
                 let v: Option<Vec<u8>> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Varbinary(v)
+                Scalar::Binary(v)
             }
             DataType::Boolean => {
                 let v: Option<bool> = pg_row

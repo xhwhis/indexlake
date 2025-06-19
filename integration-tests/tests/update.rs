@@ -44,21 +44,18 @@ async fn update_table(
     let columns = vec!["id".to_string(), "name".to_string()];
     let values = vec![
         vec![
-            Scalar::BigInt(Some(1)),
-            Scalar::Varchar(Some("Alice".to_string())),
+            Scalar::Int64(Some(1)),
+            Scalar::Utf8(Some("Alice".to_string())),
         ],
         vec![
-            Scalar::BigInt(Some(2)),
-            Scalar::Varchar(Some("Bob".to_string())),
+            Scalar::Int64(Some(2)),
+            Scalar::Utf8(Some("Bob".to_string())),
         ],
     ];
     table.insert(&columns, values).await.unwrap();
 
-    let set = HashMap::from([(
-        "name".to_string(),
-        Scalar::Varchar(Some("Alice2".to_string())),
-    )]);
-    let condition = Expr::Column("id".to_string()).eq(Expr::Literal(Scalar::BigInt(Some(1))));
+    let set = HashMap::from([("name".to_string(), Scalar::Utf8(Some("Alice2".to_string())))]);
+    let condition = Expr::Column("id".to_string()).eq(Expr::Literal(Scalar::Int64(Some(1))));
     table.update(set, condition).await.unwrap();
 
     let row_stream = table.scan().await.unwrap();

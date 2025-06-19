@@ -40,12 +40,12 @@ async fn insert_table(
     let columns = vec!["id".to_string(), "name".to_string()];
     let values = vec![
         vec![
-            Scalar::BigInt(Some(1)),
-            Scalar::Varchar(Some("Alice".to_string())),
+            Scalar::Int64(Some(1)),
+            Scalar::Utf8(Some("Alice".to_string())),
         ],
         vec![
-            Scalar::BigInt(Some(2)),
-            Scalar::Varchar(Some("Bob".to_string())),
+            Scalar::Int64(Some(2)),
+            Scalar::Utf8(Some("Bob".to_string())),
         ],
     ];
 

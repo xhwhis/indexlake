@@ -64,7 +64,7 @@ impl TransactionHelper {
                 "({})",
                 value
                     .iter()
-                    .map(|v| v.to_string())
+                    .map(|v| v.to_sql_value(self.database))
                     .collect::<Vec<_>>()
                     .join(", ")
             ));
