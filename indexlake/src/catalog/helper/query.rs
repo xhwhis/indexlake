@@ -10,7 +10,7 @@ impl TransactionHelper {
     pub(crate) async fn get_max_namespace_id(&mut self) -> ILResult<i64> {
         let schema = Arc::new(Schema::new(vec![Field::new(
             "max_namespace_id",
-            DataType::BigInt,
+            DataType::Int64,
             true,
         )]));
         let rows = self
@@ -27,7 +27,7 @@ impl TransactionHelper {
     pub(crate) async fn get_namespace_id(&mut self, namespace_name: &str) -> ILResult<Option<i64>> {
         let schema = Arc::new(Schema::new(vec![Field::new(
             "namespace_id",
-            DataType::BigInt,
+            DataType::Int64,
             false,
         )]));
         let rows = self
@@ -50,7 +50,7 @@ impl TransactionHelper {
     pub(crate) async fn get_max_table_id(&mut self) -> ILResult<i64> {
         let schema = Arc::new(Schema::new(vec![Field::new(
             "max_table_id",
-            DataType::BigInt,
+            DataType::Int64,
             true,
         )]));
         let rows = self
@@ -71,7 +71,7 @@ impl TransactionHelper {
     ) -> ILResult<Option<i64>> {
         let schema = Arc::new(Schema::new(vec![Field::new(
             "table_id",
-            DataType::BigInt,
+            DataType::Int64,
             false,
         )]));
         let rows = self.query_rows(&format!("SELECT table_id FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'"), schema).await?;
@@ -87,7 +87,7 @@ impl TransactionHelper {
     pub(crate) async fn get_max_field_id(&mut self) -> ILResult<i64> {
         let schema = Arc::new(Schema::new(vec![Field::new(
             "max_field_id",
-            DataType::BigInt,
+            DataType::Int64,
             true,
         )]));
 
@@ -104,11 +104,11 @@ impl TransactionHelper {
 
     pub(crate) async fn get_table_schema(&mut self, table_id: i64) -> ILResult<SchemaRef> {
         let schema = Arc::new(Schema::new(vec![
-            Field::new("field_id", DataType::BigInt, false),
-            Field::new("field_name", DataType::Varchar, false),
-            Field::new("data_type", DataType::Varchar, false),
+            Field::new("field_id", DataType::Int64, false),
+            Field::new("field_name", DataType::Utf8, false),
+            Field::new("data_type", DataType::Utf8, false),
             Field::new("nullable", DataType::Boolean, false),
-            Field::new("default_value", DataType::Varchar, true),
+            Field::new("default_value", DataType::Utf8, true),
         ]));
         let rows = self.query_rows(&format!("SELECT field_id, field_name, data_type, nullable, default_value FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"), schema).await?;
         let mut fields = Vec::new();
@@ -132,7 +132,7 @@ impl TransactionHelper {
     pub(crate) async fn get_max_row_id(&mut self, table_id: i64) -> ILResult<i64> {
         let schema = Arc::new(Schema::new(vec![Field::new(
             "max_row_id",
-            DataType::BigInt,
+            DataType::Int64,
             true,
         )]));
         let rows = self
@@ -151,8 +151,8 @@ impl TransactionHelper {
 
     pub(crate) async fn scan_row_metadata(&mut self, table_id: i64) -> ILResult<Vec<Row>> {
         let schema = Arc::new(Schema::new(vec![
-            Field::new("row_id", DataType::BigInt, false),
-            Field::new("location", DataType::Varchar, true),
+            Field::new("row_id", DataType::Int64, false),
+            Field::new("location", DataType::Utf8, true),
         ]));
         self.query_rows(&format!("SELECT row_id, location FROM indexlake_row_metadata_{table_id} WHERE deleted = FALSE"), schema).await
     }

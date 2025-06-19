@@ -39,7 +39,7 @@ impl TransactionHelper {
             values.push(format!(
                 "({field_id}, {table_id}, '{}', '{}', {}, {})",
                 field.name,
-                field.data_type.to_string(),
+                field.data_type.to_sql_type(self.database),
                 field.nullable,
                 field
                     .default_value

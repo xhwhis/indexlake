@@ -26,8 +26,8 @@ async fn delete_table(
     client.create_namespace(namespace_name).await.unwrap();
 
     let table_schema = Arc::new(Schema::new(vec![
-        Field::new("id", DataType::BigInt, false),
-        Field::new("name", DataType::Varchar, false),
+        Field::new("id", DataType::Int64, false),
+        Field::new("name", DataType::Utf8, false),
     ]));
     let table_name = "test_table";
     let table_creation = TableCreation {

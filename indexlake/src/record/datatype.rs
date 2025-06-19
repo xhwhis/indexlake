@@ -4,49 +4,49 @@ use crate::{CatalogDatabase, ILError, ILResult};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataType {
-    Integer,
-    BigInt,
-    Float,
-    Double,
-    Varchar,
-    Varbinary,
+    Int32,
+    Int64,
+    Float32,
+    Float64,
+    Utf8,
+    Binary,
     Boolean,
 }
 
 impl DataType {
     pub(crate) fn to_sql_type(&self, database: CatalogDatabase) -> String {
         match self {
-            DataType::Integer => "INTEGER".to_string(),
-            DataType::BigInt => "BIGINT".to_string(),
-            DataType::Float => match database {
+            DataType::Int32 => "INTEGER".to_string(),
+            DataType::Int64 => "BIGINT".to_string(),
+            DataType::Float32 => match database {
                 CatalogDatabase::Sqlite => "FLOAT".to_string(),
                 CatalogDatabase::Postgres => "FLOAT4".to_string(),
             },
-            DataType::Double => match database {
+            DataType::Float64 => match database {
                 CatalogDatabase::Sqlite => "DOUBLE".to_string(),
                 CatalogDatabase::Postgres => "FLOAT8".to_string(),
             },
-            DataType::Varchar => "VARCHAR".to_string(),
-            DataType::Varbinary => "VARBINARY".to_string(),
+            DataType::Utf8 => "VARCHAR".to_string(),
+            DataType::Binary => "VARBINARY".to_string(),
             DataType::Boolean => "BOOLEAN".to_string(),
         }
     }
 
     pub(crate) fn parse_sql_type(s: &str, database: CatalogDatabase) -> ILResult<Self> {
         match (s, database) {
-            ("INTEGER", CatalogDatabase::Sqlite) => Ok(DataType::Integer),
-            ("INTEGER", CatalogDatabase::Postgres) => Ok(DataType::Integer),
-            ("BIGINT", CatalogDatabase::Sqlite) => Ok(DataType::BigInt),
-            ("BIGINT", CatalogDatabase::Postgres) => Ok(DataType::BigInt),
-            ("FLOAT", CatalogDatabase::Sqlite) => Ok(DataType::Float),
-            ("FLOAT4", CatalogDatabase::Postgres) => Ok(DataType::Float),
-            ("DOUBLE", CatalogDatabase::Sqlite) => Ok(DataType::Double),
-            ("FLOAT8", CatalogDatabase::Postgres) => Ok(DataType::Double),
-            ("VARCHAR", CatalogDatabase::Sqlite) => Ok(DataType::Varchar),
-            ("VARCHAR", CatalogDatabase::Postgres) => Ok(DataType::Varchar),
-            ("VARBINARY", CatalogDatabase::Sqlite) => Ok(DataType::Varbinary),
-            ("VARBINARY", CatalogDatabase::Postgres) => Ok(DataType::Varbinary),
+            ("INTEGER", CatalogDatabase::Sqlite) => Ok(DataType::Int32),
+            ("BIGINT", CatalogDatabase::Sqlite) => Ok(DataType::Int64),
+            ("FLOAT", CatalogDatabase::Sqlite) => Ok(DataType::Float32),
+            ("DOUBLE", CatalogDatabase::Sqlite) => Ok(DataType::Float64),
+            ("VARCHAR", CatalogDatabase::Sqlite) => Ok(DataType::Utf8),
+            ("VARBINARY", CatalogDatabase::Sqlite) => Ok(DataType::Binary),
             ("BOOLEAN", CatalogDatabase::Sqlite) => Ok(DataType::Boolean),
+            ("INTEGER", CatalogDatabase::Postgres) => Ok(DataType::Int32),
+            ("BIGINT", CatalogDatabase::Postgres) => Ok(DataType::Int64),
+            ("FLOAT4", CatalogDatabase::Postgres) => Ok(DataType::Float32),
+            ("FLOAT8", CatalogDatabase::Postgres) => Ok(DataType::Float64),
+            ("VARCHAR", CatalogDatabase::Postgres) => Ok(DataType::Utf8),
+            ("VARBINARY", CatalogDatabase::Postgres) => Ok(DataType::Binary),
             ("BOOLEAN", CatalogDatabase::Postgres) => Ok(DataType::Boolean),
             _ => Err(ILError::NotSupported(format!(
                 "Unsupported data type: {s} for database: {database}"
@@ -58,13 +58,13 @@ impl DataType {
 impl std::fmt::Display for DataType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DataType::Integer => write!(f, "INTEGER"),
-            DataType::BigInt => write!(f, "BIGINT"),
-            DataType::Float => write!(f, "FLOAT"),
-            DataType::Double => write!(f, "DOUBLE"),
-            DataType::Varchar => write!(f, "VARCHAR"),
-            DataType::Varbinary => write!(f, "VARBINARY"),
-            DataType::Boolean => write!(f, "BOOLEAN"),
+            DataType::Int32 => write!(f, "Int32"),
+            DataType::Int64 => write!(f, "Int64"),
+            DataType::Float32 => write!(f, "Float32"),
+            DataType::Float64 => write!(f, "Float64"),
+            DataType::Utf8 => write!(f, "Utf8"),
+            DataType::Binary => write!(f, "Binary"),
+            DataType::Boolean => write!(f, "Boolean"),
         }
     }
 }

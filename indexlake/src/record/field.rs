@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::LazyLock};
 
 pub static INTERNAL_ROW_ID_FIELD_NAME: &str = "_indexlake_row_id";
 pub static INTERNAL_ROW_ID_FIELD: LazyLock<Field> =
-    LazyLock::new(|| Field::new(INTERNAL_ROW_ID_FIELD_NAME, DataType::BigInt, false));
+    LazyLock::new(|| Field::new(INTERNAL_ROW_ID_FIELD_NAME, DataType::Int64, false));
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Field {

@@ -15,16 +15,17 @@ async fn create_table(
     #[case]
     catalog: Arc<dyn Catalog>,
 ) {
-    let storage = Arc::new(Storage::new_fs());
+    init_env_logger();
 
+    let storage = Arc::new(Storage::new_fs());
     let client = LakeClient::new(catalog, storage);
 
     let namespace_name = "test_namespace";
     let expected_namespace_id = client.create_namespace(namespace_name).await.unwrap();
 
     let expected_schema = Arc::new(Schema::new(vec![
-        Field::new("id", DataType::BigInt, false),
-        Field::new("name", DataType::Varchar, false),
+        Field::new("id", DataType::Int64, false),
+        Field::new("name", DataType::Utf8, false),
     ]));
 
     let table_name = "test_table";

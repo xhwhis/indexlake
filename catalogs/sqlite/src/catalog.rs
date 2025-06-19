@@ -71,37 +71,37 @@ impl Transaction for SqliteTransaction {
             let mut row_values = Vec::new();
             for (idx, field) in schema.fields.iter().enumerate() {
                 let scalar = match field.data_type {
-                    DataType::Integer => {
+                    DataType::Int32 => {
                         let v: Option<i32> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
                         Scalar::Integer(v)
                     }
-                    DataType::BigInt => {
+                    DataType::Int64 => {
                         let v: Option<i64> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
                         Scalar::BigInt(v)
                     }
-                    DataType::Float => {
+                    DataType::Float32 => {
                         let v: Option<f32> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
                         Scalar::Float(v)
                     }
-                    DataType::Double => {
+                    DataType::Float64 => {
                         let v: Option<f64> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
                         Scalar::Double(v)
                     }
-                    DataType::Varchar => {
+                    DataType::Utf8 => {
                         let v: Option<String> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
                         Scalar::Varchar(v)
                     }
-                    DataType::Varbinary => {
+                    DataType::Binary => {
                         let v: Option<Vec<u8>> = row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
