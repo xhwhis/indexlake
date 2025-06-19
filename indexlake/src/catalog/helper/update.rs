@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     ILResult,
-    catalog::TransactionHelper,
+    catalog::{INLINE_COLUMN_NAME_PREFIX, TransactionHelper},
     expr::Expr,
     record::{Scalar, SchemaRef},
 };
@@ -27,12 +27,16 @@ impl TransactionHelper {
     pub(crate) async fn update_inline_rows(
         &mut self,
         table_id: i64,
-        set: &HashMap<String, Scalar>,
+        field_id_to_value_map: &HashMap<i64, Scalar>,
         condition: &Expr,
     ) -> ILResult<()> {
         let mut set_strs = Vec::new();
-        for (col_name, value) in set {
-            set_strs.push(format!("{} = {}", col_name, value));
+        for (field_id, value) in field_id_to_value_map {
+            set_strs.push(format!(
+                "{} = {}",
+                format!("{INLINE_COLUMN_NAME_PREFIX}{field_id}"),
+                value
+            ));
         }
 
         self.transaction

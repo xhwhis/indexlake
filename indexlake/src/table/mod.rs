@@ -58,9 +58,9 @@ impl Table {
         Ok(row_stream)
     }
 
-    pub async fn update(&self, set: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {
+    pub async fn update(&self, set: HashMap<String, Scalar>, condition: Expr) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
-        process_update_rows(&mut tx_helper, self.table_id, &self.schema, set, &condition).await?;
+        process_update_rows(&mut tx_helper, self.table_id, &self.schema, set, condition).await?;
         tx_helper.commit().await?;
         Ok(())
     }

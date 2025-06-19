@@ -1,5 +1,6 @@
 use crate::{
     ILResult, TransactionHelper,
+    catalog::INLINE_COLUMN_NAME_PREFIX,
     record::{Field, Scalar},
 };
 
@@ -54,7 +55,7 @@ impl TransactionHelper {
     pub(crate) async fn insert_inline_rows(
         &mut self,
         table_id: i64,
-        fields: &[Field],
+        field_names: &[String],
         values: Vec<Vec<Scalar>>,
     ) -> ILResult<()> {
         let mut value_strings = Vec::new();
@@ -71,11 +72,7 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "INSERT INTO indexlake_inline_row_{table_id} ({}) VALUES {}",
-                fields
-                    .iter()
-                    .map(|field| field.name.clone())
-                    .collect::<Vec<_>>()
-                    .join(", "),
+                field_names.join(", "),
                 value_strings.join(", ")
             ))
             .await?;

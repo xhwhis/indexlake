@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 pub type SchemaRef = Arc<Schema>;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Schema {
     pub fields: Vec<Field>,
     pub metadata: HashMap<String, String>,
@@ -28,6 +28,10 @@ impl Schema {
 
     pub fn index_of(&self, field_name: &str) -> Option<usize> {
         self.fields.iter().position(|f| f.name == field_name)
+    }
+
+    pub fn get_field_by_name(&self, field_name: &str) -> Option<&Field> {
+        self.fields.iter().find(|f| f.name == field_name)
     }
 
     pub fn project(&self, field_names: &[String]) -> Self {

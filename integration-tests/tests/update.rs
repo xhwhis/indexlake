@@ -59,7 +59,7 @@ async fn update_table(
         Scalar::Varchar(Some("Alice2".to_string())),
     )]);
     let condition = Expr::Column("id".to_string()).eq(Expr::Literal(Scalar::BigInt(Some(1))));
-    table.update(set, &condition).await.unwrap();
+    table.update(set, condition).await.unwrap();
 
     let row_stream = table.scan().await.unwrap();
     let mut rows = row_stream.try_collect::<Vec<_>>().await.unwrap();

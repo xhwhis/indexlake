@@ -4,7 +4,7 @@ mod visitor;
 pub use binary::*;
 pub use visitor::*;
 
-use derive_visitor::Drive;
+use derive_visitor::{Drive, DriveMut};
 
 use crate::{
     ILError, ILResult,
@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// Represents logical expressions such as `A + 1`
-#[derive(Debug, Clone, Drive)]
+#[derive(Debug, Clone, Drive, DriveMut)]
 pub enum Expr {
     /// A named reference
     Column(String),
@@ -165,7 +165,7 @@ impl std::fmt::Display for Expr {
 }
 
 /// InList expression
-#[derive(Debug, Clone, Drive)]
+#[derive(Debug, Clone, Drive, DriveMut)]
 pub struct InList {
     /// The expression to compare
     pub expr: Box<Expr>,

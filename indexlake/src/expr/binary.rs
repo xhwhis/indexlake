@@ -1,4 +1,4 @@
-use derive_visitor::Drive;
+use derive_visitor::{Drive, DriveMut};
 
 use crate::{
     ILResult,
@@ -6,7 +6,7 @@ use crate::{
     record::{Row, Scalar},
 };
 
-#[derive(Debug, Clone, Drive)]
+#[derive(Debug, Clone, Drive, DriveMut)]
 pub enum BinaryOp {
     /// Expressions are equal
     Eq,
@@ -57,7 +57,7 @@ impl std::fmt::Display for BinaryOp {
 }
 
 /// Binary expression
-#[derive(Debug, Clone, Drive)]
+#[derive(Debug, Clone, Drive, DriveMut)]
 pub struct BinaryExpr {
     /// Left-hand side of the expression
     pub left: Box<Expr>,

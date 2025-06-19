@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::{
-    ILResult, RowStream,
-    catalog::TransactionHelper,
+    ILError, ILResult, RowStream,
+    catalog::{INLINE_COLUMN_NAME_PREFIX, TransactionHelper},
     record::{DataType, Field, INTERNAL_ROW_ID_FIELD_NAME, Row, Schema, SchemaRef},
 };
 
@@ -104,23 +104,25 @@ impl TransactionHelper {
 
     pub(crate) async fn get_table_schema(&mut self, table_id: i64) -> ILResult<SchemaRef> {
         let schema = Arc::new(Schema::new(vec![
+            Field::new("field_id", DataType::BigInt, false),
             Field::new("field_name", DataType::Varchar, false),
             Field::new("data_type", DataType::Varchar, false),
             Field::new("nullable", DataType::Boolean, false),
             Field::new("default_value", DataType::Varchar, true),
         ]));
-        let rows = self.query_rows(&format!("SELECT field_name, data_type, nullable, default_value FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"), schema).await?;
+        let rows = self.query_rows(&format!("SELECT field_id, field_name, data_type, nullable, default_value FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"), schema).await?;
         let mut fields = Vec::new();
         for row in rows {
             fields.push(
                 Field::new(
-                    row.varchar(0).expect("field_name is not null"),
-                    row.varchar(1)
+                    row.varchar(1).expect("field_name is not null"),
+                    row.varchar(2)
                         .expect("data_type is not null")
                         .parse::<DataType>()?,
-                    row.boolean(2).expect("nullable is not null"),
+                    row.boolean(3).expect("nullable is not null"),
                 )
-                .with_default_value(row.varchar(3).map(|v| v.to_string())),
+                .with_id(Some(row.bigint(0).expect("field_id is not null")))
+                .with_default_value(row.varchar(4).map(|v| v.to_string())),
             );
         }
         Ok(Arc::new(Schema::new(fields)))
@@ -159,46 +161,25 @@ impl TransactionHelper {
         table_id: i64,
         schema: &SchemaRef,
     ) -> ILResult<RowStream> {
+        let mut select_items = Vec::new();
+        for field in &schema.fields {
+            if field.name == INTERNAL_ROW_ID_FIELD_NAME {
+                select_items.push(field.name.clone());
+            } else {
+                let field_id = field.id.ok_or_else(|| {
+                    ILError::InvalidInput(format!("Field id is not set for field {}", field.name))
+                })?;
+                select_items.push(format!("{INLINE_COLUMN_NAME_PREFIX}{field_id}"));
+            }
+        }
         self.transaction
             .query(
                 &format!(
                     "SELECT {}  FROM indexlake_inline_row_{table_id}",
-                    schema
-                        .fields
-                        .iter()
-                        .map(|field| field.name.clone())
-                        .collect::<Vec<_>>()
-                        .join(", ")
+                    select_items.join(", ")
                 ),
                 Arc::clone(schema),
             )
             .await
-    }
-
-    pub(crate) async fn scan_inline_rows_by_row_ids(
-        &mut self,
-        table_id: i64,
-        schema: &SchemaRef,
-        row_ids: &[i64],
-    ) -> ILResult<Vec<Row>> {
-        self.query_rows(
-            &format!(
-                "SELECT {} FROM indexlake_inline_row_{table_id} WHERE {} IN ({})",
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| field.name.clone())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                INTERNAL_ROW_ID_FIELD_NAME,
-                row_ids
-                    .iter()
-                    .map(|id| id.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            Arc::clone(schema),
-        )
-        .await
     }
 }

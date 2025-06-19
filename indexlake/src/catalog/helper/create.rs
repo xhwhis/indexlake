@@ -1,5 +1,6 @@
-use crate::record::INTERNAL_ROW_ID_FIELD_NAME;
-use crate::{ILResult, TransactionHelper, record::SchemaRef};
+use crate::catalog::INLINE_COLUMN_NAME_PREFIX;
+use crate::record::{Field, INTERNAL_ROW_ID_FIELD_NAME};
+use crate::{ILResult, TransactionHelper};
 
 impl TransactionHelper {
     pub(crate) async fn create_row_metadata_table(&mut self, table_id: i64) -> ILResult<()> {
@@ -19,14 +20,15 @@ impl TransactionHelper {
     pub(crate) async fn create_inline_row_table(
         &mut self,
         table_id: i64,
-        schema: &SchemaRef,
+        field_ids: &[i64],
+        fields: &[Field],
     ) -> ILResult<()> {
         let mut columns = Vec::new();
         columns.push(format!("{} BIGINT PRIMARY KEY", INTERNAL_ROW_ID_FIELD_NAME));
-        for field in &schema.fields {
+        for (field_id, field) in field_ids.iter().zip(fields.iter()) {
             columns.push(format!(
                 "{} {} {} {}",
-                field.name,
+                format!("{INLINE_COLUMN_NAME_PREFIX}{field_id}"),
                 field.data_type,
                 if field.nullable {
                     "NULL".to_string()
