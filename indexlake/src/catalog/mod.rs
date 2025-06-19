@@ -9,13 +9,30 @@ use crate::{
 };
 use std::{fmt::Debug, pin::Pin};
 
+pub type RowStream = Pin<Box<dyn Stream<Item = ILResult<Row>> + Send>>;
+
 #[async_trait::async_trait]
 pub trait Catalog: Debug + Send + Sync {
+    fn database(&self) -> CatalogDatabase;
+
     /// Begin a new transaction.
     async fn transaction(&self) -> ILResult<Box<dyn Transaction>>;
 }
 
-pub type RowStream = Pin<Box<dyn Stream<Item = ILResult<Row>> + Send>>;
+#[derive(Debug, Clone, Copy)]
+pub enum CatalogDatabase {
+    Sqlite,
+    Postgres,
+}
+
+impl std::fmt::Display for CatalogDatabase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CatalogDatabase::Sqlite => write!(f, "SQLite"),
+            CatalogDatabase::Postgres => write!(f, "Postgres"),
+        }
+    }
+}
 
 // Transaction should be rolled back when dropped.
 #[async_trait::async_trait(?Send)]

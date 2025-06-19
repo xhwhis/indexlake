@@ -17,7 +17,7 @@ impl LakeClient {
 
     pub(crate) async fn transaction_helper(&self) -> ILResult<TransactionHelper> {
         let transaction = self.catalog.transaction().await?;
-        Ok(TransactionHelper::new(transaction))
+        Ok(TransactionHelper::new(transaction, self.catalog.database()))
     }
 
     pub async fn create_namespace(&self, namespace_name: &str) -> ILResult<i64> {

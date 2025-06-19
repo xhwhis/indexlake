@@ -1,6 +1,6 @@
 use futures::StreamExt;
 use indexlake::{
-    Catalog, RowStream, Transaction,
+    Catalog, CatalogDatabase, RowStream, Transaction,
     record::{DataType, Row, Scalar, SchemaRef},
 };
 use indexlake::{ILError, ILResult};
@@ -27,6 +27,10 @@ impl SqliteCatalog {
 
 #[async_trait::async_trait]
 impl Catalog for SqliteCatalog {
+    fn database(&self) -> CatalogDatabase {
+        CatalogDatabase::Sqlite
+    }
+
     async fn transaction(&self) -> ILResult<Box<dyn Transaction>> {
         let conn = rusqlite::Connection::open(&self.path)
             .map_err(|e| ILError::CatalogError(e.to_string()))?;

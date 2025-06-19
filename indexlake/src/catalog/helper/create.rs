@@ -29,7 +29,7 @@ impl TransactionHelper {
             columns.push(format!(
                 "{} {} {} {}",
                 format!("{INLINE_COLUMN_NAME_PREFIX}{field_id}"),
-                field.data_type,
+                field.data_type.to_sql_type(self.database),
                 if field.nullable {
                     "NULL".to_string()
                 } else {

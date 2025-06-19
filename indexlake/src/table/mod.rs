@@ -37,7 +37,7 @@ pub struct Table {
 impl Table {
     pub(crate) async fn transaction_helper(&self) -> ILResult<TransactionHelper> {
         let transaction = self.catalog.transaction().await?;
-        Ok(TransactionHelper::new(transaction))
+        Ok(TransactionHelper::new(transaction, self.catalog.database()))
     }
 
     pub async fn insert(&self, columns: &[String], values: Vec<Vec<Scalar>>) -> ILResult<()> {

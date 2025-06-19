@@ -3,7 +3,7 @@ use indexlake::{
     record::{DataType, Field, Schema},
     table::TableCreation,
 };
-use indexlake_integration_tests::{catalog_postgres, catalog_sqlite};
+use indexlake_integration_tests::{catalog_postgres, catalog_sqlite, init_env_logger};
 use std::sync::Arc;
 
 #[rstest::rstest]

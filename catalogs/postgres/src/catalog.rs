@@ -2,7 +2,7 @@ use bb8::Pool;
 use bb8_postgres::{PostgresConnectionManager, tokio_postgres::NoTls};
 use futures::StreamExt;
 use indexlake::{
-    Catalog, ILError, ILResult, RowStream, Transaction,
+    Catalog, CatalogDatabase, ILError, ILResult, RowStream, Transaction,
     record::{DataType, Row, Scalar, SchemaRef},
 };
 use log::debug;
@@ -36,6 +36,10 @@ impl PostgresCatalog {
 
 #[async_trait::async_trait]
 impl Catalog for PostgresCatalog {
+    fn database(&self) -> CatalogDatabase {
+        CatalogDatabase::Postgres
+    }
+
     async fn transaction(&self) -> ILResult<Box<dyn Transaction>> {
         let conn = self
             .pool

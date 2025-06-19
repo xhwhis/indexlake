@@ -116,9 +116,10 @@ impl TransactionHelper {
             fields.push(
                 Field::new(
                     row.varchar(1).expect("field_name is not null"),
-                    row.varchar(2)
-                        .expect("data_type is not null")
-                        .parse::<DataType>()?,
+                    DataType::parse_sql_type(
+                        &row.varchar(2).expect("data_type is not null"),
+                        self.database,
+                    )?,
                     row.boolean(3).expect("nullable is not null"),
                 )
                 .with_id(Some(row.bigint(0).expect("field_id is not null")))

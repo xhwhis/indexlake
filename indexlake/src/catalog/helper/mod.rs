@@ -7,7 +7,7 @@ mod update;
 use futures::TryStreamExt;
 
 use crate::{
-    ILResult,
+    CatalogDatabase, ILResult,
     catalog::Transaction,
     record::{Row, SchemaRef},
 };
@@ -16,11 +16,15 @@ pub(crate) const INLINE_COLUMN_NAME_PREFIX: &str = "col_";
 
 pub(crate) struct TransactionHelper {
     transaction: Box<dyn Transaction>,
+    database: CatalogDatabase,
 }
 
 impl TransactionHelper {
-    pub(crate) fn new(transaction: Box<dyn Transaction>) -> Self {
-        Self { transaction }
+    pub(crate) fn new(transaction: Box<dyn Transaction>, database: CatalogDatabase) -> Self {
+        Self {
+            transaction,
+            database,
+        }
     }
 
     pub(crate) async fn query_rows(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
