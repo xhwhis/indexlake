@@ -3,14 +3,21 @@ use indexlake::{
     Catalog,
     record::{DataType, Field, Schema, pretty_print_rows},
 };
-use indexlake_catalog_sqlite::SqliteCatalog;
-use indexlake_integration_tests::setup_sqlite_db;
+use indexlake_integration_tests::init_env_logger;
+use indexlake_integration_tests::{catalog_postgres, catalog_sqlite};
 use std::sync::Arc;
 
-#[tokio::test]
-async fn catalog_sqlite() {
-    let db_path = setup_sqlite_db().display().to_string();
-    let catalog = SqliteCatalog::try_new(db_path).unwrap();
+#[rstest::rstest]
+#[case(async { catalog_sqlite() })]
+#[case(async { catalog_postgres().await })]
+#[tokio::test(flavor = "multi_thread")]
+async fn catalog_crud(
+    #[future(awt)]
+    #[case]
+    catalog: Arc<dyn Catalog>,
+) {
+    init_env_logger();
+
     let mut transaction = catalog.transaction().await.unwrap();
 
     let schema = Arc::new(Schema::new(vec![
