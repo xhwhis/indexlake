@@ -162,7 +162,7 @@ impl TransactionHelper {
         &mut self,
         table_id: i64,
         schema: &SchemaRef,
-    ) -> ILResult<RowStream> {
+    ) -> ILResult<Vec<Row>> {
         let select_items = schema
             .fields
             .iter()
@@ -175,6 +175,34 @@ impl TransactionHelper {
                     select_items.join(", ")
                 ),
                 Arc::clone(schema),
+            )
+            .await
+    }
+
+    pub(crate) async fn scan_inline_rows_by_row_ids(
+        &mut self,
+        table_id: i64,
+        table_schema: &SchemaRef,
+        row_ids: &[i64],
+    ) -> ILResult<Vec<Row>> {
+        let select_items = table_schema
+            .fields
+            .iter()
+            .map(|f| sql_identifier(&f.name, self.database))
+            .collect::<Vec<_>>();
+        self.transaction
+            .query(
+                &format!(
+                    "SELECT {} FROM indexlake_inline_row_{table_id} WHERE {} IN ({})",
+                    select_items.join(", "),
+                    INTERNAL_ROW_ID_FIELD_NAME,
+                    row_ids
+                        .iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                Arc::clone(table_schema),
             )
             .await
     }
@@ -205,6 +233,32 @@ impl TransactionHelper {
             .query_rows(
                 &format!(
                     "SELECT {} FROM indexlake_inline_row_{table_id}",
+                    INTERNAL_ROW_ID_FIELD_NAME
+                ),
+                schema,
+            )
+            .await?;
+        let row_ids = rows
+            .iter()
+            .map(|row| row.bigint(0).expect("row_id is not null"))
+            .collect::<Vec<_>>();
+        Ok(row_ids)
+    }
+
+    pub(crate) async fn scan_inline_row_ids_with_limit(
+        &mut self,
+        table_id: i64,
+        limit: i64,
+    ) -> ILResult<Vec<i64>> {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            INTERNAL_ROW_ID_FIELD_NAME.to_string(),
+            DataType::Int64,
+            false,
+        )]));
+        let rows = self
+            .query_rows(
+                &format!(
+                    "SELECT {} FROM indexlake_inline_row_{table_id} limit {limit}",
                     INTERNAL_ROW_ID_FIELD_NAME
                 ),
                 schema,

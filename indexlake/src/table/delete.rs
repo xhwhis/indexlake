@@ -15,8 +15,7 @@ pub(crate) async fn process_delete_rows(
     schema.push_front(INTERNAL_ROW_ID_FIELD.clone());
     let schema = Arc::new(schema);
 
-    let row_stream = tx_helper.scan_inline_rows(table_id, &schema).await?;
-    let rows = row_stream.try_collect::<Vec<_>>().await?;
+    let rows = tx_helper.scan_inline_rows(table_id, &schema).await?;
 
     let mut row_ids = Vec::new();
     for row in rows {

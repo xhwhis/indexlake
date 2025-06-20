@@ -1,3 +1,5 @@
+use futures::StreamExt;
+
 use crate::{
     ILResult, RowStream, TransactionHelper,
     record::{Row, SchemaRef},
@@ -9,5 +11,6 @@ pub(crate) async fn process_table_scan(
     schema: &SchemaRef,
 ) -> ILResult<RowStream> {
     // Inline rows are not deleted, so we can scan them directly
-    tx_helper.scan_inline_rows(table_id, schema).await
+    let rows = tx_helper.scan_inline_rows(table_id, schema).await?;
+    Ok(Box::pin(futures::stream::iter(rows).map(Ok)))
 }

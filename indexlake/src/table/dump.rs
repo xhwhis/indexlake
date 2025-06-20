@@ -1,6 +1,6 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
-use log::error;
+use log::{debug, error};
 
 use crate::{
     ILResult, TransactionHelper, catalog::Catalog, record::SchemaRef, storage::Storage,
@@ -31,12 +31,40 @@ pub(crate) struct DumpTask {
 
 impl DumpTask {
     async fn run(&self) -> ILResult<()> {
-        let transaction = self.catalog.transaction().await?;
-        let mut tx_helper = TransactionHelper::new(transaction, self.catalog.database());
+        let dump_row_ids = self.get_dump_row_ids().await?;
+        if dump_row_ids.len() != 3000 {
+            debug!("Table {} has less than 3000 rows, skip dump", self.table_id);
+            return Ok(());
+        }
 
-        let mut row_ids = tx_helper.scan_inline_row_ids(self.table_id).await?;
-        row_ids.sort();
+        self.write_dump_file(&dump_row_ids).await?;
+
+        let mut tx_helper = TransactionHelper::new(&self.catalog).await?;
+
+        if tx_helper.insert_dump_task(self.table_id).await.is_err() {
+            debug!("Table {} already has a dump task", self.table_id);
+            return Ok(());
+        }
 
         Ok(())
+    }
+
+    async fn get_dump_row_ids(&self) -> ILResult<Vec<i64>> {
+        let mut tx_helper = TransactionHelper::new(&self.catalog).await?;
+        let dump_row_ids = tx_helper
+            .scan_inline_row_ids_with_limit(self.table_id, 3000)
+            .await?;
+        tx_helper.commit().await?;
+        Ok(dump_row_ids)
+    }
+
+    async fn write_dump_file(&self, row_ids: &[i64]) -> ILResult<HashMap<i64, String>> {
+        let mut tx_helper = TransactionHelper::new(&self.catalog).await?;
+        let row_stream = tx_helper
+            .scan_inline_rows_by_row_ids(self.table_id, &self.table_schema, row_ids)
+            .await?;
+        tx_helper.commit().await?;
+        // TODO
+        Ok(HashMap::new())
     }
 }

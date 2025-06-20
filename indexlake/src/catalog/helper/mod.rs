@@ -4,10 +4,12 @@ mod insert;
 mod query;
 mod update;
 
+use std::sync::Arc;
+
 use futures::TryStreamExt;
 
 use crate::{
-    CatalogDatabase, ILResult,
+    Catalog, CatalogDatabase, ILResult,
     catalog::Transaction,
     record::{Row, SchemaRef},
 };
@@ -18,16 +20,16 @@ pub(crate) struct TransactionHelper {
 }
 
 impl TransactionHelper {
-    pub(crate) fn new(transaction: Box<dyn Transaction>, database: CatalogDatabase) -> Self {
-        Self {
+    pub(crate) async fn new(catalog: &Arc<dyn Catalog>) -> ILResult<Self> {
+        let transaction = catalog.transaction().await?;
+        Ok(Self {
             transaction,
-            database,
-        }
+            database: catalog.database(),
+        })
     }
 
     pub(crate) async fn query_rows(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
-        let stream = self.transaction.query(sql, schema).await?;
-        stream.try_collect::<Vec<_>>().await
+        self.transaction.query(sql, schema).await
     }
 
     pub(crate) async fn commit(&mut self) -> ILResult<()> {

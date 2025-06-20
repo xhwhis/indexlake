@@ -38,7 +38,7 @@ impl std::fmt::Display for CatalogDatabase {
 #[async_trait::async_trait]
 pub trait Transaction: Debug + Send + Sync {
     /// Execute a query and return a stream of rows.
-    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<RowStream>;
+    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>>;
 
     /// Execute a SQL statement.
     async fn execute(&mut self, sql: &str) -> ILResult<usize>;

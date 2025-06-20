@@ -52,7 +52,7 @@ pub struct SqliteTransaction {
 
 #[async_trait::async_trait]
 impl Transaction for SqliteTransaction {
-    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<RowStream> {
+    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
         debug!("sqlite transaction query: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
@@ -63,12 +63,12 @@ impl Transaction for SqliteTransaction {
         let mut stmt = conn
             .prepare(sql)
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-        let mut rows = stmt
+        let mut sqlite_rows = stmt
             .query([])
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
 
-        let mut catalog_rows: Vec<Row> = Vec::new();
-        while let Some(row) = rows
+        let mut rows: Vec<Row> = Vec::new();
+        while let Some(sqlite_row) = sqlite_rows
             .next()
             .map_err(|e| ILError::CatalogError(e.to_string()))?
         {
@@ -76,43 +76,43 @@ impl Transaction for SqliteTransaction {
             for (idx, field) in schema.fields.iter().enumerate() {
                 let scalar = match field.data_type {
                     DataType::Int32 => {
-                        let v: Option<i32> = row
+                        let v: Option<i32> = sqlite_row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
                         Scalar::Int32(v)
                     }
                     DataType::Int64 => {
-                        let v: Option<i64> = row
+                        let v: Option<i64> = sqlite_row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
                         Scalar::Int64(v)
                     }
                     DataType::Float32 => {
-                        let v: Option<f32> = row
+                        let v: Option<f32> = sqlite_row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
                         Scalar::Float32(v)
                     }
                     DataType::Float64 => {
-                        let v: Option<f64> = row
+                        let v: Option<f64> = sqlite_row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
                         Scalar::Float64(v)
                     }
                     DataType::Utf8 => {
-                        let v: Option<String> = row
+                        let v: Option<String> = sqlite_row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
                         Scalar::Utf8(v)
                     }
                     DataType::Binary => {
-                        let v: Option<Vec<u8>> = row
+                        let v: Option<Vec<u8>> = sqlite_row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
                         Scalar::Binary(v)
                     }
                     DataType::Boolean => {
-                        let v: Option<bool> = row
+                        let v: Option<bool> = sqlite_row
                             .get(idx)
                             .map_err(|e| ILError::CatalogError(e.to_string()))?;
                         Scalar::Boolean(v)
@@ -126,9 +126,9 @@ impl Transaction for SqliteTransaction {
                 }
                 row_values.push(scalar);
             }
-            catalog_rows.push(Row::new(schema.clone(), row_values));
+            rows.push(Row::new(schema.clone(), row_values));
         }
-        Ok(Box::pin(futures::stream::iter(catalog_rows).map(Ok)))
+        Ok(rows)
     }
 
     async fn execute(&mut self, sql: &str) -> ILResult<usize> {
