@@ -28,10 +28,6 @@ impl TransactionHelper {
         })
     }
 
-    pub(crate) async fn query_rows(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
-        self.transaction.query(sql, schema).await
-    }
-
     pub(crate) async fn commit(&mut self) -> ILResult<()> {
         self.transaction.commit().await
     }

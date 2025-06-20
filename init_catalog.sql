@@ -19,7 +19,7 @@ CREATE TABLE indexlake_field (
 );
 
 CREATE TABLE indexlake_dump_task (
-    table_id BIGINT PRIMARY KEY,
+    table_id BIGINT PRIMARY KEY
 );
 
 CREATE TABLE indexlake_data_file (

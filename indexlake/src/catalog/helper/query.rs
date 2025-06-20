@@ -17,7 +17,8 @@ impl TransactionHelper {
             true,
         )]));
         let rows = self
-            .query_rows("SELECT MAX(namespace_id) FROM indexlake_namespace", schema)
+            .transaction
+            .query("SELECT MAX(namespace_id) FROM indexlake_namespace", schema)
             .await?;
         if rows.is_empty() {
             Ok(0)
@@ -34,7 +35,8 @@ impl TransactionHelper {
             false,
         )]));
         let rows = self
-            .query_rows(
+            .transaction
+            .query(
                 &format!(
                     "SELECT namespace_id FROM indexlake_namespace WHERE namespace_name = '{namespace_name}'"
                 ),
@@ -57,7 +59,8 @@ impl TransactionHelper {
             true,
         )]));
         let rows = self
-            .query_rows("SELECT MAX(table_id) FROM indexlake_table", schema)
+            .transaction
+            .query("SELECT MAX(table_id) FROM indexlake_table", schema)
             .await?;
         if rows.is_empty() {
             Ok(0)
@@ -77,7 +80,13 @@ impl TransactionHelper {
             DataType::Int64,
             false,
         )]));
-        let rows = self.query_rows(&format!("SELECT table_id FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'"), schema).await?;
+        let rows = self
+            .transaction
+            .query(
+                &format!("SELECT table_id FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'"),
+                schema,
+            )
+            .await?;
         if rows.is_empty() {
             Ok(None)
         } else {
@@ -95,7 +104,8 @@ impl TransactionHelper {
         )]));
 
         let rows = self
-            .query_rows("SELECT MAX(field_id) FROM indexlake_field", schema)
+            .transaction
+            .query("SELECT MAX(field_id) FROM indexlake_field", schema)
             .await?;
         if rows.is_empty() {
             Ok(0)
@@ -112,7 +122,13 @@ impl TransactionHelper {
             Field::new("nullable", DataType::Boolean, false),
             Field::new("default_value", DataType::Utf8, true),
         ]));
-        let rows = self.query_rows(&format!("SELECT field_name, data_type, nullable, default_value FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"), schema).await?;
+        let rows = self
+            .transaction
+            .query(
+                &format!("SELECT field_name, data_type, nullable, default_value FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"),
+                schema,
+            )
+            .await?;
         let mut fields = Vec::new();
         for row in rows {
             fields.push(
@@ -137,7 +153,8 @@ impl TransactionHelper {
             true,
         )]));
         let rows = self
-            .query_rows(
+            .transaction
+            .query(
                 &format!("SELECT MAX(row_id) FROM indexlake_row_metadata_{table_id}"),
                 schema,
             )
@@ -155,7 +172,12 @@ impl TransactionHelper {
             Field::new("row_id", DataType::Int64, false),
             Field::new("location", DataType::Utf8, true),
         ]));
-        self.query_rows(&format!("SELECT row_id, location FROM indexlake_row_metadata_{table_id} WHERE deleted = FALSE"), schema).await
+        self.transaction
+            .query(
+                &format!("SELECT row_id, location FROM indexlake_row_metadata_{table_id} WHERE deleted = FALSE"),
+                schema,
+            )
+            .await
     }
 
     pub(crate) async fn scan_inline_rows(
@@ -214,7 +236,8 @@ impl TransactionHelper {
             false,
         )]));
         let rows = self
-            .query_rows(
+            .transaction
+            .query(
                 &format!("SELECT COUNT(1) FROM indexlake_inline_row_{table_id}"),
                 schema,
             )
@@ -230,7 +253,8 @@ impl TransactionHelper {
             false,
         )]));
         let rows = self
-            .query_rows(
+            .transaction
+            .query(
                 &format!(
                     "SELECT {} FROM indexlake_inline_row_{table_id}",
                     INTERNAL_ROW_ID_FIELD_NAME
@@ -256,7 +280,8 @@ impl TransactionHelper {
             false,
         )]));
         let rows = self
-            .query_rows(
+            .transaction
+            .query(
                 &format!(
                     "SELECT {} FROM indexlake_inline_row_{table_id} limit {limit}",
                     INTERNAL_ROW_ID_FIELD_NAME
