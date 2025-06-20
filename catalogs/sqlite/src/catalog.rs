@@ -5,7 +5,7 @@ use indexlake::{
 };
 use indexlake::{ILError, ILResult};
 use log::debug;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Mutex};
 
 #[derive(Debug)]
 pub struct SqliteCatalog {
@@ -36,17 +36,21 @@ impl Catalog for SqliteCatalog {
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
         conn.execute_batch("BEGIN DEFERRED")
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-        Ok(Box::new(SqliteTransaction { conn, done: false }))
+        Ok(Box::new(SqliteTransaction {
+            conn: Mutex::new(conn),
+            done: false,
+        }))
     }
 }
 
 #[derive(Debug)]
 pub struct SqliteTransaction {
-    conn: rusqlite::Connection,
+    // TODO use tokio rusqlite connection
+    conn: Mutex<rusqlite::Connection>,
     done: bool,
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl Transaction for SqliteTransaction {
     async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<RowStream> {
         debug!("sqlite transaction query: {sql}");
@@ -55,8 +59,8 @@ impl Transaction for SqliteTransaction {
                 "Transaction already committed or rolled back".to_string(),
             ));
         }
-        let mut stmt = self
-            .conn
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn
             .prepare(sql)
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
         let mut rows = stmt
@@ -127,15 +131,15 @@ impl Transaction for SqliteTransaction {
         Ok(Box::pin(futures::stream::iter(catalog_rows).map(Ok)))
     }
 
-    async fn execute(&mut self, sql: &str) -> ILResult<()> {
+    async fn execute(&mut self, sql: &str) -> ILResult<usize> {
         debug!("sqlite transaction execute: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),
             ));
         }
-        self.conn
-            .execute_batch(sql)
+        let conn = self.conn.lock().unwrap();
+        conn.execute(sql, [])
             .map_err(|e| ILError::CatalogError(e.to_string()))
     }
 
@@ -145,8 +149,8 @@ impl Transaction for SqliteTransaction {
                 "Transaction already committed or rolled back".to_string(),
             ));
         }
-        self.conn
-            .execute_batch("COMMIT")
+        let conn = self.conn.lock().unwrap();
+        conn.execute_batch("COMMIT")
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
         self.done = true;
         Ok(())
@@ -158,8 +162,8 @@ impl Transaction for SqliteTransaction {
                 "Transaction already committed or rolled back".to_string(),
             ));
         }
-        self.conn
-            .execute_batch("ROLLBACK")
+        let conn = self.conn.lock().unwrap();
+        conn.execute_batch("ROLLBACK")
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
         self.done = true;
         Ok(())
@@ -171,6 +175,7 @@ impl Drop for SqliteTransaction {
         if self.done {
             return;
         }
-        self.conn.execute_batch("ROLLBACK").unwrap();
+        let conn = self.conn.lock().unwrap();
+        conn.execute_batch("ROLLBACK").unwrap();
     }
 }

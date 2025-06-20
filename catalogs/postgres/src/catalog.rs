@@ -59,7 +59,7 @@ pub struct PostgresTransaction {
     done: bool,
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl Transaction for PostgresTransaction {
     async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<RowStream> {
         debug!("postgres transaction query: {sql}");
@@ -82,7 +82,7 @@ impl Transaction for PostgresTransaction {
         Ok(Box::pin(stream))
     }
 
-    async fn execute(&mut self, sql: &str) -> ILResult<()> {
+    async fn execute(&mut self, sql: &str) -> ILResult<usize> {
         debug!("postgres transaction execute: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
@@ -90,8 +90,9 @@ impl Transaction for PostgresTransaction {
             ));
         }
         self.conn
-            .batch_execute(sql)
+            .execute(sql, &[])
             .await
+            .map(|r| r as usize)
             .map_err(|e| ILError::CatalogError(e.to_string()))
     }
 

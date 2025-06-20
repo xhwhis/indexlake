@@ -1,17 +1,19 @@
 mod create;
 mod delete;
+mod dump;
 mod insert;
 mod scan;
 mod update;
 
 pub(crate) use create::*;
 pub(crate) use delete::*;
+pub(crate) use dump::*;
 pub(crate) use insert::*;
 pub(crate) use scan::*;
 pub(crate) use update::*;
 
 use crate::expr::Expr;
-use crate::record::{Row, Scalar, SchemaRef};
+use crate::record::{Scalar, SchemaRef};
 use crate::utils::has_duplicated_items;
 use crate::{Catalog, ILError, ILResult, RowStream, Storage, TransactionHelper};
 use std::collections::HashMap;
@@ -47,7 +49,13 @@ impl Table {
         }
         let projected_schema = self.schema.project(columns);
         process_insert_values(&mut tx_helper, self.table_id, &projected_schema, values).await?;
+        let inline_row_count = tx_helper.count_inline_rows(self.table_id).await?;
         tx_helper.commit().await?;
+
+        if inline_row_count >= 3000 {
+            spawn_dump_task(self).await?;
+        }
+
         Ok(())
     }
 

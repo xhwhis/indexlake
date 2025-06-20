@@ -18,6 +18,10 @@ CREATE TABLE indexlake_field (
     default_value VARCHAR
 );
 
+CREATE TABLE indexlake_dump_task (
+    table_id BIGINT PRIMARY KEY,
+);
+
 CREATE TABLE indexlake_data_file (
     data_file_id BIGINT PRIMARY KEY,
     table_id BIGINT NOT NULL,

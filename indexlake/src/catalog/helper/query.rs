@@ -3,7 +3,10 @@ use std::sync::Arc;
 use crate::{
     ILError, ILResult, RowStream,
     catalog::TransactionHelper,
-    record::{DataType, Field, Row, Schema, SchemaRef, sql_identifier},
+    record::{
+        DataType, Field, INTERNAL_ROW_ID_FIELD, INTERNAL_ROW_ID_FIELD_NAME, Row, Schema, SchemaRef,
+        sql_identifier,
+    },
 };
 
 impl TransactionHelper {
@@ -174,5 +177,43 @@ impl TransactionHelper {
                 Arc::clone(schema),
             )
             .await
+    }
+
+    pub(crate) async fn count_inline_rows(&mut self, table_id: i64) -> ILResult<i64> {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "count",
+            DataType::Int64,
+            false,
+        )]));
+        let rows = self
+            .query_rows(
+                &format!("SELECT COUNT(1) FROM indexlake_inline_row_{table_id}"),
+                schema,
+            )
+            .await?;
+        let count = rows[0].bigint(0).expect("count is not null");
+        Ok(count)
+    }
+
+    pub(crate) async fn scan_inline_row_ids(&mut self, table_id: i64) -> ILResult<Vec<i64>> {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            INTERNAL_ROW_ID_FIELD_NAME.to_string(),
+            DataType::Int64,
+            false,
+        )]));
+        let rows = self
+            .query_rows(
+                &format!(
+                    "SELECT {} FROM indexlake_inline_row_{table_id}",
+                    INTERNAL_ROW_ID_FIELD_NAME
+                ),
+                schema,
+            )
+            .await?;
+        let row_ids = rows
+            .iter()
+            .map(|row| row.bigint(0).expect("row_id is not null"))
+            .collect::<Vec<_>>();
+        Ok(row_ids)
     }
 }

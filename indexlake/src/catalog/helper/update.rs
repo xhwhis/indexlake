@@ -12,9 +12,9 @@ impl TransactionHelper {
         &mut self,
         table_id: i64,
         row_ids: &[i64],
-    ) -> ILResult<()> {
+    ) -> ILResult<usize> {
         if row_ids.is_empty() {
-            return Ok(());
+            return Ok(0);
         }
         let row_ids_str = row_ids
             .iter()

@@ -14,5 +14,7 @@ comfy-table = { workspace = true }
 derive-visitor = { workspace = true, features = ["std-types-drive"] }
 futures = { workspace = true }
 hex = { workspace = true }
+log = { workspace = true }
 opendal = { workspace = true, features = ["services-fs", "services-s3"] }
+tokio = { workspace = true, features = ["full"]}
 url = { workspace = true }

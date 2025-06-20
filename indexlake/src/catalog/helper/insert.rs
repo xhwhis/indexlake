@@ -94,4 +94,12 @@ impl TransactionHelper {
         self.transaction.execute(&format!("INSERT INTO indexlake_row_metadata_{table_id} (row_id, location, deleted) VALUES {}", values.join(", "))).await?;
         Ok(())
     }
+
+    pub(crate) async fn insert_dump_task(&mut self, table_id: i64) -> ILResult<usize> {
+        self.transaction
+            .execute(&format!(
+                "INSERT INTO indexlake_dump_task (table_id) VALUES ({table_id})"
+            ))
+            .await
+    }
 }
