@@ -5,7 +5,7 @@ impl TransactionHelper {
         &mut self,
         table_id: i64,
         row_ids: &[i64],
-    ) -> ILResult<()> {
+    ) -> ILResult<usize> {
         self.transaction
             .execute(&format!(
                 "DELETE FROM indexlake_inline_row_{table_id} WHERE {} IN ({})",
@@ -16,7 +16,14 @@ impl TransactionHelper {
                     .collect::<Vec<_>>()
                     .join(", ")
             ))
-            .await?;
-        Ok(())
+            .await
+    }
+
+    pub(crate) async fn delete_dump_task(&mut self, table_id: i64) -> ILResult<usize> {
+        self.transaction
+            .execute(&format!(
+                "DELETE FROM indexlake_dump_task WHERE table_id = {table_id}"
+            ))
+            .await
     }
 }

@@ -43,6 +43,9 @@ pub trait Transaction: Debug + Send + Sync {
     /// Execute a SQL statement.
     async fn execute(&mut self, sql: &str) -> ILResult<usize>;
 
+    /// Execute a batch of SQL statements.
+    async fn execute_batch(&mut self, sqls: &[String]) -> ILResult<()>;
+
     /// Commit the transaction.
     async fn commit(&mut self) -> ILResult<()>;
 

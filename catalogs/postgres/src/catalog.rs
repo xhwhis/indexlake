@@ -97,6 +97,19 @@ impl Transaction for PostgresTransaction {
             .map_err(|e| ILError::CatalogError(e.to_string()))
     }
 
+    async fn execute_batch(&mut self, sqls: &[String]) -> ILResult<()> {
+        debug!("postgres transaction execute batch: {:?}", sqls);
+        if self.done {
+            return Err(ILError::CatalogError(
+                "Transaction already committed or rolled back".to_string(),
+            ));
+        }
+        self.conn
+            .batch_execute(sqls.join(";").as_str())
+            .await
+            .map_err(|e| ILError::CatalogError(e.to_string()))
+    }
+
     async fn commit(&mut self) -> ILResult<()> {
         if self.done {
             return Err(ILError::CatalogError(

@@ -9,6 +9,18 @@ pub enum ILError {
     InvalidInput(String),
 }
 
+impl std::fmt::Display for ILError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ILError::InternalError(msg) => write!(f, "Internal error: {}", msg),
+            ILError::NotSupported(msg) => write!(f, "Not supported: {}", msg),
+            ILError::CatalogError(msg) => write!(f, "Catalog error: {}", msg),
+            ILError::StorageError(msg) => write!(f, "Storage error: {}", msg),
+            ILError::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
+        }
+    }
+}
+
 impl From<opendal::Error> for ILError {
     fn from(err: opendal::Error) -> Self {
         ILError::StorageError(err.to_string())

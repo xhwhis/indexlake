@@ -143,6 +143,18 @@ impl Transaction for SqliteTransaction {
             .map_err(|e| ILError::CatalogError(e.to_string()))
     }
 
+    async fn execute_batch(&mut self, sqls: &[String]) -> ILResult<()> {
+        debug!("sqlite transaction execute batch: {:?}", sqls);
+        if self.done {
+            return Err(ILError::CatalogError(
+                "Transaction already committed or rolled back".to_string(),
+            ));
+        }
+        let conn = self.conn.lock().unwrap();
+        conn.execute_batch(sqls.join(";").as_str())
+            .map_err(|e| ILError::CatalogError(e.to_string()))
+    }
+
     async fn commit(&mut self) -> ILResult<()> {
         if self.done {
             return Err(ILError::CatalogError(

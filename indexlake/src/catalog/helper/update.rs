@@ -49,4 +49,16 @@ impl TransactionHelper {
 
         Ok(())
     }
+
+    pub(crate) async fn update_row_locations(
+        &mut self,
+        table_id: i64,
+        row_id_to_location_map: &HashMap<i64, String>,
+    ) -> ILResult<()> {
+        let mut update_sqls = Vec::new();
+        for (row_id, location) in row_id_to_location_map {
+            update_sqls.push(format!("UPDATE indexlake_row_metadata_{table_id} SET location = '{location}' WHERE row_id = {row_id}"));
+        }
+        self.transaction.execute_batch(&update_sqls).await
+    }
 }
