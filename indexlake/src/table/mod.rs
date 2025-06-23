@@ -1,15 +1,19 @@
 mod create;
 mod delete;
+mod drop;
 mod dump;
 mod insert;
 mod scan;
+mod truncate;
 mod update;
 
 pub(crate) use create::*;
 pub(crate) use delete::*;
+pub(crate) use drop::*;
 pub(crate) use dump::*;
 pub(crate) use insert::*;
 pub(crate) use scan::*;
+pub(crate) use truncate::*;
 pub(crate) use update::*;
 
 use crate::expr::Expr;
@@ -81,11 +85,17 @@ impl Table {
 
     // Delete all rows in the table
     pub async fn truncate(&self) -> ILResult<()> {
-        todo!()
+        let mut tx_helper = self.transaction_helper().await?;
+        process_table_truncate(&mut tx_helper, self.table_id).await?;
+        tx_helper.commit().await?;
+        Ok(())
     }
 
     // Drop the table
     pub async fn drop(self) -> ILResult<()> {
-        todo!()
+        let mut tx_helper = self.transaction_helper().await?;
+        process_table_drop(&mut tx_helper, self.table_id).await?;
+        tx_helper.commit().await?;
+        Ok(())
     }
 }

@@ -1,7 +1,9 @@
 mod create;
 mod delete;
+mod drop;
 mod insert;
 mod query;
+mod truncate;
 mod update;
 
 use std::sync::Arc;
