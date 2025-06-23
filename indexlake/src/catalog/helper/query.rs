@@ -22,7 +22,7 @@ impl TransactionHelper {
         if rows.is_empty() {
             Ok(0)
         } else {
-            let max_namespace_id = rows[0].bigint(0);
+            let max_namespace_id = rows[0].int64(0)?;
             Ok(max_namespace_id.unwrap_or(0))
         }
     }
@@ -44,7 +44,7 @@ impl TransactionHelper {
         if rows.is_empty() {
             Ok(None)
         } else {
-            let namespace_id_opt = rows[0].bigint(0);
+            let namespace_id_opt = rows[0].int64(0)?;
             assert!(namespace_id_opt.is_some());
             Ok(namespace_id_opt)
         }
@@ -62,7 +62,7 @@ impl TransactionHelper {
         if rows.is_empty() {
             Ok(0)
         } else {
-            let max_table_id = rows[0].bigint(0);
+            let max_table_id = rows[0].int64(0)?;
             Ok(max_table_id.unwrap_or(0))
         }
     }
@@ -86,7 +86,7 @@ impl TransactionHelper {
         if rows.is_empty() {
             Ok(None)
         } else {
-            let table_id_opt = rows[0].bigint(0);
+            let table_id_opt = rows[0].int64(0)?;
             assert!(table_id_opt.is_some());
             Ok(table_id_opt)
         }
@@ -105,7 +105,7 @@ impl TransactionHelper {
         if rows.is_empty() {
             Ok(0)
         } else {
-            let max_field_id = rows[0].bigint(0);
+            let max_field_id = rows[0].int64(0)?;
             Ok(max_field_id.unwrap_or(0))
         }
     }
@@ -127,14 +127,14 @@ impl TransactionHelper {
         for row in rows {
             fields.push(
                 Field::new(
-                    row.varchar(0).expect("field_name is not null"),
+                    row.utf8(0)?.expect("field_name is not null"),
                     DataType::parse_sql_type(
-                        &row.varchar(1).expect("data_type is not null"),
+                        &row.utf8(1)?.expect("data_type is not null"),
                         self.database,
                     )?,
-                    row.boolean(2).expect("nullable is not null"),
+                    row.boolean(2)?.expect("nullable is not null"),
                 )
-                .with_default_value(row.varchar(3).map(|v| v.to_string())),
+                .with_default_value(row.utf8(3)?.map(|v| v.to_string())),
             );
         }
         Ok(Arc::new(Schema::new(fields)))
@@ -155,7 +155,7 @@ impl TransactionHelper {
         if rows.is_empty() {
             Ok(0)
         } else {
-            let max_row_id = rows[0].bigint(0);
+            let max_row_id = rows[0].int64(0)?;
             Ok(max_row_id.unwrap_or(0))
         }
     }
@@ -232,7 +232,7 @@ impl TransactionHelper {
                 schema,
             )
             .await?;
-        let count = rows[0].bigint(0).expect("count is not null");
+        let count = rows[0].int64(0)?.expect("count is not null");
         Ok(count)
     }
 
@@ -251,10 +251,10 @@ impl TransactionHelper {
                 schema,
             )
             .await?;
-        let row_ids = rows
-            .iter()
-            .map(|row| row.bigint(0).expect("row_id is not null"))
-            .collect::<Vec<_>>();
+        let mut row_ids = Vec::with_capacity(rows.len());
+        for row in rows {
+            row_ids.push(row.int64(0)?.expect("row_id is not null"));
+        }
         Ok(row_ids)
     }
 
@@ -277,10 +277,10 @@ impl TransactionHelper {
                 schema,
             )
             .await?;
-        let row_ids = rows
-            .iter()
-            .map(|row| row.bigint(0).expect("row_id is not null"))
-            .collect::<Vec<_>>();
+        let mut row_ids = Vec::with_capacity(rows.len());
+        for row in rows {
+            row_ids.push(row.int64(0)?.expect("row_id is not null"));
+        }
         Ok(row_ids)
     }
 }

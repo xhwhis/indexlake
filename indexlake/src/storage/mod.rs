@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 mod fs;
+mod parquet;
 mod s3;
 
 use opendal::{Operator, services::S3Config};
@@ -73,4 +74,14 @@ impl Storage {
             }
         }
     }
+}
+
+/// Output file is used for writing to files..
+#[derive(Debug)]
+pub struct OutputFile {
+    op: Operator,
+    // Absolution path of file.
+    path: String,
+    // Relative path of file to uri, starts at [`relative_path_pos`]
+    relative_path_pos: usize,
 }

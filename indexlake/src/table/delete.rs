@@ -21,7 +21,7 @@ pub(crate) async fn process_delete_rows(
     for row in rows {
         let v = condition.eval(&row)?;
         if v.is_true() {
-            row_ids.push(row.bigint(0).expect("Internal row ID should not be null"));
+            row_ids.push(row.int64(0)?.expect("Internal row ID should not be null"));
         }
     }
     // Delete rows by their internal row IDs

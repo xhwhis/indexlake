@@ -17,31 +17,66 @@ impl Row {
         Self { schema, values }
     }
 
-    pub fn bigint_by_name(&self, field_name: &str) -> ILResult<Option<i64>> {
-        let index = self.schema.index_of(field_name).ok_or_else(|| {
-            ILError::InvalidInput(format!("Field {field_name} not found in schema {self:?}"))
-        })?;
-        Ok(self.bigint(index))
-    }
-
-    pub fn bigint(&self, index: usize) -> Option<i64> {
+    pub fn int32(&self, index: usize) -> ILResult<Option<i32>> {
         match self.values[index] {
-            Scalar::Int64(v) => v,
-            _ => panic!("Expected BigInt at index {index} for row {self:?}"),
+            Scalar::Int32(v) => Ok(v),
+            _ => Err(ILError::InternalError(format!(
+                "Expected Int32 at index {index} for row {self:?}"
+            ))),
         }
     }
 
-    pub fn varchar(&self, index: usize) -> Option<String> {
+    pub fn int64(&self, index: usize) -> ILResult<Option<i64>> {
+        match self.values[index] {
+            Scalar::Int64(v) => Ok(v),
+            _ => Err(ILError::InternalError(format!(
+                "Expected BigInt at index {index} for row {self:?}"
+            ))),
+        }
+    }
+
+    pub fn float32(&self, index: usize) -> ILResult<Option<f32>> {
+        match self.values[index] {
+            Scalar::Float32(v) => Ok(v),
+            _ => Err(ILError::InternalError(format!(
+                "Expected Float32 at index {index} for row {self:?}"
+            ))),
+        }
+    }
+
+    pub fn float64(&self, index: usize) -> ILResult<Option<f64>> {
+        match self.values[index] {
+            Scalar::Float64(v) => Ok(v),
+            _ => Err(ILError::InternalError(format!(
+                "Expected Float64 at index {index} for row {self:?}"
+            ))),
+        }
+    }
+
+    pub fn utf8(&self, index: usize) -> ILResult<Option<&String>> {
         match &self.values[index] {
-            Scalar::Utf8(v) => v.clone(),
-            _ => panic!("Expected Varchar at index {index} for row {self:?}"),
+            Scalar::Utf8(v) => Ok(v.as_ref()),
+            _ => Err(ILError::InternalError(format!(
+                "Expected Varchar at index {index} for row {self:?}"
+            ))),
         }
     }
 
-    pub fn boolean(&self, index: usize) -> Option<bool> {
+    pub fn binary(&self, index: usize) -> ILResult<Option<&Vec<u8>>> {
+        match &self.values[index] {
+            Scalar::Binary(v) => Ok(v.as_ref()),
+            _ => Err(ILError::InternalError(format!(
+                "Expected Binary at index {index} for row {self:?}"
+            ))),
+        }
+    }
+
+    pub fn boolean(&self, index: usize) -> ILResult<Option<bool>> {
         match self.values[index] {
-            Scalar::Boolean(v) => v,
-            _ => panic!("Expected Boolean at index {index} for row {self:?}"),
+            Scalar::Boolean(v) => Ok(v),
+            _ => Err(ILError::InternalError(format!(
+                "Expected Boolean at index {index} for row {self:?}"
+            ))),
         }
     }
 }

@@ -16,5 +16,6 @@ futures = { workspace = true }
 hex = { workspace = true }
 log = { workspace = true }
 opendal = { workspace = true, features = ["services-fs", "services-s3"] }
+parquet = { workspace = true }
 tokio = { workspace = true, features = ["full"]}
 url = { workspace = true }

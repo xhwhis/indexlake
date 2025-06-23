@@ -60,7 +60,7 @@ async fn update_table(
 
     let row_stream = table.scan().await.unwrap();
     let mut rows = row_stream.try_collect::<Vec<_>>().await.unwrap();
-    rows.sort_by_key(|row| row.bigint(0).unwrap());
+    rows.sort_by_key(|row| row.int64(0).unwrap().unwrap());
     let table_str = pretty_print_rows(Some(table_schema.clone()), &rows).to_string();
     println!("{}", table_str);
     assert_eq!(

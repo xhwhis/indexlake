@@ -2022,6 +2022,7 @@ dependencies = [
  "hex",
  "log",
  "opendal",
+ "parquet",
  "tokio",
  "url",
 ]

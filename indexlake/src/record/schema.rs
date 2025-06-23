@@ -18,6 +18,10 @@ impl Schema {
         }
     }
 
+    pub fn new_with_metadata(fields: Vec<Field>, metadata: HashMap<String, String>) -> Self {
+        Self { fields, metadata }
+    }
+
     pub fn push_front(&mut self, field: Field) {
         self.fields.insert(0, field);
     }
