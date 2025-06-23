@@ -1,18 +1,33 @@
 use std::{collections::HashMap, sync::Arc};
 
+use futures::StreamExt;
 use log::{debug, error};
 
 use crate::{
-    ILError, ILResult, TransactionHelper, catalog::Catalog, record::SchemaRef, storage::Storage,
-    table::Table,
+    ILError, ILResult, RowStream, TransactionHelper, catalog::Catalog, record::SchemaRef,
+    storage::Storage, table::Table,
 };
 
 pub(crate) async fn spawn_dump_task(table: &Table) -> ILResult<()> {
+    let mut tx_helper = TransactionHelper::new(&table.catalog).await?;
+    let dump_row_ids = tx_helper
+        .scan_inline_row_ids_with_limit(table.table_id, 3000)
+        .await?;
+    tx_helper.commit().await?;
+    if dump_row_ids.len() < 3000 {
+        debug!(
+            "Table {} has less than 3000 inline rows, skip dump",
+            table.table_id
+        );
+        return Ok(());
+    }
+
     let dump_task = DumpTask {
         table_id: table.table_id,
         table_schema: table.schema.clone(),
         catalog: table.catalog.clone(),
         storage: table.storage.clone(),
+        dump_row_ids,
     };
     tokio::spawn(async move {
         if let Err(e) = dump_task.run().await {
@@ -27,6 +42,7 @@ pub(crate) struct DumpTask {
     table_schema: SchemaRef,
     catalog: Arc<dyn Catalog>,
     storage: Arc<Storage>,
+    dump_row_ids: Vec<i64>,
 }
 
 impl DumpTask {
@@ -37,29 +53,30 @@ impl DumpTask {
             return Ok(());
         }
 
-        let dump_row_ids = self.get_dump_row_ids().await?;
-        if dump_row_ids.len() != 3000 {
-            debug!(
-                "Table {} has less than 3000 inline rows, skip dump",
-                self.table_id
-            );
-            return Ok(());
+        let row_stream = tx_helper
+            .scan_inline_rows_by_row_ids(self.table_id, &self.table_schema, &self.dump_row_ids)
+            .await?;
+        let row_id_to_location_map = self.write_dump_file(row_stream).await?;
+        if row_id_to_location_map.len() != self.dump_row_ids.len() {
+            return Err(ILError::InternalError(format!(
+                "Read row count mismatch: {} rows read, expected {}",
+                row_id_to_location_map.len(),
+                self.dump_row_ids.len()
+            )));
         }
-
-        let row_id_to_location_map = self.write_dump_file(&dump_row_ids).await?;
 
         tx_helper
             .update_row_locations(self.table_id, &row_id_to_location_map)
             .await?;
 
         let deleted_count = tx_helper
-            .delete_inline_rows(self.table_id, &dump_row_ids)
+            .delete_inline_rows(self.table_id, &self.dump_row_ids)
             .await?;
-        if deleted_count != dump_row_ids.len() {
+        if deleted_count != self.dump_row_ids.len() {
             return Err(ILError::InternalError(format!(
-                "Dump row count mismatch: {} inline rows deleted, expected {}",
+                "Delete row count mismatch: {} inline rows deleted, expected {}",
                 deleted_count,
-                dump_row_ids.len()
+                self.dump_row_ids.len()
             )));
         }
 
@@ -70,21 +87,7 @@ impl DumpTask {
         Ok(())
     }
 
-    async fn get_dump_row_ids(&self) -> ILResult<Vec<i64>> {
-        let mut tx_helper = TransactionHelper::new(&self.catalog).await?;
-        let dump_row_ids = tx_helper
-            .scan_inline_row_ids_with_limit(self.table_id, 3000)
-            .await?;
-        tx_helper.commit().await?;
-        Ok(dump_row_ids)
-    }
-
-    async fn write_dump_file(&self, row_ids: &[i64]) -> ILResult<HashMap<i64, String>> {
-        let mut tx_helper = TransactionHelper::new(&self.catalog).await?;
-        let row_stream = tx_helper
-            .scan_inline_rows_by_row_ids(self.table_id, &self.table_schema, row_ids)
-            .await?;
-        tx_helper.commit().await?;
+    async fn write_dump_file(&self, row_stream: RowStream<'_>) -> ILResult<HashMap<i64, String>> {
         // TODO
         Ok(HashMap::new())
     }

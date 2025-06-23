@@ -28,6 +28,11 @@ impl TransactionHelper {
         })
     }
 
+    pub(crate) async fn query_rows(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
+        let stream = self.transaction.query(sql, schema).await?;
+        stream.try_collect::<Vec<_>>().await
+    }
+
     pub(crate) async fn commit(&mut self) -> ILResult<()> {
         self.transaction.commit().await
     }

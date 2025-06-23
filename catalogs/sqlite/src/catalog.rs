@@ -52,7 +52,7 @@ pub struct SqliteTransaction {
 
 #[async_trait::async_trait]
 impl Transaction for SqliteTransaction {
-    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
+    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<RowStream> {
         debug!("sqlite transaction query: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
@@ -128,7 +128,7 @@ impl Transaction for SqliteTransaction {
             }
             rows.push(Row::new(schema.clone(), row_values));
         }
-        Ok(rows)
+        Ok(Box::pin(futures::stream::iter(rows).map(Ok)))
     }
 
     async fn execute(&mut self, sql: &str) -> ILResult<usize> {

@@ -9,7 +9,7 @@ use crate::{
 };
 use std::{fmt::Debug, pin::Pin};
 
-pub type RowStream = Pin<Box<dyn Stream<Item = ILResult<Row>> + Send>>;
+pub type RowStream<'a> = Pin<Box<dyn Stream<Item = ILResult<Row>> + Send + 'a>>;
 
 #[async_trait::async_trait]
 pub trait Catalog: Debug + Send + Sync {
@@ -38,7 +38,7 @@ impl std::fmt::Display for CatalogDatabase {
 #[async_trait::async_trait]
 pub trait Transaction: Debug + Send + Sync {
     /// Execute a query and return a stream of rows.
-    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>>;
+    async fn query<'a>(&'a mut self, sql: &str, schema: SchemaRef) -> ILResult<RowStream<'a>>;
 
     /// Execute a SQL statement.
     async fn execute(&mut self, sql: &str) -> ILResult<usize>;

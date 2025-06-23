@@ -61,7 +61,7 @@ pub struct PostgresTransaction {
 
 #[async_trait::async_trait]
 impl Transaction for PostgresTransaction {
-    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
+    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<RowStream> {
         debug!("postgres transaction query: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
@@ -69,18 +69,17 @@ impl Transaction for PostgresTransaction {
             ));
         }
 
-        let pg_rows = self
+        let pg_row_stream = self
             .conn
-            .query(sql, &[])
+            .query_raw(sql, Vec::<String>::new())
             .await
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
 
-        let mut rows = Vec::new();
-        for pg_row in pg_rows {
-            let row = pg_row_to_row(&pg_row, &schema)?;
-            rows.push(row);
-        }
-        Ok(rows)
+        let stream = pg_row_stream.map(move |row| {
+            let pg_row = row.map_err(|e| ILError::CatalogError(e.to_string()))?;
+            pg_row_to_row(&pg_row, &schema)
+        });
+        Ok(Box::pin(stream))
     }
 
     async fn execute(&mut self, sql: &str) -> ILResult<usize> {
