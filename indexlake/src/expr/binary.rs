@@ -1,7 +1,7 @@
 use derive_visitor::{Drive, DriveMut};
 
 use crate::{
-    CatalogDatabase, ILResult,
+    CatalogDatabase, ILError, ILResult,
     expr::Expr,
     record::{Row, Scalar},
 };
@@ -78,7 +78,35 @@ impl BinaryExpr {
             BinaryOp::LtEq => Ok(Scalar::Boolean(Some(left <= right))),
             BinaryOp::Gt => Ok(Scalar::Boolean(Some(left > right))),
             BinaryOp::GtEq => Ok(Scalar::Boolean(Some(left >= right))),
-            _ => todo!(),
+            BinaryOp::Plus => left.add(&right),
+            BinaryOp::Minus => left.sub(&right),
+            BinaryOp::Multiply => left.mul(&right),
+            BinaryOp::Divide => left.div(&right),
+            BinaryOp::Modulo => left.rem(&right),
+            BinaryOp::And => match (&left, &right) {
+                (Scalar::Boolean(Some(v1)), Scalar::Boolean(Some(v2))) => {
+                    Ok(Scalar::Boolean(Some(*v1 && *v2)))
+                }
+                (Scalar::Boolean(None), _) | (_, Scalar::Boolean(None)) => {
+                    Ok(Scalar::Boolean(None))
+                }
+                _ => Err(ILError::InvalidInput(format!(
+                    "Cannot AND scalars: {:?} and {:?}",
+                    left, right
+                ))),
+            },
+            BinaryOp::Or => match (&left, &right) {
+                (Scalar::Boolean(Some(v1)), Scalar::Boolean(Some(v2))) => {
+                    Ok(Scalar::Boolean(Some(*v1 || *v2)))
+                }
+                (Scalar::Boolean(None), _) | (_, Scalar::Boolean(None)) => {
+                    Ok(Scalar::Boolean(None))
+                }
+                _ => Err(ILError::InvalidInput(format!(
+                    "Cannot OR scalars: {:?} and {:?}",
+                    left, right
+                ))),
+            },
         }
     }
 

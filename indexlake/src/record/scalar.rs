@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use derive_visitor::{Drive, DriveMut};
 
-use crate::CatalogDatabase;
+use crate::{CatalogDatabase, ILError, ILResult};
 
 #[derive(Debug, Clone, Drive, DriveMut)]
 pub enum Scalar {
@@ -61,6 +61,111 @@ impl Scalar {
             Scalar::Binary(None) => "null".to_string(),
             Scalar::Boolean(Some(value)) => value.to_string(),
             Scalar::Boolean(None) => "null".to_string(),
+        }
+    }
+
+    pub fn add(&self, other: &Scalar) -> ILResult<Scalar> {
+        match (self, other) {
+            (Scalar::Int32(Some(v1)), Scalar::Int32(Some(v2))) => Ok(Scalar::Int32(Some(v1 + v2))),
+            (Scalar::Int32(None), _) | (_, Scalar::Int32(None)) => Ok(Scalar::Int32(None)),
+            (Scalar::Int64(Some(v1)), Scalar::Int64(Some(v2))) => Ok(Scalar::Int64(Some(v1 + v2))),
+            (Scalar::Int64(None), _) | (_, Scalar::Int64(None)) => Ok(Scalar::Int64(None)),
+            (Scalar::Float32(Some(v1)), Scalar::Float32(Some(v2))) => {
+                Ok(Scalar::Float32(Some(v1 + v2)))
+            }
+            (Scalar::Float32(None), _) | (_, Scalar::Float32(None)) => Ok(Scalar::Float32(None)),
+            (Scalar::Float64(Some(v1)), Scalar::Float64(Some(v2))) => {
+                Ok(Scalar::Float64(Some(v1 + v2)))
+            }
+            (Scalar::Float64(None), _) | (_, Scalar::Float64(None)) => Ok(Scalar::Float64(None)),
+            _ => Err(ILError::InvalidInput(format!(
+                "Cannot add scalars: {:?} and {:?}",
+                self, other
+            ))),
+        }
+    }
+
+    pub fn sub(&self, other: &Scalar) -> ILResult<Scalar> {
+        match (self, other) {
+            (Scalar::Int32(Some(v1)), Scalar::Int32(Some(v2))) => Ok(Scalar::Int32(Some(v1 - v2))),
+            (Scalar::Int32(None), _) | (_, Scalar::Int32(None)) => Ok(Scalar::Int32(None)),
+            (Scalar::Int64(Some(v1)), Scalar::Int64(Some(v2))) => Ok(Scalar::Int64(Some(v1 - v2))),
+            (Scalar::Int64(None), _) | (_, Scalar::Int64(None)) => Ok(Scalar::Int64(None)),
+            (Scalar::Float32(Some(v1)), Scalar::Float32(Some(v2))) => {
+                Ok(Scalar::Float32(Some(v1 - v2)))
+            }
+            (Scalar::Float32(None), _) | (_, Scalar::Float32(None)) => Ok(Scalar::Float32(None)),
+            (Scalar::Float64(Some(v1)), Scalar::Float64(Some(v2))) => {
+                Ok(Scalar::Float64(Some(v1 - v2)))
+            }
+            (Scalar::Float64(None), _) | (_, Scalar::Float64(None)) => Ok(Scalar::Float64(None)),
+            _ => Err(ILError::InvalidInput(format!(
+                "Cannot subtract scalars: {:?} and {:?}",
+                self, other
+            ))),
+        }
+    }
+
+    pub fn mul(&self, other: &Scalar) -> ILResult<Scalar> {
+        match (self, other) {
+            (Scalar::Int32(Some(v1)), Scalar::Int32(Some(v2))) => Ok(Scalar::Int32(Some(v1 * v2))),
+            (Scalar::Int32(None), _) | (_, Scalar::Int32(None)) => Ok(Scalar::Int32(None)),
+            (Scalar::Int64(Some(v1)), Scalar::Int64(Some(v2))) => Ok(Scalar::Int64(Some(v1 * v2))),
+            (Scalar::Int64(None), _) | (_, Scalar::Int64(None)) => Ok(Scalar::Int64(None)),
+            (Scalar::Float32(Some(v1)), Scalar::Float32(Some(v2))) => {
+                Ok(Scalar::Float32(Some(v1 * v2)))
+            }
+            (Scalar::Float32(None), _) | (_, Scalar::Float32(None)) => Ok(Scalar::Float32(None)),
+            (Scalar::Float64(Some(v1)), Scalar::Float64(Some(v2))) => {
+                Ok(Scalar::Float64(Some(v1 * v2)))
+            }
+            (Scalar::Float64(None), _) | (_, Scalar::Float64(None)) => Ok(Scalar::Float64(None)),
+            _ => Err(ILError::InvalidInput(format!(
+                "Cannot multiply scalars: {:?} and {:?}",
+                self, other
+            ))),
+        }
+    }
+
+    pub fn div(&self, other: &Scalar) -> ILResult<Scalar> {
+        match (self, other) {
+            (Scalar::Int32(Some(v1)), Scalar::Int32(Some(v2))) => Ok(Scalar::Int32(Some(v1 / v2))),
+            (Scalar::Int32(None), _) | (_, Scalar::Int32(None)) => Ok(Scalar::Int32(None)),
+            (Scalar::Int64(Some(v1)), Scalar::Int64(Some(v2))) => Ok(Scalar::Int64(Some(v1 / v2))),
+            (Scalar::Int64(None), _) | (_, Scalar::Int64(None)) => Ok(Scalar::Int64(None)),
+            (Scalar::Float32(Some(v1)), Scalar::Float32(Some(v2))) => {
+                Ok(Scalar::Float32(Some(v1 / v2)))
+            }
+            (Scalar::Float32(None), _) | (_, Scalar::Float32(None)) => Ok(Scalar::Float32(None)),
+            (Scalar::Float64(Some(v1)), Scalar::Float64(Some(v2))) => {
+                Ok(Scalar::Float64(Some(v1 / v2)))
+            }
+            (Scalar::Float64(None), _) | (_, Scalar::Float64(None)) => Ok(Scalar::Float64(None)),
+            _ => Err(ILError::InvalidInput(format!(
+                "Cannot divide scalars: {:?} and {:?}",
+                self, other
+            ))),
+        }
+    }
+
+    pub fn rem(&self, other: &Scalar) -> ILResult<Scalar> {
+        match (self, other) {
+            (Scalar::Int32(Some(v1)), Scalar::Int32(Some(v2))) => Ok(Scalar::Int32(Some(v1 % v2))),
+            (Scalar::Int32(None), _) | (_, Scalar::Int32(None)) => Ok(Scalar::Int32(None)),
+            (Scalar::Int64(Some(v1)), Scalar::Int64(Some(v2))) => Ok(Scalar::Int64(Some(v1 % v2))),
+            (Scalar::Int64(None), _) | (_, Scalar::Int64(None)) => Ok(Scalar::Int64(None)),
+            (Scalar::Float32(Some(v1)), Scalar::Float32(Some(v2))) => {
+                Ok(Scalar::Float32(Some(v1 % v2)))
+            }
+            (Scalar::Float32(None), _) | (_, Scalar::Float32(None)) => Ok(Scalar::Float32(None)),
+            (Scalar::Float64(Some(v1)), Scalar::Float64(Some(v2))) => {
+                Ok(Scalar::Float64(Some(v1 % v2)))
+            }
+            (Scalar::Float64(None), _) | (_, Scalar::Float64(None)) => Ok(Scalar::Float64(None)),
+            _ => Err(ILError::InvalidInput(format!(
+                "Cannot modulo scalars: {:?} and {:?}",
+                self, other
+            ))),
         }
     }
 }
