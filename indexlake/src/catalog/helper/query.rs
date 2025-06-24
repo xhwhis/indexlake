@@ -288,4 +288,21 @@ impl TransactionHelper {
         }
         Ok(row_ids)
     }
+
+    pub(crate) async fn get_max_data_file_id(&mut self) -> ILResult<i64> {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "max_data_file_id",
+            DataType::Int64,
+            true,
+        )]));
+        let rows = self
+            .query_rows("SELECT MAX(data_file_id) FROM indexlake_data_file", schema)
+            .await?;
+        if rows.is_empty() {
+            Ok(0)
+        } else {
+            let max_table_id = rows[0].int64(0)?;
+            Ok(max_table_id.unwrap_or(0))
+        }
+    }
 }

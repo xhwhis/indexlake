@@ -32,3 +32,15 @@ impl From<opendal::Error> for ILError {
         ILError::StorageError(err.to_string())
     }
 }
+
+impl From<parquet::errors::ParquetError> for ILError {
+    fn from(err: parquet::errors::ParquetError) -> Self {
+        ILError::StorageError(err.to_string())
+    }
+}
+
+impl From<arrow::error::ArrowError> for ILError {
+    fn from(err: arrow::error::ArrowError) -> Self {
+        ILError::InternalError(err.to_string())
+    }
+}

@@ -21,3 +21,4 @@ parquet = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["full"]}
 url = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
