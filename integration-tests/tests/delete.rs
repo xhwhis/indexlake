@@ -61,10 +61,10 @@ async fn delete_table(
     println!("{}", table_str);
     assert_eq!(
         table_str,
-        r#"+----+-------+
-| id | name  |
-+----+-------+
-| 2  | 'Bob' |
-+----+-------+"#
+        r#"+----+------+
+| id | name |
++----+------+
+| 2  | Bob  |
++----+------+"#
     );
 }

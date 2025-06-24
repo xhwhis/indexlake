@@ -23,6 +23,7 @@ use crate::{Catalog, ILError, ILResult, RowStream, Storage, TransactionHelper};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+#[derive(Debug, Clone)]
 pub struct TableCreation {
     pub namespace_name: String,
     pub table_name: String,

@@ -237,7 +237,7 @@ impl Display for Scalar {
             Scalar::Float32(None) => write!(f, "null"),
             Scalar::Float64(Some(value)) => write!(f, "{}", value),
             Scalar::Float64(None) => write!(f, "null"),
-            Scalar::Utf8(Some(value)) => write!(f, "'{}'", value),
+            Scalar::Utf8(Some(value)) => write!(f, "{}", value),
             Scalar::Utf8(None) => write!(f, "null"),
             Scalar::Binary(Some(value)) => write!(f, "{}", hex::encode(value)),
             Scalar::Binary(None) => write!(f, "null"),

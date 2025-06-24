@@ -34,7 +34,7 @@ async fn drop_table(
         table_name: table_name.to_string(),
         schema: table_schema.clone(),
     };
-    client.create_table(table_creation).await.unwrap();
+    client.create_table(table_creation.clone()).await.unwrap();
 
     let table = client.load_table(namespace_name, table_name).await.unwrap();
 
@@ -49,9 +49,25 @@ async fn drop_table(
             Scalar::Utf8(Some("Bob".to_string())),
         ],
     ];
-    table.insert(&columns, values).await.unwrap();
+    table.insert(&columns, values.clone()).await.unwrap();
 
     table.drop().await.unwrap();
-
     assert!(client.load_table(namespace_name, table_name).await.is_err());
+
+    client.create_table(table_creation).await.unwrap();
+    let table = client.load_table(namespace_name, table_name).await.unwrap();
+    table.insert(&columns, values.clone()).await.unwrap();
+    let row_stream = table.scan().await.unwrap();
+    let rows = row_stream.try_collect::<Vec<_>>().await.unwrap();
+    let table_str = pretty_print_rows(Some(table_schema.clone()), &rows).to_string();
+    println!("{}", table_str);
+    assert_eq!(
+        table_str,
+        r#"+----+-------+
+| id | name  |
++----+-------+
+| 1  | Alice |
+| 2  | Bob   |
++----+-------+"#
+    );
 }
