@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     ILError, ILResult, RowStream,
@@ -110,34 +110,39 @@ impl TransactionHelper {
         }
     }
 
-    pub(crate) async fn get_table_schema(&mut self, table_id: i64) -> ILResult<SchemaRef> {
+    pub(crate) async fn get_table_fields(&mut self, table_id: i64) -> ILResult<Vec<Field>> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("field_name", DataType::Utf8, false),
             Field::new("data_type", DataType::Utf8, false),
             Field::new("nullable", DataType::Boolean, false),
             Field::new("default_value", DataType::Utf8, true),
+            Field::new("metadata", DataType::Utf8, false),
         ]));
         let rows = self
             .query_rows(
-                &format!("SELECT field_name, data_type, nullable, default_value FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"),
+                &format!("SELECT field_name, data_type, nullable, default_value, metadata FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"),
                 schema,
             )
             .await?;
         let mut fields = Vec::new();
         for row in rows {
+            let field_name = row.utf8(0)?.expect("field_name is not null");
+            let data_type_str = row.utf8(1)?.expect("data_type is not null");
+            let data_type = DataType::parse_sql_type(&data_type_str, self.database)?;
+            let nullable = row.boolean(2)?.expect("nullable is not null");
+            let default_value = row.utf8(3)?.map(|v| v.to_string());
+            let metadata_str = row.utf8(4)?.expect("metadata is not null");
+            let metadata: HashMap<String, String> =
+                serde_json::from_str(&metadata_str).map_err(|e| {
+                    ILError::InternalError(format!("Failed to deserialize field metadata: {e:?}"))
+                })?;
             fields.push(
-                Field::new(
-                    row.utf8(0)?.expect("field_name is not null"),
-                    DataType::parse_sql_type(
-                        &row.utf8(1)?.expect("data_type is not null"),
-                        self.database,
-                    )?,
-                    row.boolean(2)?.expect("nullable is not null"),
-                )
-                .with_default_value(row.utf8(3)?.map(|v| v.to_string())),
+                Field::new(field_name, data_type, nullable)
+                    .with_default_value(default_value)
+                    .with_metadata(metadata),
             );
         }
-        Ok(Arc::new(Schema::new(fields)))
+        Ok(fields)
     }
 
     pub(crate) async fn get_max_row_id(&mut self, table_id: i64) -> ILResult<i64> {

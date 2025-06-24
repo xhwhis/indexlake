@@ -15,7 +15,8 @@ CREATE TABLE indexlake_field (
     field_name VARCHAR NOT NULL,
     data_type VARCHAR NOT NULL,
     nullable BOOLEAN NOT NULL,
-    default_value VARCHAR
+    default_value VARCHAR,
+    metadata VARCHAR NOT NULL
 );
 
 CREATE TABLE indexlake_dump_task (

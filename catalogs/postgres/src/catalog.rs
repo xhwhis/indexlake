@@ -62,7 +62,7 @@ pub struct PostgresTransaction {
 #[async_trait::async_trait]
 impl Transaction for PostgresTransaction {
     async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<RowStream> {
-        debug!("postgres transaction query: {sql}");
+        debug!("postgres txn query: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),
@@ -83,7 +83,7 @@ impl Transaction for PostgresTransaction {
     }
 
     async fn execute(&mut self, sql: &str) -> ILResult<usize> {
-        debug!("postgres transaction execute: {sql}");
+        debug!("postgres txn execute: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),
@@ -97,7 +97,7 @@ impl Transaction for PostgresTransaction {
     }
 
     async fn execute_batch(&mut self, sqls: &[String]) -> ILResult<()> {
-        debug!("postgres transaction execute batch: {:?}", sqls);
+        debug!("postgres txn execute batch: {:?}", sqls);
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),
@@ -110,6 +110,7 @@ impl Transaction for PostgresTransaction {
     }
 
     async fn commit(&mut self) -> ILResult<()> {
+        debug!("postgres txn commit");
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),
@@ -124,6 +125,7 @@ impl Transaction for PostgresTransaction {
     }
 
     async fn rollback(&mut self) -> ILResult<()> {
+        debug!("postgres txn rollback");
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),

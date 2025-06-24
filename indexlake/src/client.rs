@@ -1,5 +1,5 @@
 use crate::catalog::TransactionHelper;
-use crate::record::SchemaRef;
+use crate::record::{Schema, SchemaRef};
 use crate::table::{Table, TableCreation, process_create_table};
 use crate::{Catalog, ILError, ILResult, Storage};
 use std::sync::Arc;
@@ -64,7 +64,8 @@ impl LakeClient {
                     "Table {table_name} not found in namespace {namespace_name}"
                 ))
             })?;
-        let schema = tx_helper.get_table_schema(table_id).await?;
+        let fields = tx_helper.get_table_fields(table_id).await?;
+        let schema = Arc::new(Schema::new(fields));
         Ok(Table {
             namespace_id,
             namespace_name: namespace_name.to_string(),

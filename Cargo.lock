@@ -2023,6 +2023,7 @@ dependencies = [
  "log",
  "opendal",
  "parquet",
+ "serde_json",
  "tokio",
  "url",
 ]

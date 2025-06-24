@@ -53,7 +53,7 @@ pub struct SqliteTransaction {
 #[async_trait::async_trait]
 impl Transaction for SqliteTransaction {
     async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<RowStream> {
-        debug!("sqlite transaction query: {sql}");
+        debug!("sqlite txn query: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),
@@ -132,7 +132,7 @@ impl Transaction for SqliteTransaction {
     }
 
     async fn execute(&mut self, sql: &str) -> ILResult<usize> {
-        debug!("sqlite transaction execute: {sql}");
+        debug!("sqlite txn execute: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),
@@ -144,7 +144,7 @@ impl Transaction for SqliteTransaction {
     }
 
     async fn execute_batch(&mut self, sqls: &[String]) -> ILResult<()> {
-        debug!("sqlite transaction execute batch: {:?}", sqls);
+        debug!("sqlite txn execute batch: {:?}", sqls);
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),
@@ -156,6 +156,7 @@ impl Transaction for SqliteTransaction {
     }
 
     async fn commit(&mut self) -> ILResult<()> {
+        debug!("sqlite txn commit");
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),
@@ -169,6 +170,7 @@ impl Transaction for SqliteTransaction {
     }
 
     async fn rollback(&mut self) -> ILResult<()> {
+        debug!("sqlite txn rollback");
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),

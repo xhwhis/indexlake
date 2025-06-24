@@ -1,5 +1,5 @@
 use crate::{
-    ILResult, TransactionHelper,
+    ILError, ILResult, TransactionHelper,
     record::{Field, Scalar, sql_identifier},
 };
 
@@ -36,7 +36,7 @@ impl TransactionHelper {
         let mut values = Vec::new();
         for (field_id, field) in field_ids.iter().zip(fields.iter()) {
             values.push(format!(
-                "({field_id}, {table_id}, '{}', '{}', {}, {})",
+                "({field_id}, {table_id}, '{}', '{}', {}, {}, '{}')",
                 field.name,
                 field.data_type.to_sql(self.database),
                 field.nullable,
@@ -44,10 +44,21 @@ impl TransactionHelper {
                     .default_value
                     .as_ref()
                     .map(|v| format!("'{v}'"))
-                    .unwrap_or("NULL".to_string())
+                    .unwrap_or("NULL".to_string()),
+                serde_json::to_string(&field.metadata).map_err(|e| ILError::InternalError(
+                    format!("Failed to serialize field metadata: {e:?}")
+                ))?,
             ));
         }
-        self.transaction.execute(&format!("INSERT INTO indexlake_field (field_id, table_id, field_name, data_type, nullable, default_value) VALUES {}", values.join(", "))).await?;
+        self.transaction
+            .execute(&format!(
+                "
+            INSERT INTO indexlake_field 
+            (field_id, table_id, field_name, data_type, nullable, default_value, metadata) 
+            VALUES {}",
+                values.join(", ")
+            ))
+            .await?;
         Ok(())
     }
 
