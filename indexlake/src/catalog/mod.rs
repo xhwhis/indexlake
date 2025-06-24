@@ -36,7 +36,7 @@ impl std::fmt::Display for CatalogDatabase {
 
 // Transaction should be rolled back when dropped.
 #[async_trait::async_trait]
-pub trait Transaction: Debug + Send + Sync {
+pub trait Transaction: Debug + Send {
     /// Execute a query and return a stream of rows.
     async fn query<'a>(&'a mut self, sql: &str, schema: SchemaRef) -> ILResult<RowStream<'a>>;
 

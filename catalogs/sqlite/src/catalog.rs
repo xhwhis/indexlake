@@ -5,7 +5,7 @@ use indexlake::{
 };
 use indexlake::{ILError, ILResult};
 use log::debug;
-use std::{path::PathBuf, sync::Mutex};
+use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct SqliteCatalog {
@@ -36,17 +36,14 @@ impl Catalog for SqliteCatalog {
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
         conn.execute_batch("BEGIN DEFERRED")
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
-        Ok(Box::new(SqliteTransaction {
-            conn: Mutex::new(conn),
-            done: false,
-        }))
+        Ok(Box::new(SqliteTransaction { conn, done: false }))
     }
 }
 
 #[derive(Debug)]
 pub struct SqliteTransaction {
     // TODO use tokio rusqlite connection
-    conn: Mutex<rusqlite::Connection>,
+    conn: rusqlite::Connection,
     done: bool,
 }
 
@@ -59,8 +56,8 @@ impl Transaction for SqliteTransaction {
                 "Transaction already committed or rolled back".to_string(),
             ));
         }
-        let conn = self.conn.lock().unwrap();
-        let mut stmt = conn
+        let mut stmt = self
+            .conn
             .prepare(sql)
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
         let mut sqlite_rows = stmt
@@ -72,61 +69,8 @@ impl Transaction for SqliteTransaction {
             .next()
             .map_err(|e| ILError::CatalogError(e.to_string()))?
         {
-            let mut row_values = Vec::new();
-            for (idx, field) in schema.fields.iter().enumerate() {
-                let scalar = match field.data_type {
-                    DataType::Int32 => {
-                        let v: Option<i32> = sqlite_row
-                            .get(idx)
-                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Int32(v)
-                    }
-                    DataType::Int64 => {
-                        let v: Option<i64> = sqlite_row
-                            .get(idx)
-                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Int64(v)
-                    }
-                    DataType::Float32 => {
-                        let v: Option<f32> = sqlite_row
-                            .get(idx)
-                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Float32(v)
-                    }
-                    DataType::Float64 => {
-                        let v: Option<f64> = sqlite_row
-                            .get(idx)
-                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Float64(v)
-                    }
-                    DataType::Utf8 => {
-                        let v: Option<String> = sqlite_row
-                            .get(idx)
-                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Utf8(v)
-                    }
-                    DataType::Binary => {
-                        let v: Option<Vec<u8>> = sqlite_row
-                            .get(idx)
-                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Binary(v)
-                    }
-                    DataType::Boolean => {
-                        let v: Option<bool> = sqlite_row
-                            .get(idx)
-                            .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                        Scalar::Boolean(v)
-                    }
-                };
-                if !field.nullable && scalar.is_null() {
-                    return Err(ILError::CatalogError(format!(
-                        "column {} is not nullable but got null value",
-                        field.name
-                    )));
-                }
-                row_values.push(scalar);
-            }
-            rows.push(Row::new(schema.clone(), row_values));
+            let row = sqlite_row_to_row(&sqlite_row, &schema)?;
+            rows.push(row);
         }
         Ok(Box::pin(futures::stream::iter(rows).map(Ok)))
     }
@@ -138,8 +82,8 @@ impl Transaction for SqliteTransaction {
                 "Transaction already committed or rolled back".to_string(),
             ));
         }
-        let conn = self.conn.lock().unwrap();
-        conn.execute(sql, [])
+        self.conn
+            .execute(sql, [])
             .map_err(|e| ILError::CatalogError(e.to_string()))
     }
 
@@ -150,8 +94,8 @@ impl Transaction for SqliteTransaction {
                 "Transaction already committed or rolled back".to_string(),
             ));
         }
-        let conn = self.conn.lock().unwrap();
-        conn.execute_batch(sqls.join(";").as_str())
+        self.conn
+            .execute_batch(sqls.join(";").as_str())
             .map_err(|e| ILError::CatalogError(e.to_string()))
     }
 
@@ -162,8 +106,8 @@ impl Transaction for SqliteTransaction {
                 "Transaction already committed or rolled back".to_string(),
             ));
         }
-        let conn = self.conn.lock().unwrap();
-        conn.execute_batch("COMMIT")
+        self.conn
+            .execute_batch("COMMIT")
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
         self.done = true;
         Ok(())
@@ -176,8 +120,8 @@ impl Transaction for SqliteTransaction {
                 "Transaction already committed or rolled back".to_string(),
             ));
         }
-        let conn = self.conn.lock().unwrap();
-        conn.execute_batch("ROLLBACK")
+        self.conn
+            .execute_batch("ROLLBACK")
             .map_err(|e| ILError::CatalogError(e.to_string()))?;
         self.done = true;
         Ok(())
@@ -189,7 +133,64 @@ impl Drop for SqliteTransaction {
         if self.done {
             return;
         }
-        let conn = self.conn.lock().unwrap();
-        conn.execute_batch("ROLLBACK").unwrap();
+        self.conn.execute_batch("ROLLBACK").unwrap();
     }
+}
+
+fn sqlite_row_to_row(sqlite_row: &rusqlite::Row, schema: &SchemaRef) -> ILResult<Row> {
+    let mut row_values = Vec::new();
+    for (idx, field) in schema.fields.iter().enumerate() {
+        let scalar = match field.data_type {
+            DataType::Int32 => {
+                let v: Option<i32> = sqlite_row
+                    .get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Int32(v)
+            }
+            DataType::Int64 => {
+                let v: Option<i64> = sqlite_row
+                    .get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Int64(v)
+            }
+            DataType::Float32 => {
+                let v: Option<f32> = sqlite_row
+                    .get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Float32(v)
+            }
+            DataType::Float64 => {
+                let v: Option<f64> = sqlite_row
+                    .get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Float64(v)
+            }
+            DataType::Utf8 => {
+                let v: Option<String> = sqlite_row
+                    .get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Utf8(v)
+            }
+            DataType::Binary => {
+                let v: Option<Vec<u8>> = sqlite_row
+                    .get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Binary(v)
+            }
+            DataType::Boolean => {
+                let v: Option<bool> = sqlite_row
+                    .get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Boolean(v)
+            }
+        };
+        if !field.nullable && scalar.is_null() {
+            return Err(ILError::CatalogError(format!(
+                "column {} is not nullable but got null value",
+                field.name
+            )));
+        }
+        row_values.push(scalar);
+    }
+    Ok(Row::new(schema.clone(), row_values))
 }
