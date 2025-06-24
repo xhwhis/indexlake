@@ -21,6 +21,12 @@ impl std::fmt::Display for ILError {
     }
 }
 
+impl std::error::Error for ILError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
 impl From<opendal::Error> for ILError {
     fn from(err: opendal::Error) -> Self {
         ILError::StorageError(err.to_string())

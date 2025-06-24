@@ -74,14 +74,37 @@ impl Storage {
             }
         }
     }
+
+    pub async fn new_storage_file(&self, path: impl AsRef<str>) -> ILResult<StorageFile> {
+        let (op, relative_path) = self.create_operator(&path)?;
+        let path = path.as_ref().to_string();
+        let relative_path_pos = path.len() - relative_path.len();
+        let reader = op.reader(&path[relative_path_pos..]).await?;
+        let writer = op.writer(&path[relative_path_pos..]).await?;
+        Ok(StorageFile {
+            op,
+            path,
+            relative_path_pos,
+            reader,
+            writer,
+        })
+    }
 }
 
-/// Output file is used for writing to files..
-#[derive(Debug)]
-pub struct OutputFile {
+/// Storage file is used for reading and writing to files.
+pub struct StorageFile {
     op: Operator,
     // Absolution path of file.
     path: String,
     // Relative path of file to uri, starts at [`relative_path_pos`]
     relative_path_pos: usize,
+    reader: opendal::Reader,
+    writer: opendal::Writer,
+}
+
+impl StorageFile {
+    pub async fn file_size_bytes(&self) -> ILResult<u64> {
+        let meta = self.op.stat(&self.path[self.relative_path_pos..]).await?;
+        Ok(meta.content_length())
+    }
 }
