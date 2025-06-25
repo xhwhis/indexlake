@@ -51,18 +51,7 @@ impl AsyncFileReader for StorageFile {
 impl AsyncFileWriter for StorageFile {
     fn write(&mut self, bs: bytes::Bytes) -> BoxFuture<'_, parquet::errors::Result<()>> {
         Box::pin(async {
-            let writer = match &mut self.writer {
-                Some(writer) => writer,
-                None => {
-                    let writer =
-                        self.op.writer(&self.relative_path).await.map_err(|err| {
-                            parquet::errors::ParquetError::External(Box::new(err))
-                        })?;
-                    self.writer = Some(writer);
-                    self.writer.as_mut().unwrap()
-                }
-            };
-            writer
+            self.writer
                 .write(bs)
                 .await
                 .map_err(|err| parquet::errors::ParquetError::External(Box::new(err)))
@@ -71,21 +60,11 @@ impl AsyncFileWriter for StorageFile {
 
     fn complete(&mut self) -> BoxFuture<'_, parquet::errors::Result<()>> {
         Box::pin(async {
-            let writer = match &mut self.writer {
-                Some(writer) => writer,
-                None => {
-                    let writer =
-                        self.op.writer(&self.relative_path).await.map_err(|err| {
-                            parquet::errors::ParquetError::External(Box::new(err))
-                        })?;
-                    self.writer = Some(writer);
-                    self.writer.as_mut().unwrap()
-                }
-            };
-            let _ = writer
+            let _ = self
+                .writer
                 .close()
                 .await
-                .map_err(|err| parquet::errors::ParquetError::External(Box::new(err)));
+                .map_err(|err| parquet::errors::ParquetError::External(Box::new(err)))?;
             Ok(())
         })
     }

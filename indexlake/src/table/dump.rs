@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use futures::StreamExt;
 use log::{debug, error};
@@ -10,19 +10,19 @@ use crate::{
     catalog::{Catalog, DataFileRecord, TransactionHelper},
     record::{Row, SchemaRef},
     storage::Storage,
-    table::Table,
+    table::{Table, TableConfig},
 };
 
 pub(crate) async fn spawn_dump_task(table: &Table) -> ILResult<()> {
     let mut tx_helper = TransactionHelper::new(&table.catalog).await?;
     let dump_row_ids = tx_helper
-        .scan_inline_row_ids_with_limit(table.table_id, 3000)
+        .scan_inline_row_ids_with_limit(table.table_id, table.config.inline_row_count_limit)
         .await?;
     tx_helper.commit().await?;
-    if dump_row_ids.len() < 3000 {
+    if dump_row_ids.len() < table.config.inline_row_count_limit {
         debug!(
-            "Table {} has less than 3000 inline rows, skip dump",
-            table.table_id
+            "Table {} has less than {} inline rows, skip dump",
+            table.table_id, table.config.inline_row_count_limit
         );
         return Ok(());
     }
@@ -31,14 +31,21 @@ pub(crate) async fn spawn_dump_task(table: &Table) -> ILResult<()> {
         namespace_id: table.namespace_id,
         table_id: table.table_id,
         table_schema: table.schema.clone(),
+        table_config: table.config.clone(),
         catalog: table.catalog.clone(),
         storage: table.storage.clone(),
         dump_row_ids,
     };
     tokio::spawn(async move {
+        let now = Instant::now();
         if let Err(e) = dump_task.run().await {
             error!("Failed to dump table: {:?}", e);
         }
+        debug!(
+            "Dump table {} inline rows in {} ms",
+            dump_task.table_id,
+            now.elapsed().as_millis()
+        );
     });
     Ok(())
 }
@@ -47,6 +54,7 @@ pub(crate) struct DumpTask {
     namespace_id: i64,
     table_id: i64,
     table_schema: SchemaRef,
+    table_config: Arc<TableConfig>,
     catalog: Arc<dyn Catalog>,
     storage: Arc<Storage>,
     dump_row_ids: Vec<i64>,
@@ -70,7 +78,7 @@ impl DumpTask {
         let mut data_file_records = Vec::new();
         let mut data_file_id = max_data_file_id + 1;
 
-        let mut chunks = row_stream.chunks(1000);
+        let mut chunks = row_stream.chunks(self.table_config.parquet_row_count_limit);
         while let Some(chunk) = chunks.next().await {
             let mut rows = Vec::new();
             for row in chunk {
@@ -147,6 +155,7 @@ impl DumpTask {
         let storage_file = self.storage.new_storage_file(relative_path).await?;
         let mut arrow_writer = AsyncArrowWriter::try_new(storage_file, arrow_schema, None)?;
         arrow_writer.write(&record_batch).await?;
+        arrow_writer.close().await?;
 
         // TODO locations
         Ok(location_map)

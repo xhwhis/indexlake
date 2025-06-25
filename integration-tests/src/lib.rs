@@ -81,5 +81,7 @@ pub fn storage_s3() -> Arc<Storage> {
     config.access_key_id = Some("admin".to_string());
     config.secret_access_key = Some("password".to_string());
     config.region = Some("us-east-1".to_string());
+    config.disable_config_load = true;
+    config.disable_ec2_metadata = true;
     Arc::new(Storage::new_s3(config, "indexlake"))
 }

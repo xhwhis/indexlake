@@ -61,11 +61,12 @@ impl Storage {
     pub async fn new_storage_file(&self, relative_path: &str) -> ILResult<StorageFile> {
         let op = self.new_operator()?;
         let reader = op.reader(relative_path).await?;
+        let writer = op.writer(relative_path).await?;
         Ok(StorageFile {
             op,
             relative_path: relative_path.to_string(),
             reader,
-            writer: None,
+            writer,
         })
     }
 }
@@ -75,17 +76,13 @@ pub struct StorageFile {
     op: Operator,
     relative_path: String,
     reader: opendal::Reader,
-    writer: Option<opendal::Writer>,
+    writer: opendal::Writer,
 }
 
 impl StorageFile {
     pub async fn file_size_bytes(&self) -> ILResult<u64> {
         let meta = self.op.stat(&self.relative_path).await?;
         Ok(meta.content_length())
-    }
-
-    pub async fn exists(&self) -> ILResult<bool> {
-        Ok(self.op.exists(&self.relative_path).await?)
     }
 
     pub async fn delete(&self) -> ILResult<()> {

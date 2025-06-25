@@ -278,7 +278,7 @@ impl TransactionHelper {
     pub(crate) async fn scan_inline_row_ids_with_limit(
         &mut self,
         table_id: i64,
-        limit: i64,
+        limit: usize,
     ) -> ILResult<Vec<i64>> {
         let schema = Arc::new(Schema::new(vec![Field::new(
             INTERNAL_ROW_ID_FIELD_NAME.to_string(),

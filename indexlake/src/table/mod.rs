@@ -44,7 +44,7 @@ pub struct Table {
     pub table_id: i64,
     pub table_name: String,
     pub schema: SchemaRef,
-    pub config: TableConfig,
+    pub config: Arc<TableConfig>,
     pub catalog: Arc<dyn Catalog>,
     pub storage: Arc<Storage>,
 }
@@ -64,7 +64,7 @@ impl Table {
         let inline_row_count = tx_helper.count_inline_rows(self.table_id).await?;
         tx_helper.commit().await?;
 
-        if inline_row_count >= 3000 {
+        if inline_row_count as usize >= self.config.inline_row_count_limit {
             spawn_dump_task(self).await?;
         }
 

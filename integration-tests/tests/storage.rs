@@ -7,8 +7,10 @@ use std::sync::Arc;
 #[case(storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn file_operations(#[case] storage: Arc<Storage>) {
-    let file = storage.new_storage_file("test.txt").await.unwrap();
-    assert!(!file.exists().await.unwrap());
+    let file_path = "test/test.txt";
+    assert!(!storage.exists(file_path).await.unwrap());
+
+    let file = storage.new_storage_file(file_path).await.unwrap();
 
     let expected = bytes::Bytes::from("Hello, world!");
     file.write(expected.clone()).await.unwrap();
@@ -16,5 +18,5 @@ async fn file_operations(#[case] storage: Arc<Storage>) {
     assert_eq!(bytes, expected);
 
     file.delete().await.unwrap();
-    assert!(!file.exists().await.unwrap());
+    assert!(!storage.exists(file_path).await.unwrap());
 }

@@ -73,7 +73,7 @@ impl LakeClient {
             table_id: table_record.table_id,
             table_name: table_name.to_string(),
             schema,
-            config: table_record.config,
+            config: Arc::new(table_record.config),
             catalog: self.catalog.clone(),
             storage: self.storage.clone(),
         })
