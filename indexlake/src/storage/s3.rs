@@ -2,18 +2,19 @@ use opendal::{Configurator, Operator, services::S3Config};
 
 use crate::{ILError, ILResult};
 
-/// Build new opendal operator from give path.
-pub(crate) fn s3_config_build(cfg: &S3Config, path: &str) -> ILResult<Operator> {
-    let url = url::Url::parse(path).map_err(|e| ILError::StorageError(e.to_string()))?;
-    let bucket = url
-        .host_str()
-        .ok_or_else(|| ILError::StorageError(format!("Invalid s3 url: {path}, missing bucket")))?;
+#[derive(Debug, Clone)]
+pub(crate) struct S3Storage {
+    config: S3Config,
+    bucket: String,
+}
 
-    let builder = cfg
-        .clone()
-        .into_builder()
-        // Set bucket name.
-        .bucket(bucket);
+impl S3Storage {
+    pub fn new(config: S3Config, bucket: String) -> Self {
+        Self { config, bucket }
+    }
 
-    Ok(Operator::new(builder)?.finish())
+    pub fn new_operator(&self) -> ILResult<Operator> {
+        let builder = self.config.clone().into_builder().bucket(&self.bucket);
+        Ok(Operator::new(builder)?.finish())
+    }
 }

@@ -1,4 +1,9 @@
-use std::sync::Arc;
+use std::{
+    path::PathBuf,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
 
 mod fs;
 mod parquet;
@@ -6,87 +11,61 @@ mod s3;
 
 use opendal::{Operator, services::S3Config};
 
-use crate::{ILError, ILResult};
+use crate::{
+    ILError, ILResult,
+    storage::{fs::FsStorage, s3::S3Storage},
+};
 
 #[derive(Debug, Clone)]
 pub enum Storage {
-    LocalFs,
-    S3 { config: Arc<S3Config> },
+    Fs(FsStorage),
+    S3(S3Storage),
 }
 
 impl Storage {
-    pub fn new_fs() -> Self {
-        Storage::LocalFs
+    pub fn new_fs(root: impl Into<PathBuf>) -> Self {
+        Storage::Fs(FsStorage::new(root.into()))
     }
 
-    pub fn new_s3(config: S3Config) -> Self {
-        Storage::S3 {
-            config: Arc::new(config),
-        }
+    pub fn new_s3(config: S3Config, bucket: impl Into<String>) -> Self {
+        Storage::S3(S3Storage::new(config, bucket.into()))
     }
 
-    pub async fn delete(&self, path: impl AsRef<str>) -> ILResult<()> {
-        let (op, relative_path) = self.create_operator(&path)?;
+    pub async fn delete(&self, relative_path: &str) -> ILResult<()> {
+        let op = self.new_operator()?;
         Ok(op.delete(relative_path).await?)
     }
 
-    pub async fn remove_dir_all(&self, path: impl AsRef<str>) -> ILResult<()> {
-        let (op, relative_path) = self.create_operator(&path)?;
-        let path = if relative_path.ends_with('/') {
+    pub async fn remove_dir_all(&self, relative_path: &str) -> ILResult<()> {
+        let op = self.new_operator()?;
+        let relative_path = if relative_path.ends_with('/') {
             relative_path.to_string()
         } else {
             format!("{relative_path}/")
         };
-        Ok(op.remove_all(&path).await?)
+        Ok(op.remove_all(&relative_path).await?)
     }
 
-    pub async fn exists(&self, path: impl AsRef<str>) -> ILResult<bool> {
-        let (op, relative_path) = self.create_operator(&path)?;
+    pub async fn exists(&self, relative_path: &str) -> ILResult<bool> {
+        let op = self.new_operator()?;
         Ok(op.exists(relative_path).await?)
     }
 
-    pub(crate) fn create_operator<'a>(
-        &self,
-        path: &'a impl AsRef<str>,
-    ) -> ILResult<(Operator, &'a str)> {
-        let path = path.as_ref();
+    pub(crate) fn new_operator(&self) -> ILResult<Operator> {
         match self {
-            Storage::LocalFs => {
-                let op = fs::fs_config_build()?;
-                if let Some(stripped) = path.strip_prefix("file:/") {
-                    Ok((op, stripped))
-                } else {
-                    Ok((op, &path[1..]))
-                }
-            }
-            Storage::S3 { config } => {
-                let op = s3::s3_config_build(config, path)?;
-
-                // Check prefix of s3 path.
-                let prefix = format!("s3://{}/", op.info().name());
-                if path.starts_with(&prefix) {
-                    Ok((op, &path[prefix.len()..]))
-                } else {
-                    Err(ILError::StorageError(format!(
-                        "Invalid s3 url: {path}, should start with {prefix}"
-                    )))
-                }
-            }
+            Storage::Fs(fs) => fs.new_operator(),
+            Storage::S3(s3) => s3.new_operator(),
         }
     }
 
-    pub async fn new_storage_file(&self, path: impl AsRef<str>) -> ILResult<StorageFile> {
-        let (op, relative_path) = self.create_operator(&path)?;
-        let path = path.as_ref().to_string();
-        let relative_path_pos = path.len() - relative_path.len();
-        let reader = op.reader(&path[relative_path_pos..]).await?;
-        let writer = op.writer(&path[relative_path_pos..]).await?;
+    pub async fn new_storage_file(&self, relative_path: &str) -> ILResult<StorageFile> {
+        let op = self.new_operator()?;
+        let reader = op.reader(relative_path).await?;
         Ok(StorageFile {
             op,
-            path,
-            relative_path_pos,
+            relative_path: relative_path.to_string(),
             reader,
-            writer,
+            writer: None,
         })
     }
 }
@@ -94,17 +73,33 @@ impl Storage {
 /// Storage file is used for reading and writing to files.
 pub struct StorageFile {
     op: Operator,
-    // Absolution path of file.
-    path: String,
-    // Relative path of file to uri, starts at [`relative_path_pos`]
-    relative_path_pos: usize,
+    relative_path: String,
     reader: opendal::Reader,
-    writer: opendal::Writer,
+    writer: Option<opendal::Writer>,
 }
 
 impl StorageFile {
     pub async fn file_size_bytes(&self) -> ILResult<u64> {
-        let meta = self.op.stat(&self.path[self.relative_path_pos..]).await?;
+        let meta = self.op.stat(&self.relative_path).await?;
         Ok(meta.content_length())
+    }
+
+    pub async fn exists(&self) -> ILResult<bool> {
+        Ok(self.op.exists(&self.relative_path).await?)
+    }
+
+    pub async fn delete(&self) -> ILResult<()> {
+        Ok(self.op.delete(&self.relative_path).await?)
+    }
+
+    pub async fn read(&self) -> ILResult<bytes::Bytes> {
+        Ok(self.op.read(&self.relative_path).await?.to_bytes())
+    }
+
+    pub async fn write(&self, bytes: bytes::Bytes) -> ILResult<()> {
+        let mut writer = self.op.writer(&self.relative_path).await?;
+        writer.write(bytes).await?;
+        writer.close().await?;
+        Ok(())
     }
 }

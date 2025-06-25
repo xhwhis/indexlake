@@ -1,2 +1,3 @@
 /target
 .idea
+integration-tests/test_storage

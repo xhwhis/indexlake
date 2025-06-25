@@ -1,14 +1,18 @@
 use indexlake::Storage;
 use indexlake_catalog_sqlite::SqliteCatalog;
-use indexlake_integration_tests::setup_sqlite_db;
+use indexlake_integration_tests::{setup_sqlite_db, storage_fs};
 
 #[tokio::test]
 async fn scan() {
-    let db_path = setup_sqlite_db().display().to_string();
-    let catalog = SqliteCatalog::try_new(db_path).unwrap();
+    let storage = storage_fs();
 
-    let storage = Storage::new_fs();
+    let file = storage.new_storage_file("test.txt").await.unwrap();
+    assert!(!file.exists().await.unwrap());
 
-    let exists = storage.exists("file://test.txt").await.unwrap();
-    assert!(!exists);
+    let expected = bytes::Bytes::from("Hello, world!");
+    file.write(expected.clone()).await.unwrap();
+    let bytes = file.read().await.unwrap();
+    assert_eq!(bytes, expected);
+
+    file.delete().await.unwrap();
 }

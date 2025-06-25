@@ -62,7 +62,6 @@ impl DumpTask {
 
         let max_data_file_id = tx_helper.get_max_data_file_id().await?;
 
-        // TODO schema with row id
         let row_stream = tx_helper
             .scan_inline_rows_by_row_ids(self.table_id, &self.table_schema, &self.dump_row_ids)
             .await?;
@@ -79,14 +78,14 @@ impl DumpTask {
                 rows.push(row);
             }
 
-            let file_path = format!(
+            let relative_path = format!(
                 "{}/{}/{}.parquet",
                 self.namespace_id,
                 self.table_id,
                 uuid::Uuid::new_v4()
             );
-            let location_map = self.write_dump_file(rows, &file_path).await?;
-            data_file_id_to_file_path_map.insert(data_file_id, file_path);
+            let location_map = self.write_dump_file(rows, &relative_path).await?;
+            data_file_id_to_file_path_map.insert(data_file_id, relative_path);
             row_id_to_location_map.extend(location_map);
 
             data_file_id += 1;
@@ -134,13 +133,11 @@ impl DumpTask {
     async fn write_dump_file(
         &self,
         rows: Vec<Row>,
-        file_path: &str,
+        relative_path: &str,
     ) -> ILResult<HashMap<i64, String>> {
         let arrow_schema = Arc::new(schema_to_arrow_schema(self.table_schema.as_ref())?);
         let record_batch = rows_to_arrow_record(self.table_schema.as_ref(), &rows)?;
-        // TODO Storage supports relative path
-        let absolute_file_path = format!("s3://{}", file_path);
-        let storage_file = self.storage.new_storage_file(absolute_file_path).await?;
+        let storage_file = self.storage.new_storage_file(relative_path).await?;
         let mut arrow_writer = AsyncArrowWriter::try_new(storage_file, arrow_schema, None)?;
         arrow_writer.write(&record_batch).await?;
         // TODO locations

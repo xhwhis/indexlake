@@ -118,15 +118,15 @@ impl TransactionHelper {
         &mut self,
         data_file_id: i64,
         table_id: i64,
-        file_path: &str,
+        relative_path: &str,
         file_size_bytes: usize,
         record_count: usize,
     ) -> ILResult<usize> {
         self.transaction
             .execute(&format!(
                 "INSERT INTO indexlake_data_file 
-            (data_file_id, table_id, file_path, file_size_bytes, record_count) 
-            VALUES ({data_file_id}, {table_id}, '{file_path}', {file_size_bytes}, {record_count})"
+            (data_file_id, table_id, relative_path, file_size_bytes, record_count) 
+            VALUES ({data_file_id}, {table_id}, '{relative_path}', {file_size_bytes}, {record_count})"
             ))
             .await
     }

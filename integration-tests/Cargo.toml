@@ -11,8 +11,10 @@ indexlake = { workspace = true }
 indexlake-catalog-postgres = { workspace = true }
 indexlake-catalog-sqlite = { workspace = true }
 
+bytes = { workspace = true }
 env_logger = { workspace = true }
 futures = { workspace = true }
+opendal = { workspace = true, features = ["services-fs", "services-s3"] }
 rstest = { workspace = true }
 rusqlite = { workspace = true, features = ["bundled"] }
 tokio = { workspace = true, features = ["full"] }

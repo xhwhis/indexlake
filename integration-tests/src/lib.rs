@@ -5,9 +5,10 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
-use indexlake::Catalog;
+use indexlake::{Catalog, Storage};
 use indexlake_catalog_postgres::PostgresCatalog;
 use indexlake_catalog_sqlite::SqliteCatalog;
+use opendal::services::S3Config;
 
 use crate::docker::DockerCompose;
 
@@ -55,4 +56,14 @@ pub async fn catalog_postgres() -> Arc<dyn Catalog> {
             .await
             .unwrap(),
     )
+}
+
+pub fn storage_fs() -> Arc<Storage> {
+    let home = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), "test_storage");
+    Arc::new(Storage::new_fs(home))
+}
+
+pub fn storage_s3() -> Arc<Storage> {
+    let config = S3Config::default();
+    Arc::new(Storage::new_s3(config, "test-bucket"))
 }

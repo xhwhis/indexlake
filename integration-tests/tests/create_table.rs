@@ -5,21 +5,23 @@ use indexlake::{
     record::{DataType, Field, Schema},
     table::TableCreation,
 };
-use indexlake_integration_tests::{catalog_postgres, catalog_sqlite, init_env_logger};
+use indexlake_integration_tests::{
+    catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
+};
 use std::sync::Arc;
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() })]
-#[case(async { catalog_postgres().await })]
+#[case(async { catalog_sqlite() }, storage_fs())]
+#[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn create_table(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
+    #[case] storage: Arc<Storage>,
 ) {
     init_env_logger();
 
-    let storage = Arc::new(Storage::new_fs());
     let client = LakeClient::new(catalog, storage);
 
     let namespace_name = "test_namespace";
@@ -105,17 +107,17 @@ async fn create_table(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() })]
-#[case(async { catalog_postgres().await })]
+#[case(async { catalog_sqlite() }, storage_fs())]
+#[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn table_data_types(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
+    #[case] storage: Arc<Storage>,
 ) {
     init_env_logger();
 
-    let storage = Arc::new(Storage::new_fs());
     let client = LakeClient::new(catalog, storage);
 
     let namespace_name = "test_namespace";

@@ -1,18 +1,22 @@
+use std::path::PathBuf;
+
 use opendal::{Operator, services::FsConfig};
 
 use crate::ILResult;
 
-/// Build new opendal operator from give path.
-pub(crate) fn fs_config_build() -> ILResult<Operator> {
-    let mut cfg = FsConfig::default();
-    #[cfg(target_os = "windows")]
-    {
-        cfg.root = Some("C:/".to_string());
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        cfg.root = Some("/".to_string());
+#[derive(Debug, Clone)]
+pub(crate) struct FsStorage {
+    root: PathBuf,
+}
+
+impl FsStorage {
+    pub(crate) fn new(root: PathBuf) -> Self {
+        Self { root }
     }
 
-    Ok(Operator::from_config(cfg)?.finish())
+    pub(crate) fn new_operator(&self) -> ILResult<Operator> {
+        let mut cfg = FsConfig::default();
+        cfg.root = Some(self.root.to_string_lossy().to_string());
+        Ok(Operator::from_config(cfg)?.finish())
+    }
 }
