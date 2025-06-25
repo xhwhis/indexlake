@@ -153,7 +153,7 @@ impl TransactionHelper {
         )]));
         let rows = self
             .query_rows(
-                &format!("SELECT MAX(row_id) FROM indexlake_row_metadata_{table_id}"),
+                &format!("SELECT MAX({INTERNAL_ROW_ID_FIELD_NAME}) FROM indexlake_row_metadata_{table_id}"),
                 schema,
             )
             .await?;
@@ -171,7 +171,7 @@ impl TransactionHelper {
             Field::new("location", DataType::Utf8, true),
         ]));
         self.query_rows(
-                &format!("SELECT row_id, location FROM indexlake_row_metadata_{table_id} WHERE deleted = FALSE"),
+                &format!("SELECT {INTERNAL_ROW_ID_FIELD_NAME}, location FROM indexlake_row_metadata_{table_id} WHERE deleted = FALSE"),
                 schema,
             )
             .await

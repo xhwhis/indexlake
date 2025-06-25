@@ -45,9 +45,9 @@ async fn create_table(
     assert_eq!(table.namespace_name, namespace_name);
     assert_eq!(table.table_id, expected_table_id);
     assert_eq!(table.table_name, table_name);
+    let schema = table.schema.without_row_id();
     assert_eq!(
-        table
-            .schema
+        schema
             .fields
             .iter()
             .map(|f| f.name.clone())
@@ -59,8 +59,7 @@ async fn create_table(
             .collect::<Vec<_>>()
     );
     assert_eq!(
-        table
-            .schema
+        schema
             .fields
             .iter()
             .map(|f| f.data_type.clone())
@@ -72,12 +71,7 @@ async fn create_table(
             .collect::<Vec<_>>()
     );
     assert_eq!(
-        table
-            .schema
-            .fields
-            .iter()
-            .map(|f| f.nullable)
-            .collect::<Vec<_>>(),
+        schema.fields.iter().map(|f| f.nullable).collect::<Vec<_>>(),
         expected_schema
             .fields
             .iter()
@@ -85,8 +79,7 @@ async fn create_table(
             .collect::<Vec<_>>()
     );
     assert_eq!(
-        table
-            .schema
+        schema
             .fields
             .iter()
             .map(|f| f.default_value.clone())
@@ -98,8 +91,7 @@ async fn create_table(
             .collect::<Vec<_>>()
     );
     assert_eq!(
-        table
-            .schema
+        schema
             .fields
             .iter()
             .map(|f| f.metadata.clone())

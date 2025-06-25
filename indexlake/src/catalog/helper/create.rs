@@ -7,7 +7,7 @@ impl TransactionHelper {
             .execute(&format!(
                 "
             CREATE TABLE indexlake_row_metadata_{table_id} (
-                row_id BIGINT PRIMARY KEY,
+                {INTERNAL_ROW_ID_FIELD_NAME} BIGINT PRIMARY KEY,
                 location VARCHAR,
                 deleted BOOLEAN
             )"

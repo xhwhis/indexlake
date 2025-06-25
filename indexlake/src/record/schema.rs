@@ -1,4 +1,4 @@
-use crate::record::Field;
+use crate::record::{Field, INTERNAL_ROW_ID_FIELD_NAME};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -22,12 +22,18 @@ impl Schema {
         Self { fields, metadata }
     }
 
-    pub fn push_front(&mut self, field: Field) {
-        self.fields.insert(0, field);
-    }
-
-    pub fn push_back(&mut self, field: Field) {
-        self.fields.push(field);
+    pub fn without_row_id(&self) -> Self {
+        let mut fields = self.fields.clone();
+        for (i, field) in fields.iter().enumerate() {
+            if field.name == INTERNAL_ROW_ID_FIELD_NAME {
+                fields.remove(i);
+                break;
+            }
+        }
+        Self {
+            fields,
+            metadata: self.metadata.clone(),
+        }
     }
 
     pub fn index_of(&self, field_name: &str) -> Option<usize> {

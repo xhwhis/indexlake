@@ -4,7 +4,7 @@ use crate::{
     ILResult,
     catalog::TransactionHelper,
     expr::Expr,
-    record::{Scalar, sql_identifier},
+    record::{INTERNAL_ROW_ID_FIELD_NAME, Scalar, sql_identifier},
 };
 
 impl TransactionHelper {
@@ -21,7 +21,7 @@ impl TransactionHelper {
             .map(|id| id.to_string())
             .collect::<Vec<_>>()
             .join(", ");
-        self.transaction.execute(&format!("UPDATE indexlake_row_metadata_{table_id} SET deleted = TRUE WHERE row_id IN ({row_ids_str})")).await
+        self.transaction.execute(&format!("UPDATE indexlake_row_metadata_{table_id} SET deleted = TRUE WHERE {INTERNAL_ROW_ID_FIELD_NAME} IN ({row_ids_str})")).await
     }
 
     pub(crate) async fn update_inline_rows(
@@ -57,7 +57,7 @@ impl TransactionHelper {
     ) -> ILResult<()> {
         let mut update_sqls = Vec::new();
         for (row_id, location) in row_id_to_location_map {
-            update_sqls.push(format!("UPDATE indexlake_row_metadata_{table_id} SET location = '{location}' WHERE row_id = {row_id}"));
+            update_sqls.push(format!("UPDATE indexlake_row_metadata_{table_id} SET location = '{location}' WHERE {INTERNAL_ROW_ID_FIELD_NAME} = {row_id}"));
         }
         self.transaction.execute_batch(&update_sqls).await
     }

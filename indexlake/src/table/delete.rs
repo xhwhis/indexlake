@@ -1,9 +1,7 @@
 use crate::ILResult;
 use crate::catalog::TransactionHelper;
 use crate::expr::Expr;
-use crate::record::{INTERNAL_ROW_ID_FIELD, SchemaRef};
-use futures::TryStreamExt;
-use std::sync::Arc;
+use crate::record::SchemaRef;
 
 pub(crate) async fn process_delete_rows(
     tx_helper: &mut TransactionHelper,
@@ -11,11 +9,7 @@ pub(crate) async fn process_delete_rows(
     table_schema: &SchemaRef,
     condition: &Expr,
 ) -> ILResult<()> {
-    let mut schema = table_schema.as_ref().clone();
-    schema.push_front(INTERNAL_ROW_ID_FIELD.clone());
-    let schema = Arc::new(schema);
-
-    let rows = tx_helper.scan_inline_rows(table_id, &schema).await?;
+    let rows = tx_helper.scan_inline_rows(table_id, &table_schema).await?;
 
     let mut row_ids = Vec::new();
     for row in rows {
