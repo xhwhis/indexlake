@@ -1,7 +1,8 @@
 use derive_visitor::{Drive, DriveMut};
 
 use crate::{
-    CatalogDatabase, ILError, ILResult,
+    ILError, ILResult,
+    catalog::CatalogDatabase,
     expr::Expr,
     record::{Row, Scalar},
 };

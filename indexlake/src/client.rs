@@ -1,7 +1,7 @@
 use crate::catalog::TransactionHelper;
 use crate::record::{INTERNAL_ROW_ID_FIELD, Schema, SchemaRef};
 use crate::table::{Table, TableCreation, process_create_table};
-use crate::{Catalog, ILError, ILResult, Storage};
+use crate::{ILError, ILResult, catalog::Catalog, storage::Storage};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]

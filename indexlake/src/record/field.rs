@@ -1,4 +1,4 @@
-use crate::{CatalogDatabase, record::DataType};
+use crate::{catalog::CatalogDatabase, record::DataType};
 use std::{collections::HashMap, sync::LazyLock};
 
 pub static INTERNAL_ROW_ID_FIELD_NAME: &str = "_indexlake_row_id";

@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
-use indexlake::{Catalog, Storage};
+use indexlake::{catalog::Catalog, storage::Storage};
 use indexlake_catalog_postgres::PostgresCatalog;
 use indexlake_catalog_sqlite::SqliteCatalog;
 use opendal::services::S3Config;

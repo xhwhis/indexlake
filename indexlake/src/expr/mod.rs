@@ -8,7 +8,8 @@ use derive_visitor::{Drive, DriveMut};
 
 use crate::record::sql_identifier;
 use crate::{
-    CatalogDatabase, ILError, ILResult,
+    ILError, ILResult,
+    catalog::CatalogDatabase,
     record::{Row, Scalar},
 };
 

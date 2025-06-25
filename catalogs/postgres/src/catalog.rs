@@ -2,7 +2,8 @@ use bb8::Pool;
 use bb8_postgres::{PostgresConnectionManager, tokio_postgres::NoTls};
 use futures::StreamExt;
 use indexlake::{
-    Catalog, CatalogDatabase, ILError, ILResult, RowStream, Transaction,
+    ILError, ILResult,
+    catalog::{Catalog, CatalogDatabase, RowStream, Transaction},
     record::{DataType, Row, Scalar, SchemaRef},
 };
 use log::debug;

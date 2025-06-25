@@ -1,6 +1,7 @@
 use crate::{
-    ILResult, TransactionHelper,
-    record::{INTERNAL_ROW_ID_FIELD, Scalar, Schema, sql_identifier},
+    ILError, ILResult,
+    catalog::TransactionHelper,
+    record::{INTERNAL_ROW_ID_FIELD, Scalar, Schema},
 };
 
 pub(crate) async fn process_insert_values(

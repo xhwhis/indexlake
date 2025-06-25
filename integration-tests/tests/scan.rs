@@ -1,4 +1,4 @@
-use indexlake::Storage;
+use indexlake::storage::Storage;
 use indexlake_catalog_sqlite::SqliteCatalog;
 use indexlake_integration_tests::{setup_sqlite_db, storage_fs};
 

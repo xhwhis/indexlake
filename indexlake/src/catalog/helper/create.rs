@@ -1,5 +1,8 @@
-use crate::record::{Field, INTERNAL_ROW_ID_FIELD_NAME, sql_identifier};
-use crate::{ILResult, TransactionHelper};
+use crate::{
+    ILError, ILResult,
+    catalog::TransactionHelper,
+    record::{Field, INTERNAL_ROW_ID_FIELD_NAME, sql_identifier},
+};
 
 impl TransactionHelper {
     pub(crate) async fn create_row_metadata_table(&mut self, table_id: i64) -> ILResult<()> {

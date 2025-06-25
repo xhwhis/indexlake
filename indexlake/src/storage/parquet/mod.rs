@@ -9,7 +9,7 @@ use parquet::{
     file::metadata::{ParquetMetaData, ParquetMetaDataReader},
 };
 
-use crate::StorageFile;
+use crate::storage::StorageFile;
 
 impl AsyncFileReader for StorageFile {
     fn get_bytes(

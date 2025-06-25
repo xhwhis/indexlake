@@ -3,8 +3,9 @@ use std::sync::Arc;
 use futures::StreamExt;
 
 use crate::{
-    ILResult, RowStream, TransactionHelper,
-    record::{Row, SchemaRef},
+    ILError, ILResult,
+    catalog::{RowStream, TransactionHelper},
+    record::SchemaRef,
 };
 
 pub(crate) async fn process_table_scan(

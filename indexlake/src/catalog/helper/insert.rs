@@ -1,5 +1,6 @@
 use crate::{
-    ILError, ILResult, TransactionHelper,
+    ILError, ILResult,
+    catalog::{DataFileRecord, TransactionHelper},
     record::{Field, INTERNAL_ROW_ID_FIELD_NAME, Scalar, sql_identifier},
 };
 
@@ -114,19 +115,25 @@ impl TransactionHelper {
             .await
     }
 
-    pub(crate) async fn insert_data_file(
+    pub(crate) async fn insert_data_files(
         &mut self,
-        data_file_id: i64,
-        table_id: i64,
-        relative_path: &str,
-        file_size_bytes: usize,
-        record_count: usize,
+        data_file_records: &[DataFileRecord],
     ) -> ILResult<usize> {
+        let mut values = Vec::new();
+        for record in data_file_records {
+            values.push(format!(
+                "({}, {}, '{}', {}, {})",
+                record.data_file_id,
+                record.table_id,
+                record.relative_path,
+                record.file_size_bytes,
+                record.record_count
+            ));
+        }
         self.transaction
             .execute(&format!(
-                "INSERT INTO indexlake_data_file 
-            (data_file_id, table_id, relative_path, file_size_bytes, record_count) 
-            VALUES ({data_file_id}, {table_id}, '{relative_path}', {file_size_bytes}, {record_count})"
+                "INSERT INTO indexlake_data_file (data_file_id, table_id, relative_path, file_size_bytes, record_count) VALUES {}",
+                values.join(", ")
             ))
             .await
     }

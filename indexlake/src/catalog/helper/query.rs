@@ -1,8 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
-    ILError, ILResult, RowStream,
-    catalog::TransactionHelper,
+    ILError, ILResult,
+    catalog::{RowStream, TransactionHelper},
     record::{
         DataType, Field, INTERNAL_ROW_ID_FIELD, INTERNAL_ROW_ID_FIELD_NAME, Row, Schema, SchemaRef,
         sql_identifier,

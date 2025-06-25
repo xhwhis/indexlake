@@ -19,7 +19,11 @@ pub(crate) use update::*;
 use crate::expr::Expr;
 use crate::record::{Scalar, SchemaRef};
 use crate::utils::has_duplicated_items;
-use crate::{Catalog, ILError, ILResult, RowStream, Storage, TransactionHelper};
+use crate::{
+    ILError, ILResult,
+    catalog::{Catalog, RowStream, TransactionHelper},
+    storage::Storage,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 

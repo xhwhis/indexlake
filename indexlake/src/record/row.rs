@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     ILError, ILResult,
-    record::{Scalar, SchemaRef},
+    record::{INTERNAL_ROW_ID_FIELD_NAME, Scalar, SchemaRef},
 };
 
 #[derive(Debug)]
@@ -15,6 +15,13 @@ impl Row {
     pub fn new(schema: SchemaRef, values: Vec<Scalar>) -> Self {
         assert_eq!(schema.fields.len(), values.len());
         Self { schema, values }
+    }
+
+    pub fn get_row_id(&self) -> ILResult<Option<i64>> {
+        let Some(idx) = self.schema.index_of(INTERNAL_ROW_ID_FIELD_NAME) else {
+            return Ok(None);
+        };
+        self.int64(idx)
     }
 
     pub fn int32(&self, index: usize) -> ILResult<Option<i32>> {

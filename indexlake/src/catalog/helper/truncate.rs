@@ -1,5 +1,5 @@
 use crate::catalog::TransactionHelper;
-use crate::{CatalogDatabase, ILResult};
+use crate::{ILResult, catalog::CatalogDatabase};
 
 impl TransactionHelper {
     pub(crate) async fn truncate_inline_row_table(&mut self, table_id: i64) -> ILResult<()> {

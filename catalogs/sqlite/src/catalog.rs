@@ -1,9 +1,9 @@
 use futures::StreamExt;
 use indexlake::{
-    Catalog, CatalogDatabase, RowStream, Transaction,
+    ILError, ILResult,
+    catalog::{Catalog, CatalogDatabase, RowStream, Transaction},
     record::{DataType, Row, Scalar, SchemaRef},
 };
-use indexlake::{ILError, ILResult};
 use log::debug;
 use std::path::PathBuf;
 

@@ -1,7 +1,10 @@
 mod helper;
+mod record;
+
+pub(crate) use helper::*;
+pub(crate) use record::*;
 
 use futures::Stream;
-pub(crate) use helper::*;
 
 use crate::{
     ILResult,

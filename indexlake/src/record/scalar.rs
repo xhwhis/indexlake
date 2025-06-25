@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use derive_visitor::{Drive, DriveMut};
 
-use crate::{CatalogDatabase, ILError, ILResult};
+use crate::{ILError, ILResult, catalog::CatalogDatabase};
 
 #[derive(Debug, Clone, Drive, DriveMut)]
 pub enum Scalar {

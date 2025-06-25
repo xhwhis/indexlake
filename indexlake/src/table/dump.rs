@@ -5,9 +5,9 @@ use log::{debug, error};
 use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 
 use crate::{
-    ILError, ILResult, RowStream, TransactionHelper,
+    ILError, ILResult,
     arrow::{rows_to_arrow_record, schema_to_arrow_schema},
-    catalog::Catalog,
+    catalog::{Catalog, DataFileRecord, TransactionHelper},
     record::{Row, SchemaRef},
     storage::Storage,
     table::Table,
@@ -67,7 +67,7 @@ impl DumpTask {
             .await?;
 
         let mut row_id_to_location_map = HashMap::new();
-        let mut data_file_id_to_file_path_map = HashMap::new();
+        let mut data_file_records = Vec::new();
         let mut data_file_id = max_data_file_id + 1;
 
         let mut chunks = row_stream.chunks(1000);
@@ -77,6 +77,7 @@ impl DumpTask {
                 let row = row?;
                 rows.push(row);
             }
+            let record_count = rows.len();
 
             let relative_path = format!(
                 "{}/{}/{}.parquet",
@@ -85,7 +86,13 @@ impl DumpTask {
                 uuid::Uuid::new_v4()
             );
             let location_map = self.write_dump_file(rows, &relative_path).await?;
-            data_file_id_to_file_path_map.insert(data_file_id, relative_path);
+            data_file_records.push(DataFileRecord {
+                data_file_id,
+                table_id: self.table_id,
+                relative_path,
+                file_size_bytes: 0,
+                record_count,
+            });
             row_id_to_location_map.extend(location_map);
 
             data_file_id += 1;
@@ -100,13 +107,7 @@ impl DumpTask {
             )));
         }
 
-        for (data_file_id, file_path) in data_file_id_to_file_path_map {
-            // TODO file size and record count
-            // TODO batch insert
-            tx_helper
-                .insert_data_file(data_file_id, self.table_id, &file_path, 0, 0)
-                .await?;
-        }
+        tx_helper.insert_data_files(&data_file_records).await?;
 
         tx_helper
             .update_row_locations(self.table_id, &row_id_to_location_map)
@@ -135,12 +136,19 @@ impl DumpTask {
         rows: Vec<Row>,
         relative_path: &str,
     ) -> ILResult<HashMap<i64, String>> {
+        let mut location_map = HashMap::new();
+        for row in rows.iter() {
+            let row_id = row.get_row_id()?.expect("row_id is not null");
+            location_map.insert(row_id, format!("parquet:{}", relative_path));
+        }
+
         let arrow_schema = Arc::new(schema_to_arrow_schema(self.table_schema.as_ref())?);
         let record_batch = rows_to_arrow_record(self.table_schema.as_ref(), &rows)?;
         let storage_file = self.storage.new_storage_file(relative_path).await?;
         let mut arrow_writer = AsyncArrowWriter::try_new(storage_file, arrow_schema, None)?;
         arrow_writer.write(&record_batch).await?;
+
         // TODO locations
-        Ok(HashMap::new())
+        Ok(location_map)
     }
 }

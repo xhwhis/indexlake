@@ -1,8 +1,10 @@
 use futures::TryStreamExt;
 use indexlake::record::{Scalar, pretty_print_rows};
 use indexlake::{
-    Catalog, LakeClient, Storage,
+    LakeClient,
+    catalog::Catalog,
     record::{DataType, Field, Schema},
+    storage::Storage,
     table::TableCreation,
 };
 use indexlake_integration_tests::{

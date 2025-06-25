@@ -11,8 +11,8 @@ use std::sync::Arc;
 use futures::TryStreamExt;
 
 use crate::{
-    Catalog, CatalogDatabase, ILResult,
-    catalog::Transaction,
+    ILResult,
+    catalog::{Catalog, CatalogDatabase, Transaction},
     record::{Row, SchemaRef},
 };
 

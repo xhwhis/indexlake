@@ -1,6 +1,4 @@
-use std::str::FromStr;
-
-use crate::{CatalogDatabase, ILError, ILResult};
+use crate::{ILError, ILResult, catalog::CatalogDatabase};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataType {

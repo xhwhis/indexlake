@@ -1,4 +1,4 @@
-use crate::{ILError, ILResult, TransactionHelper, table::TableCreation};
+use crate::{ILError, ILResult, catalog::TransactionHelper, table::TableCreation};
 
 pub(crate) async fn process_create_table(
     tx_helper: &mut TransactionHelper,
