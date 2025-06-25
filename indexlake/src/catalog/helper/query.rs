@@ -2,11 +2,12 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     ILError, ILResult,
-    catalog::{RowStream, TransactionHelper},
+    catalog::{RowStream, TableRecord, TransactionHelper},
     record::{
         DataType, Field, INTERNAL_ROW_ID_FIELD, INTERNAL_ROW_ID_FIELD_NAME, Row, Schema, SchemaRef,
         sql_identifier,
     },
+    table::TableConfig,
 };
 
 impl TransactionHelper {
@@ -67,28 +68,39 @@ impl TransactionHelper {
         }
     }
 
-    pub(crate) async fn get_table_id(
+    pub(crate) async fn get_table(
         &mut self,
         namespace_id: i64,
         table_name: &str,
-    ) -> ILResult<Option<i64>> {
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "table_id",
-            DataType::Int64,
-            false,
-        )]));
+    ) -> ILResult<Option<TableRecord>> {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("table_id", DataType::Int64, false),
+            Field::new("table_name", DataType::Utf8, false),
+            Field::new("namespace_id", DataType::Int64, false),
+            Field::new("config", DataType::Utf8, false),
+        ]));
         let rows = self
             .query_rows(
-                &format!("SELECT table_id FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'"),
+                &format!("SELECT table_id, table_name, namespace_id, config FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'"),
                 schema,
             )
             .await?;
         if rows.is_empty() {
             Ok(None)
         } else {
-            let table_id_opt = rows[0].int64(0)?;
-            assert!(table_id_opt.is_some());
-            Ok(table_id_opt)
+            let table_id = rows[0].int64(0)?.expect("table_id is not null");
+            let table_name = rows[0].utf8(1)?.expect("table_name is not null");
+            let namespace_id = rows[0].int64(2)?.expect("namespace_id is not null");
+            let config_str = rows[0].utf8(3)?.expect("config is not null");
+            let config: TableConfig = serde_json::from_str(&config_str).map_err(|e| {
+                ILError::InternalError(format!("Failed to deserialize table config: {e:?}"))
+            })?;
+            Ok(Some(TableRecord {
+                table_id,
+                table_name: table_name.clone(),
+                namespace_id,
+                config,
+            }))
         }
     }
 

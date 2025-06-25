@@ -1,3 +1,13 @@
+use crate::table::TableConfig;
+
+#[derive(Debug, Clone)]
+pub(crate) struct TableRecord {
+    pub(crate) table_id: i64,
+    pub(crate) table_name: String,
+    pub(crate) namespace_id: i64,
+    pub(crate) config: TableConfig,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct DataFileRecord {
     pub(crate) data_file_id: i64,

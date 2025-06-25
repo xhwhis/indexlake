@@ -1,3 +1,4 @@
+mod config;
 mod create;
 mod delete;
 mod drop;
@@ -7,6 +8,7 @@ mod scan;
 mod truncate;
 mod update;
 
+pub use config::*;
 pub(crate) use create::*;
 pub(crate) use delete::*;
 pub(crate) use drop::*;
@@ -32,6 +34,7 @@ pub struct TableCreation {
     pub namespace_name: String,
     pub table_name: String,
     pub schema: SchemaRef,
+    pub config: TableConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +44,7 @@ pub struct Table {
     pub table_id: i64,
     pub table_name: String,
     pub schema: SchemaRef,
+    pub config: TableConfig,
     pub catalog: Arc<dyn Catalog>,
     pub storage: Arc<Storage>,
 }

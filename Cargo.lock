@@ -2024,6 +2024,7 @@ dependencies = [
  "log",
  "opendal",
  "parquet",
+ "serde",
  "serde_json",
  "tokio",
  "url",

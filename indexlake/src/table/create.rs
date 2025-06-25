@@ -1,4 +1,8 @@
-use crate::{ILError, ILResult, catalog::TransactionHelper, table::TableCreation};
+use crate::{
+    ILError, ILResult,
+    catalog::{TableRecord, TransactionHelper},
+    table::TableCreation,
+};
 
 pub(crate) async fn process_create_table(
     tx_helper: &mut TransactionHelper,
@@ -14,7 +18,12 @@ pub(crate) async fn process_create_table(
     let max_table_id = tx_helper.get_max_table_id().await?;
     let table_id = max_table_id + 1;
     tx_helper
-        .insert_table(namespace_id, table_id, &creation.table_name)
+        .insert_table(&TableRecord {
+            table_id,
+            table_name: creation.table_name,
+            namespace_id,
+            config: creation.config,
+        })
         .await?;
 
     let max_field_id = tx_helper.get_max_field_id().await?;

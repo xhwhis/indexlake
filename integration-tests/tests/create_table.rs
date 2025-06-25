@@ -5,7 +5,7 @@ use indexlake::{
     catalog::Catalog,
     record::{DataType, Field, Schema},
     storage::Storage,
-    table::TableCreation,
+    table::{TableConfig, TableCreation},
 };
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
@@ -39,6 +39,7 @@ async fn create_table(
         namespace_name: namespace_name.to_string(),
         table_name: table_name.to_string(),
         schema: expected_schema.clone(),
+        config: TableConfig::default(),
     };
 
     let expected_table_id = client.create_table(table_creation).await.unwrap();
@@ -140,6 +141,7 @@ async fn table_data_types(
         namespace_name: namespace_name.to_string(),
         table_name: table_name.to_string(),
         schema: table_schema.clone(),
+        config: TableConfig::default(),
     };
 
     client.create_table(table_creation).await.unwrap();

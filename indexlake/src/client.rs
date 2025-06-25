@@ -56,23 +56,24 @@ impl LakeClient {
             .ok_or_else(|| {
                 ILError::CatalogError(format!("Namespace {namespace_name} not found"))
             })?;
-        let table_id = tx_helper
-            .get_table_id(namespace_id, table_name)
+        let table_record = tx_helper
+            .get_table(namespace_id, table_name)
             .await?
             .ok_or_else(|| {
                 ILError::CatalogError(format!(
                     "Table {table_name} not found in namespace {namespace_name}"
                 ))
             })?;
-        let mut fields = tx_helper.get_table_fields(table_id).await?;
+        let mut fields = tx_helper.get_table_fields(table_record.table_id).await?;
         fields.insert(0, INTERNAL_ROW_ID_FIELD.clone());
         let schema = Arc::new(Schema::new(fields));
         Ok(Table {
             namespace_id,
             namespace_name: namespace_name.to_string(),
-            table_id,
+            table_id: table_record.table_id,
             table_name: table_name.to_string(),
             schema,
+            config: table_record.config,
             catalog: self.catalog.clone(),
             storage: self.storage.clone(),
         })

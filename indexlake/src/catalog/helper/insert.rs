@@ -1,6 +1,6 @@
 use crate::{
     ILError, ILResult,
-    catalog::{DataFileRecord, RowMetadataRecord, TransactionHelper},
+    catalog::{DataFileRecord, RowMetadataRecord, TableRecord, TransactionHelper},
     record::{Field, INTERNAL_ROW_ID_FIELD_NAME, Scalar, sql_identifier},
 };
 
@@ -18,13 +18,13 @@ impl TransactionHelper {
         Ok(())
     }
 
-    pub(crate) async fn insert_table(
-        &mut self,
-        namespace_id: i64,
-        table_id: i64,
-        table_name: &str,
-    ) -> ILResult<()> {
-        self.transaction.execute(&format!("INSERT INTO indexlake_table (table_id, table_name, namespace_id) VALUES ({table_id}, '{table_name}', {namespace_id})")).await?;
+    pub(crate) async fn insert_table(&mut self, table_record: &TableRecord) -> ILResult<()> {
+        self.transaction.execute(&format!("INSERT INTO indexlake_table (table_id, table_name, namespace_id, config) VALUES ({}, '{}', {}, '{}')",
+            table_record.table_id,
+            table_record.table_name,
+            table_record.namespace_id,
+            serde_json::to_string(&table_record.config).map_err(|e| ILError::InternalError(format!("Failed to serialize table config: {e:?}")))?
+        )).await?;
         Ok(())
     }
 

@@ -6,7 +6,8 @@ CREATE TABLE indexlake_namespace (
 CREATE TABLE indexlake_table (
     table_id BIGINT PRIMARY KEY,
     table_name VARCHAR NOT NULL,
-    namespace_id BIGINT NOT NULL
+    namespace_id BIGINT NOT NULL,
+    config VARCHAR NOT NULL
 );
 
 CREATE TABLE indexlake_field (
