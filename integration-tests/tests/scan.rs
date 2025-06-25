@@ -61,8 +61,12 @@ async fn scan_table(
             Scalar::Utf8(Some("Charlie".to_string())),
         ],
     ];
-
     table.insert(&columns, values).await.unwrap();
+    // wait for dump task to finish
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
-    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+    // let row_stream = table.scan().await.unwrap();
+    // let rows = row_stream.try_collect::<Vec<_>>().await.unwrap();
+    // let table_str = pretty_print_rows(Some(table_schema.clone()), &rows);
+    // println!("{}", table_str);
 }

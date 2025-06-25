@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use crate::catalog::DataFileRecord;
 use crate::{
     ILError, ILResult,
     catalog::{RowStream, TableRecord, TransactionHelper},
@@ -316,5 +317,37 @@ impl TransactionHelper {
             let max_table_id = rows[0].int64(0)?;
             Ok(max_table_id.unwrap_or(0))
         }
+    }
+
+    pub(crate) async fn get_data_files(&mut self, table_id: i64) -> ILResult<Vec<DataFileRecord>> {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("data_file_id", DataType::Int64, false),
+            Field::new("table_id", DataType::Int64, false),
+            Field::new("relative_path", DataType::Utf8, false),
+            Field::new("file_size_bytes", DataType::Int64, false),
+            Field::new("record_count", DataType::Int64, false),
+        ]));
+        let rows = self
+            .query_rows(
+                &format!("SELECT data_file_id, table_id, relative_path, file_size_bytes, record_count FROM indexlake_data_file WHERE table_id = {table_id}"),
+                schema,
+            )
+            .await?;
+        let mut data_files = Vec::with_capacity(rows.len());
+        for row in rows {
+            let data_file_id = row.int64(0)?.expect("data_file_id is not null");
+            let table_id = row.int64(1)?.expect("table_id is not null");
+            let relative_path = row.utf8(2)?.expect("relative_path is not null").to_string();
+            let file_size_bytes = row.int64(3)?.expect("file_size_bytes is not null");
+            let record_count = row.int64(4)?.expect("record_count is not null");
+            data_files.push(DataFileRecord {
+                data_file_id,
+                table_id,
+                relative_path,
+                file_size_bytes,
+                record_count,
+            });
+        }
+        Ok(data_files)
     }
 }

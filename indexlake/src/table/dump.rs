@@ -85,7 +85,7 @@ impl DumpTask {
                 let row = row?;
                 rows.push(row);
             }
-            let record_count = rows.len();
+            let record_count = rows.len() as i64;
 
             let relative_path = format!(
                 "{}/{}/{}.parquet",

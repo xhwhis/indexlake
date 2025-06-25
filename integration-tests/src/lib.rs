@@ -24,9 +24,13 @@ pub fn init_env_logger() {
     });
 }
 
-pub fn setup_sqlite_db() -> PathBuf {
-    let tmpdir = std::env::temp_dir();
-    let db_path = tmpdir.join(uuid::Uuid::new_v4().to_string());
+pub fn setup_sqlite_db() -> String {
+    let db_path = format!(
+        "{}/tmp/sqlite/{}.db",
+        env!("CARGO_MANIFEST_DIR"),
+        uuid::Uuid::new_v4().to_string()
+    );
+    std::fs::create_dir_all(PathBuf::from(&db_path).parent().unwrap()).unwrap();
     let conn = rusqlite::Connection::open(&db_path).unwrap();
     conn.execute_batch(include_str!("../../init_catalog.sql"))
         .unwrap();
@@ -56,7 +60,7 @@ pub fn setup_minio() -> DockerCompose {
 
 pub fn catalog_sqlite() -> Arc<dyn Catalog> {
     let db_path = setup_sqlite_db();
-    Arc::new(SqliteCatalog::try_new(db_path.to_string_lossy().to_string()).unwrap())
+    Arc::new(SqliteCatalog::try_new(db_path).unwrap())
 }
 
 pub async fn catalog_postgres() -> Arc<dyn Catalog> {
@@ -69,7 +73,7 @@ pub async fn catalog_postgres() -> Arc<dyn Catalog> {
 }
 
 pub fn storage_fs() -> Arc<Storage> {
-    let home = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), "test_storage");
+    let home = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), "tmp/fs_storage");
     Arc::new(Storage::new_fs(home))
 }
 

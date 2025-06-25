@@ -73,7 +73,13 @@ impl Table {
 
     pub async fn scan(&self) -> ILResult<RowStream> {
         let mut tx_helper = self.transaction_helper().await?;
-        let row_stream = process_table_scan(&mut tx_helper, self.table_id, &self.schema).await?;
+        let row_stream = process_table_scan(
+            &mut tx_helper,
+            self.table_id,
+            &self.schema,
+            self.storage.clone(),
+        )
+        .await?;
         tx_helper.commit().await?;
         Ok(row_stream)
     }
