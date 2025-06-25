@@ -1,6 +1,6 @@
 use crate::{
     ILError, ILResult,
-    catalog::{DataFileRecord, TransactionHelper},
+    catalog::{DataFileRecord, RowMetadataRecord, TransactionHelper},
     record::{Field, INTERNAL_ROW_ID_FIELD_NAME, Scalar, sql_identifier},
 };
 
@@ -97,12 +97,9 @@ impl TransactionHelper {
     pub(crate) async fn insert_row_metadatas(
         &mut self,
         table_id: i64,
-        metadatas: &[(i64, String)],
+        metadatas: &[RowMetadataRecord],
     ) -> ILResult<()> {
-        let mut values = Vec::new();
-        for (row_id, location) in metadatas {
-            values.push(format!("({row_id}, '{location}', FALSE)"));
-        }
+        let values = metadatas.iter().map(|m| m.to_sql()).collect::<Vec<_>>();
         self.transaction.execute(&format!("INSERT INTO indexlake_row_metadata_{table_id} ({INTERNAL_ROW_ID_FIELD_NAME}, location, deleted) VALUES {}", values.join(", "))).await?;
         Ok(())
     }
@@ -117,19 +114,9 @@ impl TransactionHelper {
 
     pub(crate) async fn insert_data_files(
         &mut self,
-        data_file_records: &[DataFileRecord],
+        data_files: &[DataFileRecord],
     ) -> ILResult<usize> {
-        let mut values = Vec::new();
-        for record in data_file_records {
-            values.push(format!(
-                "({}, {}, '{}', {}, {})",
-                record.data_file_id,
-                record.table_id,
-                record.relative_path,
-                record.file_size_bytes,
-                record.record_count
-            ));
-        }
+        let values = data_files.iter().map(|r| r.to_sql()).collect::<Vec<_>>();
         self.transaction
             .execute(&format!(
                 "INSERT INTO indexlake_data_file (data_file_id, table_id, relative_path, file_size_bytes, record_count) VALUES {}",

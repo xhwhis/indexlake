@@ -1,6 +1,6 @@
 use crate::{
     ILError, ILResult,
-    catalog::TransactionHelper,
+    catalog::{RowMetadataRecord, TransactionHelper},
     record::{INTERNAL_ROW_ID_FIELD, Scalar, Schema},
 };
 
@@ -22,7 +22,7 @@ pub(crate) async fn process_insert_values(
 
         new_values.push(new_value);
 
-        row_metadatas.push((row_id, "inline".to_string()));
+        row_metadatas.push(RowMetadataRecord::new(row_id, "inline"));
 
         row_id += 1;
     }
