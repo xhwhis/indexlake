@@ -44,6 +44,16 @@ pub async fn setup_postgres_db() -> DockerCompose {
     docker_compose
 }
 
+pub fn setup_minio() -> DockerCompose {
+    let docker_compose = DockerCompose::new(
+        "minio",
+        format!("{}/testdata/minio", env!("CARGO_MANIFEST_DIR")),
+    );
+    docker_compose.down();
+    docker_compose.up();
+    docker_compose
+}
+
 pub fn catalog_sqlite() -> Arc<dyn Catalog> {
     let db_path = setup_sqlite_db();
     Arc::new(SqliteCatalog::try_new(db_path.to_string_lossy().to_string()).unwrap())
@@ -64,6 +74,12 @@ pub fn storage_fs() -> Arc<Storage> {
 }
 
 pub fn storage_s3() -> Arc<Storage> {
-    let config = S3Config::default();
-    Arc::new(Storage::new_s3(config, "test-bucket"))
+    let _ = setup_minio();
+    std::thread::sleep(std::time::Duration::from_secs(5));
+    let mut config = S3Config::default();
+    config.endpoint = Some("http://127.0.0.1:9000".to_string());
+    config.access_key_id = Some("admin".to_string());
+    config.secret_access_key = Some("password".to_string());
+    config.region = Some("us-east-1".to_string());
+    Arc::new(Storage::new_s3(config, "indexlake"))
 }
