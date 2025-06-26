@@ -22,6 +22,12 @@ impl LakeClient {
     pub async fn create_namespace(&self, namespace_name: &str) -> ILResult<i64> {
         let mut tx_helper = self.transaction_helper().await?;
 
+        if let Some(_) = tx_helper.get_namespace_id(namespace_name).await? {
+            return Err(ILError::InvalidInput(format!(
+                "Namespace {namespace_name} already exists"
+            )));
+        }
+
         let max_namespace_id = tx_helper.get_max_namespace_id().await?;
         let namespace_id = max_namespace_id + 1;
 

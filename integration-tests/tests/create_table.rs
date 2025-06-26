@@ -181,3 +181,38 @@ async fn table_data_types(
 +-----------+-----------+-------------+-------------+----------+------------+-------------+"#,
     );
 }
+
+#[rstest::rstest]
+#[case(async { catalog_sqlite() }, storage_fs())]
+#[case(async { catalog_postgres().await }, storage_s3())]
+#[tokio::test(flavor = "multi_thread")]
+async fn duplicated_table_name(
+    #[future(awt)]
+    #[case]
+    catalog: Arc<dyn Catalog>,
+    #[case] storage: Arc<Storage>,
+) {
+    init_env_logger();
+
+    let client = LakeClient::new(catalog, storage);
+
+    let namespace_name = "test_namespace";
+    client.create_namespace(namespace_name).await.unwrap();
+
+    let expected_schema = Arc::new(Schema::new(vec![
+        Field::new("id", DataType::Int64, false),
+        Field::new("name", DataType::Utf8, false),
+    ]));
+
+    let table_name = "test_table";
+    let table_creation = TableCreation {
+        namespace_name: namespace_name.to_string(),
+        table_name: table_name.to_string(),
+        schema: expected_schema.clone(),
+        config: TableConfig::default(),
+    };
+
+    client.create_table(table_creation.clone()).await.unwrap();
+    let result = client.create_table(table_creation).await;
+    assert!(result.is_err());
+}

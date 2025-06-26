@@ -15,6 +15,16 @@ pub(crate) async fn process_create_table(
             ILError::CatalogError(format!("Namespace {} not found", creation.namespace_name))
         })?;
 
+    if let Some(_) = tx_helper
+        .get_table(namespace_id, &creation.table_name)
+        .await?
+    {
+        return Err(ILError::InvalidInput(format!(
+            "Table {} already exists in namespace {}",
+            creation.table_name, creation.namespace_name
+        )));
+    }
+
     let max_table_id = tx_helper.get_max_table_id().await?;
     let table_id = max_table_id + 1;
     tx_helper
