@@ -38,6 +38,27 @@ pub fn schema_to_arrow_schema(schema: &Schema) -> ILResult<ArrowSchema> {
     ))
 }
 
+pub fn arrow_schema_without_column(
+    arrow_schema: &ArrowSchema,
+    column_name: &str,
+) -> ILResult<ArrowSchema> {
+    let arrow_col_idx = arrow_schema.index_of(&column_name).map_err(|_e| {
+        ILError::InternalError(format!(
+            "Failed to find field {column_name} in arrow schema: {arrow_schema:?}"
+        ))
+    })?;
+    let mut arrow_fields = Vec::with_capacity(arrow_schema.fields.len() - 1);
+    for (i, field) in arrow_schema.fields.iter().enumerate() {
+        if i != arrow_col_idx {
+            arrow_fields.push(field.clone());
+        }
+    }
+    Ok(ArrowSchema::new_with_metadata(
+        arrow_fields,
+        arrow_schema.metadata.clone(),
+    ))
+}
+
 pub fn arrow_datatype_to_datatype(datatype: &ArrowDataType) -> ILResult<DataType> {
     match datatype {
         ArrowDataType::Int16 => Ok(DataType::Int16),

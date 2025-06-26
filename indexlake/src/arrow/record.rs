@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::arrow::{arrow_schema_to_schema, schema_to_arrow_schema};
+use crate::arrow::{arrow_schema_to_schema, arrow_schema_without_column, schema_to_arrow_schema};
 use crate::record::{DataType, Scalar, SchemaRef};
 use crate::{
     ILError, ILResult,
@@ -9,7 +9,7 @@ use crate::{
 use arrow::array::{
     Array, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Float32Array, Float32Builder,
     Float64Array, Float64Builder, Int16Array, Int16Builder, Int32Array, Int32Builder, Int64Array,
-    Int64Builder, RecordBatch, StringArray, StringBuilder, make_builder,
+    Int64Builder, RecordBatch, RecordBatchOptions, StringArray, StringBuilder, make_builder,
 };
 
 macro_rules! builder_append {
@@ -243,4 +243,30 @@ pub fn record_batch_to_rows(record_batch: &RecordBatch, schema: SchemaRef) -> IL
         rows.push(Row::new(schema.clone(), values));
     }
     Ok(rows)
+}
+
+pub fn record_batch_without_column(
+    record_batch: &RecordBatch,
+    column_name: &str,
+) -> ILResult<RecordBatch> {
+    let arrow_schema = record_batch.schema();
+    let arrow_col_idx = arrow_schema.index_of(&column_name).map_err(|_e| {
+        ILError::InternalError(format!(
+            "Failed to find field {column_name} in arrow schema: {arrow_schema:?}"
+        ))
+    })?;
+
+    let new_arrow_schema = arrow_schema_without_column(&arrow_schema, column_name)?;
+
+    let mut arrays = Vec::with_capacity(record_batch.num_columns() - 1);
+    for (i, array) in record_batch.columns().iter().enumerate() {
+        if i != arrow_col_idx {
+            arrays.push(array.clone());
+        }
+    }
+
+    let options = RecordBatchOptions::new().with_row_count(Some(record_batch.num_rows()));
+    let new_batch =
+        RecordBatch::try_new_with_options(Arc::new(new_arrow_schema), arrays, &options)?;
+    Ok(new_batch)
 }

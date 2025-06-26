@@ -1,3 +1,4 @@
+use arrow::util::pretty::pretty_format_batches;
 use futures::TryStreamExt;
 use indexlake::{
     LakeClient,
@@ -68,6 +69,21 @@ async fn scan_table(
     let row_stream = table.scan().await.unwrap();
     let rows = row_stream.try_collect::<Vec<_>>().await.unwrap();
     let table_str = pretty_print_rows(Some(table_schema.clone()), &rows).to_string();
+    println!("{}", table_str);
+    assert_eq!(
+        table_str,
+        r#"+----+---------+
+| id | name    |
++----+---------+
+| 3  | Charlie |
+| 1  | Alice   |
+| 2  | Bob     |
++----+---------+"#,
+    );
+
+    let batch_stream = table.scan_arrow().await.unwrap();
+    let batches = batch_stream.try_collect::<Vec<_>>().await.unwrap();
+    let table_str = pretty_format_batches(&batches).unwrap().to_string();
     println!("{}", table_str);
     assert_eq!(
         table_str,

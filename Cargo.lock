@@ -2089,6 +2089,7 @@ dependencies = [
 name = "indexlake-integration-tests"
 version = "0.1.0"
 dependencies = [
+ "arrow",
  "bytes",
  "env_logger",
  "futures",

@@ -18,6 +18,7 @@ pub(crate) use scan::*;
 pub(crate) use truncate::*;
 pub(crate) use update::*;
 
+use crate::arrow::RecordBatchStream;
 use crate::expr::Expr;
 use crate::record::{Scalar, SchemaRef};
 use crate::utils::has_duplicated_items;
@@ -71,7 +72,7 @@ impl Table {
         Ok(())
     }
 
-    pub async fn scan(&self) -> ILResult<RowStream> {
+    pub async fn scan(&self) -> ILResult<RowStream<'static>> {
         let mut tx_helper = self.transaction_helper().await?;
         let row_stream = process_table_scan(
             &mut tx_helper,
@@ -82,6 +83,19 @@ impl Table {
         .await?;
         tx_helper.commit().await?;
         Ok(row_stream)
+    }
+
+    pub async fn scan_arrow(&self) -> ILResult<RecordBatchStream> {
+        let mut tx_helper = self.transaction_helper().await?;
+        let record_batch_stream = process_table_scan_arrow(
+            &mut tx_helper,
+            self.table_id,
+            &self.schema,
+            self.storage.clone(),
+        )
+        .await?;
+        tx_helper.commit().await?;
+        Ok(record_batch_stream)
     }
 
     pub async fn update(&self, set_map: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {
