@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
+#[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn scan_table(
     #[future(awt)]
@@ -65,8 +66,18 @@ async fn scan_table(
     // wait for dump task to finish
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
-    // let row_stream = table.scan().await.unwrap();
-    // let rows = row_stream.try_collect::<Vec<_>>().await.unwrap();
-    // let table_str = pretty_print_rows(Some(table_schema.clone()), &rows);
-    // println!("{}", table_str);
+    let row_stream = table.scan().await.unwrap();
+    let rows = row_stream.try_collect::<Vec<_>>().await.unwrap();
+    let table_str = pretty_print_rows(Some(table_schema.clone()), &rows).to_string();
+    println!("{}", table_str);
+    assert_eq!(
+        table_str,
+        r#"+----+---------+
+| id | name    |
++----+---------+
+| 3  | Charlie |
+| 1  | Alice   |
+| 2  | Bob     |
++----+---------+"#,
+    );
 }

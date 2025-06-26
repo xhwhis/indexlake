@@ -152,8 +152,8 @@ impl DumpTask {
 
         let arrow_schema = Arc::new(schema_to_arrow_schema(self.table_schema.as_ref())?);
         let record_batch = rows_to_arrow_record(self.table_schema.as_ref(), &rows)?;
-        let storage_file = self.storage.new_storage_file(relative_path).await?;
-        let mut arrow_writer = AsyncArrowWriter::try_new(storage_file, arrow_schema, None)?;
+        let output_file = self.storage.create_file(relative_path).await?;
+        let mut arrow_writer = AsyncArrowWriter::try_new(output_file, arrow_schema, None)?;
         arrow_writer.write(&record_batch).await?;
         arrow_writer.close().await?;
 

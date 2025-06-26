@@ -24,7 +24,7 @@ pub(crate) async fn process_table_scan(
 
     let data_files = tx_helper.get_data_files(table_id).await?;
     for data_file in data_files {
-        rows.extend(read_data_file(&data_file, &table_schema, &storage).await?);
+        rows.extend(read_data_file(&data_file, &schema, &storage).await?);
     }
 
     Ok(Box::pin(futures::stream::iter(rows).map(Ok)))
@@ -32,18 +32,16 @@ pub(crate) async fn process_table_scan(
 
 pub(crate) async fn read_data_file(
     data_file: &DataFileRecord,
-    table_schema: &SchemaRef,
+    schema: &SchemaRef,
     storage: &Storage,
 ) -> ILResult<Vec<Row>> {
-    let storage_file = storage.new_storage_file(&data_file.relative_path).await?;
-    let arrow_reader_builder = ParquetRecordBatchStreamBuilder::new(storage_file).await?;
+    let input_file = storage.open_file(&data_file.relative_path).await?;
+    let arrow_reader_builder = ParquetRecordBatchStreamBuilder::new(input_file).await?;
     let stream = arrow_reader_builder.build().unwrap();
     let batches = stream.try_collect::<Vec<_>>().await?;
     let mut rows = Vec::new();
     for batch in batches {
-        rows.extend(record_batch_to_rows(&batch, table_schema.clone())?);
+        rows.extend(record_batch_to_rows(&batch, schema.clone())?);
     }
-    // TODO remove row_id
-
     Ok(rows)
 }

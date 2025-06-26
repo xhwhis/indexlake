@@ -10,13 +10,14 @@ async fn file_operations(#[case] storage: Arc<Storage>) {
     let file_path = "test/test.txt";
     assert!(!storage.exists(file_path).await.unwrap());
 
-    let file = storage.new_storage_file(file_path).await.unwrap();
-
+    let output_file = storage.create_file(file_path).await.unwrap();
     let expected = bytes::Bytes::from("Hello, world!");
-    file.write(expected.clone()).await.unwrap();
-    let bytes = file.read().await.unwrap();
+    output_file.write(expected.clone()).await.unwrap();
+
+    let input_file = storage.open_file(file_path).await.unwrap();
+    let bytes = input_file.read().await.unwrap();
     assert_eq!(bytes, expected);
 
-    file.delete().await.unwrap();
+    output_file.delete().await.unwrap();
     assert!(!storage.exists(file_path).await.unwrap());
 }

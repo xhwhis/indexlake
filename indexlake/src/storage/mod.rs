@@ -58,28 +58,59 @@ impl Storage {
         }
     }
 
-    pub async fn new_storage_file(&self, relative_path: &str) -> ILResult<StorageFile> {
+    pub async fn create_file(&self, relative_path: &str) -> ILResult<OutputFile> {
+        let op = self.new_operator()?;
+        let writer = op.writer(relative_path).await?;
+        Ok(OutputFile {
+            op,
+            relative_path: relative_path.to_string(),
+            writer,
+        })
+    }
+
+    pub async fn open_file(&self, relative_path: &str) -> ILResult<InputFile> {
         let op = self.new_operator()?;
         let reader = op.reader(relative_path).await?;
-        let writer = op.writer(relative_path).await?;
-        Ok(StorageFile {
+        Ok(InputFile {
             op,
             relative_path: relative_path.to_string(),
             reader,
-            writer,
         })
     }
 }
 
-/// Storage file is used for reading and writing to files.
-pub struct StorageFile {
+/// Output file is used for writing to files.
+pub struct OutputFile {
     op: Operator,
     relative_path: String,
-    reader: opendal::Reader,
     writer: opendal::Writer,
 }
 
-impl StorageFile {
+impl OutputFile {
+    pub async fn file_size_bytes(&self) -> ILResult<u64> {
+        let meta = self.op.stat(&self.relative_path).await?;
+        Ok(meta.content_length())
+    }
+
+    pub async fn delete(&self) -> ILResult<()> {
+        Ok(self.op.delete(&self.relative_path).await?)
+    }
+
+    pub async fn write(&self, bytes: bytes::Bytes) -> ILResult<()> {
+        let mut writer = self.op.writer(&self.relative_path).await?;
+        writer.write(bytes).await?;
+        writer.close().await?;
+        Ok(())
+    }
+}
+
+pub struct InputFile {
+    op: Operator,
+    relative_path: String,
+    reader: opendal::Reader,
+}
+
+impl InputFile {
     pub async fn file_size_bytes(&self) -> ILResult<u64> {
         let meta = self.op.stat(&self.relative_path).await?;
         Ok(meta.content_length())
@@ -91,12 +122,5 @@ impl StorageFile {
 
     pub async fn read(&self) -> ILResult<bytes::Bytes> {
         Ok(self.op.read(&self.relative_path).await?.to_bytes())
-    }
-
-    pub async fn write(&self, bytes: bytes::Bytes) -> ILResult<()> {
-        let mut writer = self.op.writer(&self.relative_path).await?;
-        writer.write(bytes).await?;
-        writer.close().await?;
-        Ok(())
     }
 }

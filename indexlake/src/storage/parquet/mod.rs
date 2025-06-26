@@ -9,9 +9,9 @@ use parquet::{
     file::metadata::{ParquetMetaData, ParquetMetaDataReader},
 };
 
-use crate::storage::StorageFile;
+use crate::storage::{InputFile, OutputFile};
 
-impl AsyncFileReader for StorageFile {
+impl AsyncFileReader for InputFile {
     fn get_bytes(
         &mut self,
         range: Range<u64>,
@@ -48,7 +48,7 @@ impl AsyncFileReader for StorageFile {
     }
 }
 
-impl AsyncFileWriter for StorageFile {
+impl AsyncFileWriter for OutputFile {
     fn write(&mut self, bs: bytes::Bytes) -> BoxFuture<'_, parquet::errors::Result<()>> {
         Box::pin(async {
             self.writer
