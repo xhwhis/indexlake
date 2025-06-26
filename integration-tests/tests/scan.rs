@@ -34,7 +34,6 @@ async fn scan_table(
     ]));
     let table_config = TableConfig {
         inline_row_count_limit: 2,
-        parquet_row_count_limit: 2,
     };
     let table_name = "test_table";
     let table_creation = TableCreation {

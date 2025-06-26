@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc, time::Instant};
 
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use log::{debug, error};
 use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 
@@ -10,7 +10,7 @@ use crate::{
     catalog::{Catalog, DataFileRecord, TransactionHelper},
     record::{Row, SchemaRef},
     storage::Storage,
-    table::{Table, TableConfig},
+    table::Table,
 };
 
 pub(crate) async fn spawn_dump_task(table: &Table) -> ILResult<()> {
@@ -31,7 +31,6 @@ pub(crate) async fn spawn_dump_task(table: &Table) -> ILResult<()> {
         namespace_id: table.namespace_id,
         table_id: table.table_id,
         table_schema: table.schema.clone(),
-        table_config: table.config.clone(),
         catalog: table.catalog.clone(),
         storage: table.storage.clone(),
         dump_row_ids,
@@ -54,7 +53,6 @@ pub(crate) struct DumpTask {
     namespace_id: i64,
     table_id: i64,
     table_schema: SchemaRef,
-    table_config: Arc<TableConfig>,
     catalog: Arc<dyn Catalog>,
     storage: Arc<Storage>,
     dump_row_ids: Vec<i64>,
@@ -68,57 +66,39 @@ impl DumpTask {
             return Ok(());
         }
 
-        let max_data_file_id = tx_helper.get_max_data_file_id().await?;
-
-        let row_stream = tx_helper
+        let rows = tx_helper
             .scan_inline_rows_by_row_ids(self.table_id, &self.table_schema, &self.dump_row_ids)
             .await?;
-
-        let mut row_id_to_location_map = HashMap::new();
-        let mut data_file_records = Vec::new();
-        let mut data_file_id = max_data_file_id + 1;
-
-        let mut chunks = row_stream.chunks(self.table_config.parquet_row_count_limit);
-        while let Some(chunk) = chunks.next().await {
-            let mut rows = Vec::new();
-            for row in chunk {
-                let row = row?;
-                rows.push(row);
-            }
-            let record_count = rows.len() as i64;
-
-            let relative_path = format!(
-                "{}/{}/{}.parquet",
-                self.namespace_id,
-                self.table_id,
-                uuid::Uuid::new_v4()
-            );
-            let location_map = self.write_dump_file(rows, &relative_path).await?;
-            data_file_records.push(DataFileRecord {
-                data_file_id,
-                table_id: self.table_id,
-                relative_path,
-                file_size_bytes: 0,
-                record_count,
-            });
-            row_id_to_location_map.extend(location_map);
-
-            data_file_id += 1;
-        }
-        drop(chunks);
-
-        if row_id_to_location_map.len() != self.dump_row_ids.len() {
+        let record_count = rows.len() as i64;
+        if record_count != self.dump_row_ids.len() as i64 {
             return Err(ILError::InternalError(format!(
                 "Read row count mismatch: {} rows read, expected {}",
-                row_id_to_location_map.len(),
+                record_count,
                 self.dump_row_ids.len()
             )));
         }
 
-        tx_helper.insert_data_files(&data_file_records).await?;
+        let relative_path = format!(
+            "{}/{}/{}.parquet",
+            self.namespace_id,
+            self.table_id,
+            uuid::Uuid::new_v4()
+        );
+        let (location_map, file_size_bytes) = self.write_dump_file(rows, &relative_path).await?;
+
+        let data_file_id = tx_helper.get_max_data_file_id().await? + 1;
+        tx_helper
+            .insert_data_files(&[DataFileRecord {
+                data_file_id,
+                table_id: self.table_id,
+                relative_path,
+                file_size_bytes,
+                record_count,
+            }])
+            .await?;
 
         tx_helper
-            .update_row_locations(self.table_id, &row_id_to_location_map)
+            .update_row_locations(self.table_id, &location_map)
             .await?;
 
         let deleted_count = tx_helper
@@ -143,7 +123,7 @@ impl DumpTask {
         &self,
         rows: Vec<Row>,
         relative_path: &str,
-    ) -> ILResult<HashMap<i64, String>> {
+    ) -> ILResult<(HashMap<i64, String>, i64)> {
         let mut location_map = HashMap::new();
         for row in rows.iter() {
             let row_id = row.get_row_id()?.expect("row_id is not null");
@@ -155,9 +135,10 @@ impl DumpTask {
         let output_file = self.storage.create_file(relative_path).await?;
         let mut arrow_writer = AsyncArrowWriter::try_new(output_file, arrow_schema, None)?;
         arrow_writer.write(&record_batch).await?;
+        let file_size_bytes = arrow_writer.bytes_written() as i64;
         arrow_writer.close().await?;
 
         // TODO locations
-        Ok(location_map)
+        Ok((location_map, file_size_bytes))
     }
 }
