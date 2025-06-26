@@ -2,6 +2,9 @@
 members = [
     "catalogs/postgres",
     "catalogs/sqlite",
+    "indexes/bm25",
+    "indexes/hnsw",
+    "indexes/rstar",
     "indexlake",
     "integration-tests",
     "integrations/datafusion",

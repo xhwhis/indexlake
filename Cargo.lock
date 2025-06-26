@@ -2065,6 +2065,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "indexlake-index-bm25"
+version = "0.1.0"
+dependencies = [
+ "indexlake",
+]
+
+[[package]]
+name = "indexlake-index-hnsw"
+version = "0.1.0"
+dependencies = [
+ "indexlake",
+]
+
+[[package]]
+name = "indexlake-index-rstar"
+version = "0.1.0"
+dependencies = [
+ "indexlake",
+]
+
+[[package]]
 name = "indexlake-integration-tests"
 version = "0.1.0"
 dependencies = [
