@@ -7,8 +7,8 @@ use parquet::arrow::ParquetRecordBatchStreamBuilder;
 use crate::{
     ILError, ILResult,
     arrow::{
-        RecordBatchStream, arrow_schema_to_schema, arrow_schema_without_column,
-        record_batch_to_rows, record_batch_without_column, rows_to_arrow_record,
+        RecordBatchStream, record_batch_without_column, rows_to_record_batch,
+        schema_to_catalog_schema, schema_without_column,
     },
     catalog::{DataFileRecord, RowStream, TransactionHelper},
     record::{CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME, Row},
@@ -21,17 +21,17 @@ pub(crate) async fn process_table_scan_arrow(
     table_schema: &SchemaRef,
     storage: Arc<Storage>,
 ) -> ILResult<RecordBatchStream> {
-    let schema = Arc::new(arrow_schema_without_column(
+    let schema = Arc::new(schema_without_column(
         &table_schema,
         INTERNAL_ROW_ID_FIELD_NAME,
     )?);
-    let catalog_schema = Arc::new(arrow_schema_to_schema(&schema)?);
+    let catalog_schema = Arc::new(schema_to_catalog_schema(&schema)?);
 
     // Inline rows are not deleted, so we can scan them directly
     let rows = tx_helper
         .scan_inline_rows(table_id, &catalog_schema)
         .await?;
-    let batch = rows_to_arrow_record(&catalog_schema, &rows)?;
+    let batch = rows_to_record_batch(&schema, &rows)?;
 
     let mut batches = vec![batch];
 

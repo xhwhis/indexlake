@@ -1,7 +1,7 @@
 use arrow::datatypes::{DataType, Field};
 
 use crate::{catalog::CatalogDatabase, record::CatalogDataType};
-use std::{collections::HashMap, sync::LazyLock};
+use std::sync::LazyLock;
 
 pub static INTERNAL_ROW_ID_FIELD_NAME: &str = "_indexlake_row_id";
 pub static INTERNAL_ROW_ID_FIELD: LazyLock<Field> =
@@ -12,7 +12,6 @@ pub struct Column {
     pub name: String,
     pub data_type: CatalogDataType,
     pub nullable: bool,
-    pub metadata: HashMap<String, String>,
 }
 
 impl Column {
@@ -21,13 +20,7 @@ impl Column {
             name: name.into(),
             data_type,
             nullable,
-            metadata: HashMap::new(),
         }
-    }
-
-    pub fn with_metadata(mut self, metadata: HashMap<String, String>) -> Self {
-        self.metadata = metadata;
-        self
     }
 }
 

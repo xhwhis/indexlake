@@ -7,9 +7,7 @@ use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 
 use crate::{
     ILError, ILResult,
-    arrow::{
-        arrow_schema_to_schema, rows_to_arrow_record, rows_to_record_batch, schema_to_arrow_schema,
-    },
+    arrow::{rows_to_record_batch, schema_to_catalog_schema},
     catalog::{Catalog, DataFileRecord, TransactionHelper},
     record::{CatalogSchemaRef, Row},
     storage::Storage,
@@ -71,7 +69,7 @@ impl DumpTask {
             return Ok(());
         }
 
-        let catalog_schema = Arc::new(arrow_schema_to_schema(&self.table_schema)?);
+        let catalog_schema = Arc::new(schema_to_catalog_schema(&self.table_schema)?);
         let rows = tx_helper
             .scan_inline_rows_by_row_ids(self.table_id, &catalog_schema, &self.dump_row_ids)
             .await?;

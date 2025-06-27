@@ -1,7 +1,7 @@
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::util::pretty::pretty_format_batches;
 use futures::TryStreamExt;
-use indexlake::arrow::arrow_schema_without_column;
+use indexlake::arrow::schema_without_column;
 use indexlake::record::INTERNAL_ROW_ID_FIELD_NAME;
 use indexlake::record::{CatalogScalar, pretty_print_rows};
 use indexlake::{
@@ -59,7 +59,7 @@ async fn create_table(
     assert_eq!(table.namespace_name, namespace_name);
     assert_eq!(table.table_id, expected_table_id);
     assert_eq!(table.table_name, table_name);
-    let schema = arrow_schema_without_column(&table.schema, INTERNAL_ROW_ID_FIELD_NAME).unwrap();
+    let schema = schema_without_column(&table.schema, INTERNAL_ROW_ID_FIELD_NAME).unwrap();
     assert_eq!(
         schema.fields.iter().map(|f| f.name()).collect::<Vec<_>>(),
         expected_schema
