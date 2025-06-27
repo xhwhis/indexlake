@@ -1,5 +1,7 @@
+use arrow::datatypes::Schema;
+
 use crate::catalog::TransactionHelper;
-use crate::record::{INTERNAL_ROW_ID_FIELD, Schema, SchemaRef};
+use crate::record::{CatalogSchema, CatalogSchemaRef, INTERNAL_ROW_ID_FIELD};
 use crate::table::{Table, TableCreation, process_create_table};
 use crate::{ILError, ILResult, catalog::Catalog, storage::Storage};
 use std::sync::Arc;
@@ -72,6 +74,7 @@ impl LakeClient {
             })?;
         let mut fields = tx_helper.get_table_fields(table_record.table_id).await?;
         fields.insert(0, INTERNAL_ROW_ID_FIELD.clone());
+        // TODO support schema metadata
         let schema = Arc::new(Schema::new(fields));
         Ok(Table {
             namespace_id,

@@ -1,7 +1,10 @@
+use arrow::datatypes::Fields;
+
 use crate::{
     ILError, ILResult,
+    arrow::arrow_datatype_to_datatype,
     catalog::TransactionHelper,
-    record::{Field, INTERNAL_ROW_ID_FIELD_NAME, sql_identifier},
+    record::{Column, INTERNAL_ROW_ID_FIELD_NAME, sql_identifier},
 };
 
 impl TransactionHelper {
@@ -22,16 +25,20 @@ impl TransactionHelper {
     pub(crate) async fn create_inline_row_table(
         &mut self,
         table_id: i64,
-        fields: &[Field],
+        fields: &Fields,
     ) -> ILResult<()> {
         let mut columns = Vec::new();
         columns.push(format!("{} BIGINT PRIMARY KEY", INTERNAL_ROW_ID_FIELD_NAME));
         for field in fields {
             columns.push(format!(
                 "{} {} {}",
-                sql_identifier(&field.name, self.database),
-                field.data_type.to_sql(self.database),
-                if field.nullable { "NULL" } else { "NOT NULL" },
+                sql_identifier(&field.name(), self.database),
+                arrow_datatype_to_datatype(field.data_type())?.to_sql(self.database),
+                if field.is_nullable() {
+                    "NULL"
+                } else {
+                    "NOT NULL"
+                },
             ));
         }
         self.transaction

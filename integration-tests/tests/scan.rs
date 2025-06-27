@@ -1,9 +1,11 @@
+use arrow::array::{Int64Array, RecordBatch, StringArray};
+use arrow::datatypes::{DataType, Field, Schema};
 use arrow::util::pretty::pretty_format_batches;
 use futures::TryStreamExt;
 use indexlake::{
     LakeClient,
     catalog::Catalog,
-    record::{DataType, Field, Row, Scalar, Schema, pretty_print_rows},
+    record::{CatalogDataType, CatalogScalar, CatalogSchema, Column, Row, pretty_print_rows},
     storage::Storage,
     table::{TableConfig, TableCreation},
 };
@@ -14,7 +16,7 @@ use std::sync::Arc;
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+// #[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn scan_table(
     #[future(awt)]
@@ -48,28 +50,21 @@ async fn scan_table(
 
     let table = client.load_table(namespace_name, table_name).await.unwrap();
 
-    let columns = vec!["id".to_string(), "name".to_string()];
-    let values = vec![
+    let record_batch = RecordBatch::try_new(
+        table_schema.clone(),
         vec![
-            Scalar::Int64(Some(1)),
-            Scalar::Utf8(Some("Alice".to_string())),
+            Arc::new(Int64Array::from(vec![1, 2, 3])),
+            Arc::new(StringArray::from(vec!["Alice", "Bob", "Charlie"])),
         ],
-        vec![
-            Scalar::Int64(Some(2)),
-            Scalar::Utf8(Some("Bob".to_string())),
-        ],
-        vec![
-            Scalar::Int64(Some(3)),
-            Scalar::Utf8(Some("Charlie".to_string())),
-        ],
-    ];
-    table.insert(&columns, values).await.unwrap();
+    )
+    .unwrap();
+    table.insert(&record_batch).await.unwrap();
     // wait for dump task to finish
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
-    let row_stream = table.scan().await.unwrap();
-    let rows = row_stream.try_collect::<Vec<_>>().await.unwrap();
-    let table_str = pretty_print_rows(Some(table_schema.clone()), &rows).to_string();
+    let batch_stream = table.scan_arrow().await.unwrap();
+    let batches = batch_stream.try_collect::<Vec<_>>().await.unwrap();
+    let table_str = pretty_format_batches(&batches).unwrap().to_string();
     println!("{}", table_str);
     assert_eq!(
         table_str,

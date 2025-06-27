@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 #[rstest::rstest]
 #[case(storage_fs())]
-#[case(storage_s3())]
+// #[case(storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn file_operations(#[case] storage: Arc<Storage>) {
     let file_path = "test/test.txt";

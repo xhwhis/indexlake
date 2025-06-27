@@ -1,42 +1,130 @@
+use std::sync::Arc;
+
+use arrow::{
+    array::{ArrayRef, Int16Array, Int32Array, Int64Array, RecordBatch, StringArray},
+    datatypes::{DataType, Field, Schema},
+};
+
 use crate::{
     ILError, ILResult,
     catalog::{RowMetadataRecord, TransactionHelper},
-    record::{INTERNAL_ROW_ID_FIELD, Scalar, Schema},
+    record::{CatalogScalar, CatalogSchema, INTERNAL_ROW_ID_FIELD},
 };
 
 pub(crate) async fn process_insert_values(
     tx_helper: &mut TransactionHelper,
     table_id: i64,
-    schema: &Schema,
-    values: Vec<Vec<Scalar>>,
+    record: &RecordBatch,
 ) -> ILResult<()> {
     let max_row_id = tx_helper.get_max_row_id(table_id).await?;
 
     // Generate row id for each row
-    let mut new_values = vec![];
-    let mut row_metadatas = vec![];
-    let mut row_id = max_row_id + 1;
-    for value in values {
-        let mut new_value = vec![Scalar::Int64(Some(row_id))];
-        new_value.extend(value);
+    let row_ids = (max_row_id + 1..max_row_id + 1 + record.num_rows() as i64).collect::<Vec<_>>();
+    let row_metadatas = row_ids
+        .iter()
+        .map(|id| RowMetadataRecord::new(*id, "inline"))
+        .collect::<Vec<_>>();
 
-        new_values.push(new_value);
+    let row_id_array = Arc::new(Int64Array::from(row_ids)) as ArrayRef;
 
-        row_metadatas.push(RowMetadataRecord::new(row_id, "inline"));
+    let mut new_arrays = vec![row_id_array];
+    new_arrays.extend(record.columns().iter().map(|col| col.clone()));
 
-        row_id += 1;
-    }
+    let mut new_fields = vec![Arc::new(INTERNAL_ROW_ID_FIELD.clone())];
+    new_fields.extend(record.schema().fields().iter().map(|field| field.clone()));
+    let new_schema = Schema::new_with_metadata(new_fields, record.schema().metadata().clone());
 
-    let mut inline_field_names = vec![INTERNAL_ROW_ID_FIELD.name.clone()];
-    for field in &schema.fields {
-        inline_field_names.push(field.name.clone());
-    }
+    let new_record = RecordBatch::try_new(Arc::new(new_schema), new_arrays)?;
+
+    let sql_values = record_batch_to_sql_values(&new_record)?;
+
+    let inline_field_names = new_record
+        .schema()
+        .fields()
+        .iter()
+        .map(|field| field.name().clone())
+        .collect::<Vec<_>>();
+
     tx_helper
-        .insert_inline_rows(table_id, &inline_field_names, new_values)
+        .insert_inline_rows(table_id, &inline_field_names, sql_values)
         .await?;
 
     tx_helper
         .insert_row_metadatas(table_id, &row_metadatas)
         .await?;
     Ok(())
+}
+
+pub(crate) fn record_batch_to_sql_values(record: &RecordBatch) -> ILResult<Vec<String>> {
+    let mut column_values_list = Vec::with_capacity(record.num_columns());
+    for (i, field) in record.schema().fields().iter().enumerate() {
+        let mut column_values = Vec::with_capacity(record.num_rows());
+        let any_array = record.column(i).as_any();
+        match field.data_type() {
+            DataType::Int16 => {
+                let array = any_array.downcast_ref::<Int16Array>().ok_or_else(|| {
+                    ILError::InternalError(format!(
+                        "Failed to downcast field {field:?} to Int16Array"
+                    ))
+                })?;
+                for v in array.iter() {
+                    column_values.push(match v {
+                        Some(v) => v.to_string(),
+                        None => "NULL".to_string(),
+                    });
+                }
+            }
+            DataType::Int32 => {
+                let array = any_array.downcast_ref::<Int32Array>().ok_or_else(|| {
+                    ILError::InternalError(format!(
+                        "Failed to downcast field {field:?} to Int32Array"
+                    ))
+                })?;
+                for v in array.iter() {
+                    column_values.push(match v {
+                        Some(v) => v.to_string(),
+                        None => "NULL".to_string(),
+                    });
+                }
+            }
+            DataType::Int64 => {
+                let array = any_array.downcast_ref::<Int64Array>().ok_or_else(|| {
+                    ILError::InternalError(format!(
+                        "Failed to downcast field {field:?} to Int64Array"
+                    ))
+                })?;
+                for v in array.iter() {
+                    column_values.push(match v {
+                        Some(v) => v.to_string(),
+                        None => "NULL".to_string(),
+                    });
+                }
+            }
+            DataType::Utf8 => {
+                let array = any_array.downcast_ref::<StringArray>().ok_or_else(|| {
+                    ILError::InternalError(format!(
+                        "Failed to downcast field {field:?} to StringArray"
+                    ))
+                })?;
+                for v in array.iter() {
+                    column_values.push(match v {
+                        Some(v) => format!("'{}'", v),
+                        None => "NULL".to_string(),
+                    });
+                }
+            }
+            _ => todo!(),
+        }
+        column_values_list.push(column_values);
+    }
+    let mut sql_values = Vec::with_capacity(record.num_rows());
+    for row_idx in 0..record.num_rows() {
+        let mut row_values = Vec::with_capacity(record.num_columns());
+        for column_values in column_values_list.iter() {
+            row_values.push(column_values[row_idx].clone());
+        }
+        let row_values_str = row_values.join(", ");
+        sql_values.push(format!("({})", row_values_str));
+    }
+    Ok(sql_values)
 }

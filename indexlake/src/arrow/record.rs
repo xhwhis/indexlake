@@ -1,16 +1,17 @@
 use std::sync::Arc;
 
 use crate::arrow::{arrow_schema_to_schema, arrow_schema_without_column, schema_to_arrow_schema};
-use crate::record::{DataType, Scalar, SchemaRef};
+use crate::record::{CatalogDataType, CatalogScalar, CatalogSchemaRef};
 use crate::{
     ILError, ILResult,
-    record::{Row, Schema},
+    record::{CatalogSchema, Row},
 };
 use arrow::array::{
     Array, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Float32Array, Float32Builder,
     Float64Array, Float64Builder, Int16Array, Int16Builder, Int32Array, Int32Builder, Int64Array,
     Int64Builder, RecordBatch, RecordBatchOptions, StringArray, StringBuilder, make_builder,
 };
+use arrow::datatypes::{DataType, SchemaRef};
 
 macro_rules! builder_append {
     ($builder:expr, $builder_ty:ty, $field:expr, $row:expr, $row_method:ident, $index:expr, $convert:expr) => {{
@@ -39,17 +40,15 @@ macro_rules! builder_append {
     }};
 }
 
-pub fn rows_to_arrow_record(schema: &Schema, rows: &[Row]) -> ILResult<RecordBatch> {
-    let arrow_schema = schema_to_arrow_schema(schema)?;
-
+pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<RecordBatch> {
     let mut array_builders = Vec::with_capacity(schema.fields.len());
-    for arrow_field in arrow_schema.fields.iter() {
-        array_builders.push(make_builder(arrow_field.data_type(), rows.len()));
+    for field in schema.fields.iter() {
+        array_builders.push(make_builder(field.data_type(), rows.len()));
     }
 
     for row in rows {
         for (i, field) in schema.fields.iter().enumerate() {
-            match field.data_type {
+            match field.data_type() {
                 DataType::Int16 => {
                     builder_append!(array_builders[i], Int16Builder, field, row, int16, i, |v| {
                         Ok::<_, ILError>(v as i16)
@@ -124,6 +123,104 @@ pub fn rows_to_arrow_record(schema: &Schema, rows: &[Row]) -> ILResult<RecordBat
                         convert
                     );
                 }
+                _ => todo!(),
+            }
+        }
+    }
+
+    let columns = array_builders
+        .into_iter()
+        .map(|mut builder| builder.finish())
+        .collect();
+    RecordBatch::try_new(schema.clone(), columns)
+        .map_err(|e| ILError::InternalError(format!("Failed to create record batch: {e:?}")))
+}
+
+pub fn rows_to_arrow_record(schema: &CatalogSchema, rows: &[Row]) -> ILResult<RecordBatch> {
+    let arrow_schema = schema_to_arrow_schema(schema)?;
+
+    let mut array_builders = Vec::with_capacity(schema.fields.len());
+    for arrow_field in arrow_schema.fields.iter() {
+        array_builders.push(make_builder(arrow_field.data_type(), rows.len()));
+    }
+
+    for row in rows {
+        for (i, field) in schema.fields.iter().enumerate() {
+            match field.data_type {
+                CatalogDataType::Int16 => {
+                    builder_append!(array_builders[i], Int16Builder, field, row, int16, i, |v| {
+                        Ok::<_, ILError>(v as i16)
+                    });
+                }
+                CatalogDataType::Int32 => {
+                    builder_append!(array_builders[i], Int32Builder, field, row, int32, i, |v| {
+                        Ok::<_, ILError>(v as i32)
+                    });
+                }
+                CatalogDataType::Int64 => {
+                    builder_append!(array_builders[i], Int64Builder, field, row, int64, i, |v| {
+                        Ok::<_, ILError>(v as i64)
+                    });
+                }
+                CatalogDataType::Float32 => {
+                    builder_append!(
+                        array_builders[i],
+                        Float32Builder,
+                        field,
+                        row,
+                        float32,
+                        i,
+                        |v| Ok::<_, ILError>(v as f32)
+                    );
+                }
+                CatalogDataType::Float64 => {
+                    builder_append!(
+                        array_builders[i],
+                        Float64Builder,
+                        field,
+                        row,
+                        float64,
+                        i,
+                        |v| Ok::<_, ILError>(v as f64)
+                    );
+                }
+                CatalogDataType::Boolean => {
+                    builder_append!(
+                        array_builders[i],
+                        BooleanBuilder,
+                        field,
+                        row,
+                        boolean,
+                        i,
+                        |v| Ok::<_, ILError>(v as bool)
+                    );
+                }
+                CatalogDataType::Utf8 => {
+                    let convert: for<'a> fn(&'a String) -> ILResult<&'a String> =
+                        |v: &String| Ok(v);
+                    builder_append!(
+                        array_builders[i],
+                        StringBuilder,
+                        field,
+                        row,
+                        utf8,
+                        i,
+                        convert
+                    );
+                }
+                CatalogDataType::Binary => {
+                    let convert: for<'a> fn(&'a Vec<u8>) -> ILResult<&'a Vec<u8>> =
+                        |v: &Vec<u8>| Ok(v);
+                    builder_append!(
+                        array_builders[i],
+                        BinaryBuilder,
+                        field,
+                        row,
+                        binary,
+                        i,
+                        convert
+                    );
+                }
             }
         }
     }
@@ -136,7 +233,10 @@ pub fn rows_to_arrow_record(schema: &Schema, rows: &[Row]) -> ILResult<RecordBat
         .map_err(|e| ILError::InternalError(format!("Failed to create record batch: {e:?}")))
 }
 
-pub fn record_batch_to_rows(record_batch: &RecordBatch, schema: SchemaRef) -> ILResult<Vec<Row>> {
+pub fn record_batch_to_rows(
+    record_batch: &RecordBatch,
+    schema: CatalogSchemaRef,
+) -> ILResult<Vec<Row>> {
     let mut column_arrays = Vec::with_capacity(schema.fields.len());
     let arrow_schema = record_batch.schema();
     for field in schema.fields.iter() {
@@ -148,84 +248,84 @@ pub fn record_batch_to_rows(record_batch: &RecordBatch, schema: SchemaRef) -> IL
         let any_array = record_batch.column(arrow_col_idx).as_any();
         let mut column_scalars = Vec::with_capacity(record_batch.num_rows());
         match field.data_type {
-            DataType::Int16 => {
+            CatalogDataType::Int16 => {
                 let array = any_array.downcast_ref::<Int16Array>().ok_or_else(|| {
                     ILError::InternalError(format!(
                         "Failed to downcast field {field:?} to Int16Array"
                     ))
                 })?;
                 for v in array.iter() {
-                    column_scalars.push(Scalar::Int16(v));
+                    column_scalars.push(CatalogScalar::Int16(v));
                 }
             }
-            DataType::Int32 => {
+            CatalogDataType::Int32 => {
                 let array = any_array.downcast_ref::<Int32Array>().ok_or_else(|| {
                     ILError::InternalError(format!(
                         "Failed to downcast field {field:?} to Int32Array"
                     ))
                 })?;
                 for v in array.iter() {
-                    column_scalars.push(Scalar::Int32(v));
+                    column_scalars.push(CatalogScalar::Int32(v));
                 }
             }
-            DataType::Int64 => {
+            CatalogDataType::Int64 => {
                 let array = any_array.downcast_ref::<Int64Array>().ok_or_else(|| {
                     ILError::InternalError(format!(
                         "Failed to downcast field {field:?} to Int64Array"
                     ))
                 })?;
                 for v in array.iter() {
-                    column_scalars.push(Scalar::Int64(v));
+                    column_scalars.push(CatalogScalar::Int64(v));
                 }
             }
-            DataType::Float32 => {
+            CatalogDataType::Float32 => {
                 let array = any_array.downcast_ref::<Float32Array>().ok_or_else(|| {
                     ILError::InternalError(format!(
                         "Failed to downcast field {field:?} to Float32Array"
                     ))
                 })?;
                 for v in array.iter() {
-                    column_scalars.push(Scalar::Float32(v));
+                    column_scalars.push(CatalogScalar::Float32(v));
                 }
             }
-            DataType::Float64 => {
+            CatalogDataType::Float64 => {
                 let array = any_array.downcast_ref::<Float64Array>().ok_or_else(|| {
                     ILError::InternalError(format!(
                         "Failed to downcast field {field:?} to Float64Array"
                     ))
                 })?;
                 for v in array.iter() {
-                    column_scalars.push(Scalar::Float64(v));
+                    column_scalars.push(CatalogScalar::Float64(v));
                 }
             }
-            DataType::Boolean => {
+            CatalogDataType::Boolean => {
                 let array = any_array.downcast_ref::<BooleanArray>().ok_or_else(|| {
                     ILError::InternalError(format!(
                         "Failed to downcast field {field:?} to BooleanArray"
                     ))
                 })?;
                 for v in array.iter() {
-                    column_scalars.push(Scalar::Boolean(v));
+                    column_scalars.push(CatalogScalar::Boolean(v));
                 }
             }
-            DataType::Utf8 => {
+            CatalogDataType::Utf8 => {
                 let array = any_array.downcast_ref::<StringArray>().ok_or_else(|| {
                     ILError::InternalError(format!(
                         "Failed to downcast field {field:?} to StringArray"
                     ))
                 })?;
                 for v in array.iter() {
-                    column_scalars.push(Scalar::Utf8(v.map(|v| v.to_string())));
+                    column_scalars.push(CatalogScalar::Utf8(v.map(|v| v.to_string())));
                 }
             }
-            DataType::Binary => {
+            CatalogDataType::Binary => {
                 let array = any_array.downcast_ref::<BinaryArray>().ok_or_else(|| {
                     ILError::InternalError(format!(
                         "Failed to downcast field {field:?} to BinaryArray"
                     ))
                 })?;
                 for v in array.iter() {
-                    column_scalars.push(Scalar::Binary(v.map(|v| v.to_vec())));
+                    column_scalars.push(CatalogScalar::Binary(v.map(|v| v.to_vec())));
                 }
             }
         }
@@ -237,7 +337,7 @@ pub fn record_batch_to_rows(record_batch: &RecordBatch, schema: SchemaRef) -> IL
         for col_idx in 0..schema.fields.len() {
             values.push(std::mem::replace(
                 &mut column_arrays[col_idx][row_idx],
-                Scalar::Int32(None),
+                CatalogScalar::Int32(None),
             ));
         }
         rows.push(Row::new(schema.clone(), values));

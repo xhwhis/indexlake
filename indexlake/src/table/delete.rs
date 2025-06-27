@@ -1,7 +1,12 @@
+use std::sync::Arc;
+
+use arrow::array::BooleanArray;
+use arrow::datatypes::SchemaRef;
+
 use crate::ILResult;
+use crate::arrow::{arrow_schema_to_schema, rows_to_record_batch};
 use crate::catalog::TransactionHelper;
 use crate::expr::Expr;
-use crate::record::SchemaRef;
 
 pub(crate) async fn process_delete_rows(
     tx_helper: &mut TransactionHelper,
@@ -9,13 +14,24 @@ pub(crate) async fn process_delete_rows(
     table_schema: &SchemaRef,
     condition: &Expr,
 ) -> ILResult<()> {
-    let rows = tx_helper.scan_inline_rows(table_id, &table_schema).await?;
+    let catalog_schema = Arc::new(arrow_schema_to_schema(&table_schema)?);
+    let rows = tx_helper
+        .scan_inline_rows(table_id, &catalog_schema)
+        .await?;
+    let record_batch = rows_to_record_batch(table_schema, &rows)?;
 
     let mut row_ids = Vec::new();
-    for row in rows {
-        let v = condition.eval(&row)?;
-        if v.is_true() {
-            row_ids.push(row.int64(0)?.expect("Internal row ID should not be null"));
+    // TODO handle error
+    let array = condition.eval_arrow(&record_batch)?;
+    let bool_array = array.as_any().downcast_ref::<BooleanArray>().unwrap();
+    for (i, v) in bool_array.iter().enumerate() {
+        // TODO let chain
+        if v.is_some() && v.unwrap() {
+            row_ids.push(
+                rows[i]
+                    .int64(0)?
+                    .expect("Internal row ID should not be null"),
+            );
         }
     }
     // Delete rows by their internal row IDs

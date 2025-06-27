@@ -4,7 +4,7 @@ use crate::{
     ILResult,
     catalog::TransactionHelper,
     expr::Expr,
-    record::{INTERNAL_ROW_ID_FIELD_NAME, Scalar, sql_identifier},
+    record::{CatalogScalar, INTERNAL_ROW_ID_FIELD_NAME, sql_identifier},
 };
 
 impl TransactionHelper {
@@ -27,7 +27,7 @@ impl TransactionHelper {
     pub(crate) async fn update_inline_rows(
         &mut self,
         table_id: i64,
-        set_map: &HashMap<String, Scalar>,
+        set_map: &HashMap<String, CatalogScalar>,
         condition: &Expr,
     ) -> ILResult<()> {
         let mut set_strs = Vec::new();

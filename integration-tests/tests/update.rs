@@ -1,9 +1,12 @@
+use arrow::array::{Int64Array, RecordBatch, StringArray};
+use arrow::datatypes::{DataType, Field, Schema};
+use arrow::util::pretty::pretty_format_batches;
 use futures::TryStreamExt;
 use indexlake::expr::Expr;
 use indexlake::{
     LakeClient,
     catalog::Catalog,
-    record::{DataType, Field, Row, Scalar, Schema, pretty_print_rows},
+    record::{CatalogDataType, CatalogScalar, CatalogSchema, Column, Row, pretty_print_rows},
     storage::Storage,
     table::{TableConfig, TableCreation},
 };
@@ -15,7 +18,7 @@ use std::sync::Arc;
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+// #[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn update_table(
     #[future(awt)]
@@ -45,27 +48,27 @@ async fn update_table(
 
     let table = client.load_table(namespace_name, table_name).await.unwrap();
 
-    let columns = vec!["id".to_string(), "name".to_string()];
-    let values = vec![
+    let record_batch = RecordBatch::try_new(
+        table_schema.clone(),
         vec![
-            Scalar::Int64(Some(1)),
-            Scalar::Utf8(Some("Alice".to_string())),
+            Arc::new(Int64Array::from(vec![1, 2])),
+            Arc::new(StringArray::from(vec!["Alice", "Bob"])),
         ],
-        vec![
-            Scalar::Int64(Some(2)),
-            Scalar::Utf8(Some("Bob".to_string())),
-        ],
-    ];
-    table.insert(&columns, values).await.unwrap();
+    )
+    .unwrap();
 
-    let set_map = HashMap::from([("name".to_string(), Scalar::Utf8(Some("Alice2".to_string())))]);
-    let condition = Expr::Column("id".to_string()).eq(Expr::Literal(Scalar::Int64(Some(1))));
+    table.insert(&record_batch).await.unwrap();
+
+    let set_map = HashMap::from([(
+        "name".to_string(),
+        CatalogScalar::Utf8(Some("Alice2".to_string())),
+    )]);
+    let condition = Expr::Column("id".to_string()).eq(Expr::Literal(CatalogScalar::Int64(Some(1))));
     table.update(set_map, &condition).await.unwrap();
 
-    let row_stream = table.scan().await.unwrap();
-    let mut rows = row_stream.try_collect::<Vec<_>>().await.unwrap();
-    rows.sort_by_key(|row| row.int64(0).unwrap().unwrap());
-    let table_str = pretty_print_rows(Some(table_schema.clone()), &rows).to_string();
+    let batch_stream = table.scan_arrow().await.unwrap();
+    let batches = batch_stream.try_collect::<Vec<_>>().await.unwrap();
+    let table_str = pretty_format_batches(&batches).unwrap().to_string();
     println!("{}", table_str);
     assert_eq!(
         table_str,

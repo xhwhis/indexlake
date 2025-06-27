@@ -2,7 +2,7 @@ use futures::StreamExt;
 use indexlake::{
     ILError, ILResult,
     catalog::{Catalog, CatalogDatabase, RowStream, Transaction},
-    record::{DataType, Row, Scalar, SchemaRef},
+    record::{CatalogDataType, CatalogScalar, CatalogSchemaRef, Row},
 };
 use log::debug;
 use std::path::PathBuf;
@@ -49,7 +49,7 @@ pub struct SqliteTransaction {
 
 #[async_trait::async_trait]
 impl Transaction for SqliteTransaction {
-    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<RowStream> {
+    async fn query(&mut self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream> {
         debug!("sqlite txn query: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
@@ -137,57 +137,57 @@ impl Drop for SqliteTransaction {
     }
 }
 
-fn sqlite_row_to_row(sqlite_row: &rusqlite::Row, schema: &SchemaRef) -> ILResult<Row> {
+fn sqlite_row_to_row(sqlite_row: &rusqlite::Row, schema: &CatalogSchemaRef) -> ILResult<Row> {
     let mut row_values = Vec::new();
     for (idx, field) in schema.fields.iter().enumerate() {
         let scalar = match field.data_type {
-            DataType::Int16 => {
+            CatalogDataType::Int16 => {
                 let v: Option<i16> = sqlite_row
                     .get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Int16(v)
+                CatalogScalar::Int16(v)
             }
-            DataType::Int32 => {
+            CatalogDataType::Int32 => {
                 let v: Option<i32> = sqlite_row
                     .get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Int32(v)
+                CatalogScalar::Int32(v)
             }
-            DataType::Int64 => {
+            CatalogDataType::Int64 => {
                 let v: Option<i64> = sqlite_row
                     .get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Int64(v)
+                CatalogScalar::Int64(v)
             }
-            DataType::Float32 => {
+            CatalogDataType::Float32 => {
                 let v: Option<f32> = sqlite_row
                     .get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Float32(v)
+                CatalogScalar::Float32(v)
             }
-            DataType::Float64 => {
+            CatalogDataType::Float64 => {
                 let v: Option<f64> = sqlite_row
                     .get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Float64(v)
+                CatalogScalar::Float64(v)
             }
-            DataType::Utf8 => {
+            CatalogDataType::Utf8 => {
                 let v: Option<String> = sqlite_row
                     .get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Utf8(v)
+                CatalogScalar::Utf8(v)
             }
-            DataType::Binary => {
+            CatalogDataType::Binary => {
                 let v: Option<Vec<u8>> = sqlite_row
                     .get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Binary(v)
+                CatalogScalar::Binary(v)
             }
-            DataType::Boolean => {
+            CatalogDataType::Boolean => {
                 let v: Option<bool> = sqlite_row
                     .get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Boolean(v)
+                CatalogScalar::Boolean(v)
             }
         };
         if !field.nullable && scalar.is_null() {

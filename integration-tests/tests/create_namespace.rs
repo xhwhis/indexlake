@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+// #[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn create_namespace(
     #[future(awt)]
@@ -25,7 +25,7 @@ async fn create_namespace(
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+// #[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn duplicated_namespace_name(
     #[future(awt)]

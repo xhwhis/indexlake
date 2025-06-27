@@ -4,7 +4,7 @@ use futures::StreamExt;
 use indexlake::{
     ILError, ILResult,
     catalog::{Catalog, CatalogDatabase, RowStream, Transaction},
-    record::{DataType, Row, Scalar, SchemaRef},
+    record::{CatalogDataType, CatalogScalar, CatalogSchemaRef, Row},
 };
 use log::debug;
 
@@ -62,7 +62,7 @@ pub struct PostgresTransaction {
 
 #[async_trait::async_trait]
 impl Transaction for PostgresTransaction {
-    async fn query(&mut self, sql: &str, schema: SchemaRef) -> ILResult<RowStream> {
+    async fn query(&mut self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream> {
         debug!("postgres txn query: {sql}");
         if self.done {
             return Err(ILError::CatalogError(
@@ -157,57 +157,60 @@ impl Drop for PostgresTransaction {
     }
 }
 
-fn pg_row_to_row(pg_row: &bb8_postgres::tokio_postgres::Row, schema: &SchemaRef) -> ILResult<Row> {
+fn pg_row_to_row(
+    pg_row: &bb8_postgres::tokio_postgres::Row,
+    schema: &CatalogSchemaRef,
+) -> ILResult<Row> {
     let mut values = Vec::new();
     for (idx, field) in schema.fields.iter().enumerate() {
         let scalar = match field.data_type {
-            DataType::Int16 => {
+            CatalogDataType::Int16 => {
                 let v: Option<i16> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Int16(v)
+                CatalogScalar::Int16(v)
             }
-            DataType::Int32 => {
+            CatalogDataType::Int32 => {
                 let v: Option<i32> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Int32(v)
+                CatalogScalar::Int32(v)
             }
-            DataType::Int64 => {
+            CatalogDataType::Int64 => {
                 let v: Option<i64> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Int64(v)
+                CatalogScalar::Int64(v)
             }
-            DataType::Float32 => {
+            CatalogDataType::Float32 => {
                 let v: Option<f32> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Float32(v)
+                CatalogScalar::Float32(v)
             }
-            DataType::Float64 => {
+            CatalogDataType::Float64 => {
                 let v: Option<f64> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Float64(v)
+                CatalogScalar::Float64(v)
             }
-            DataType::Utf8 => {
+            CatalogDataType::Utf8 => {
                 let v: Option<String> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Utf8(v)
+                CatalogScalar::Utf8(v)
             }
-            DataType::Binary => {
+            CatalogDataType::Binary => {
                 let v: Option<Vec<u8>> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Binary(v)
+                CatalogScalar::Binary(v)
             }
-            DataType::Boolean => {
+            CatalogDataType::Boolean => {
                 let v: Option<bool> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Boolean(v)
+                CatalogScalar::Boolean(v)
             }
         };
         if !field.nullable && scalar.is_null() {

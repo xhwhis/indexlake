@@ -1,6 +1,7 @@
 mod binary;
 mod visitor;
 
+use arrow::array::{ArrayRef, RecordBatch};
 pub use binary::*;
 pub use visitor::*;
 
@@ -10,7 +11,7 @@ use crate::record::sql_identifier;
 use crate::{
     ILError, ILResult,
     catalog::CatalogDatabase,
-    record::{Row, Scalar},
+    record::{CatalogScalar, Row},
 };
 
 /// Represents logical expressions such as `A + 1`
@@ -19,7 +20,7 @@ pub enum Expr {
     /// A named reference
     Column(String),
     /// A constant value
-    Literal(Scalar),
+    Literal(CatalogScalar),
     /// A binary expression such as "age > 21"
     BinaryExpr(BinaryExpr),
     /// Negation of an expression. The expression's type must be a boolean to make sense
@@ -41,7 +42,11 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn eval(&self, row: &Row) -> ILResult<Scalar> {
+    pub fn eval_arrow(&self, record: &RecordBatch) -> ILResult<ArrayRef> {
+        todo!()
+    }
+
+    pub fn eval(&self, row: &Row) -> ILResult<CatalogScalar> {
         match self {
             Expr::Column(name) => {
                 let index = row
@@ -55,7 +60,7 @@ impl Expr {
             Expr::Not(expr) => {
                 let scalar = expr.eval(row)?;
                 match scalar {
-                    Scalar::Boolean(Some(value)) => Ok(Scalar::Boolean(Some(!value))),
+                    CatalogScalar::Boolean(Some(value)) => Ok(CatalogScalar::Boolean(Some(!value))),
                     _ => Err(ILError::InvalidInput(
                         "Not expression must be a boolean".to_string(),
                     )),
@@ -63,35 +68,35 @@ impl Expr {
             }
             Expr::IsNull(expr) => {
                 let scalar = expr.eval(row)?;
-                Ok(Scalar::Boolean(Some(scalar.is_null())))
+                Ok(CatalogScalar::Boolean(Some(scalar.is_null())))
             }
             Expr::IsNotNull(expr) => {
                 let scalar = expr.eval(row)?;
-                Ok(Scalar::Boolean(Some(!scalar.is_null())))
+                Ok(CatalogScalar::Boolean(Some(!scalar.is_null())))
             }
             Expr::IsTrue(expr) => {
                 let scalar = expr.eval(row)?;
                 match scalar {
-                    Scalar::Boolean(Some(value)) => Ok(Scalar::Boolean(Some(value))),
-                    _ => Ok(Scalar::Boolean(Some(false))),
+                    CatalogScalar::Boolean(Some(value)) => Ok(CatalogScalar::Boolean(Some(value))),
+                    _ => Ok(CatalogScalar::Boolean(Some(false))),
                 }
             }
             Expr::IsFalse(expr) => {
                 let scalar = expr.eval(row)?;
                 match scalar {
-                    Scalar::Boolean(Some(value)) => Ok(Scalar::Boolean(Some(!value))),
-                    _ => Ok(Scalar::Boolean(Some(false))),
+                    CatalogScalar::Boolean(Some(value)) => Ok(CatalogScalar::Boolean(Some(!value))),
+                    _ => Ok(CatalogScalar::Boolean(Some(false))),
                 }
             }
             Expr::IsNotTrue(expr) => {
                 let scalar = expr.eval(row)?;
                 match scalar {
-                    Scalar::Boolean(Some(value)) => Ok(Scalar::Boolean(Some(!value))),
+                    CatalogScalar::Boolean(Some(value)) => Ok(CatalogScalar::Boolean(Some(!value))),
                     _ => {
                         if scalar.is_null() {
-                            Ok(Scalar::Boolean(Some(true)))
+                            Ok(CatalogScalar::Boolean(Some(true)))
                         } else {
-                            Ok(Scalar::Boolean(Some(false)))
+                            Ok(CatalogScalar::Boolean(Some(false)))
                         }
                     }
                 }
@@ -99,12 +104,12 @@ impl Expr {
             Expr::IsNotFalse(expr) => {
                 let scalar = expr.eval(row)?;
                 match scalar {
-                    Scalar::Boolean(Some(value)) => Ok(Scalar::Boolean(Some(value))),
+                    CatalogScalar::Boolean(Some(value)) => Ok(CatalogScalar::Boolean(Some(value))),
                     _ => {
                         if scalar.is_null() {
-                            Ok(Scalar::Boolean(Some(true)))
+                            Ok(CatalogScalar::Boolean(Some(true)))
                         } else {
-                            Ok(Scalar::Boolean(Some(false)))
+                            Ok(CatalogScalar::Boolean(Some(false)))
                         }
                     }
                 }
@@ -115,8 +120,8 @@ impl Expr {
                     .list
                     .iter()
                     .map(|expr| expr.eval(row))
-                    .collect::<ILResult<Vec<Scalar>>>()?;
-                Ok(Scalar::Boolean(Some(list.contains(&scalar))))
+                    .collect::<ILResult<Vec<CatalogScalar>>>()?;
+                Ok(CatalogScalar::Boolean(Some(list.contains(&scalar))))
             }
         }
     }

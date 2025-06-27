@@ -4,13 +4,13 @@ use crate::{
     ILError, ILResult,
     catalog::TransactionHelper,
     expr::Expr,
-    record::{INTERNAL_ROW_ID_FIELD, Scalar, SchemaRef},
+    record::{CatalogScalar, CatalogSchemaRef, INTERNAL_ROW_ID_FIELD},
 };
 
 pub(crate) async fn process_update_rows(
     tx_helper: &mut TransactionHelper,
     table_id: i64,
-    set_map: HashMap<String, Scalar>,
+    set_map: HashMap<String, CatalogScalar>,
     condition: &Expr,
 ) -> ILResult<()> {
     tx_helper

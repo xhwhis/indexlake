@@ -1,11 +1,19 @@
 use std::{collections::HashMap, sync::Arc, time::Instant};
 
+use arrow::datatypes::SchemaRef;
 use futures::{StreamExt, TryStreamExt};
 use log::{debug, error};
 use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 
 use crate::{
-    arrow::{rows_to_arrow_record, schema_to_arrow_schema}, catalog::{Catalog, DataFileRecord, TransactionHelper}, record::{Row, SchemaRef}, storage::Storage, table::{Table, TableConfig}, ILError, ILResult
+    ILError, ILResult,
+    arrow::{
+        arrow_schema_to_schema, rows_to_arrow_record, rows_to_record_batch, schema_to_arrow_schema,
+    },
+    catalog::{Catalog, DataFileRecord, TransactionHelper},
+    record::{CatalogSchemaRef, Row},
+    storage::Storage,
+    table::{Table, TableConfig},
 };
 
 pub(crate) async fn spawn_dump_task(table: &Table) -> ILResult<()> {
@@ -63,8 +71,9 @@ impl DumpTask {
             return Ok(());
         }
 
+        let catalog_schema = Arc::new(arrow_schema_to_schema(&self.table_schema)?);
         let rows = tx_helper
-            .scan_inline_rows_by_row_ids(self.table_id, &self.table_schema, &self.dump_row_ids)
+            .scan_inline_rows_by_row_ids(self.table_id, &catalog_schema, &self.dump_row_ids)
             .await?;
         let record_count = rows.len() as i64;
         if record_count != self.dump_row_ids.len() as i64 {
@@ -123,19 +132,33 @@ impl DumpTask {
         relative_path: &str,
     ) -> ILResult<(HashMap<i64, String>, i64)> {
         let mut location_map = HashMap::new();
-        for (row_group_idx, row_chunk) in rows.chunks(self.table_config.parquet_row_group_size).enumerate() {
+        for (row_group_idx, row_chunk) in rows
+            .chunks(self.table_config.parquet_row_group_size)
+            .enumerate()
+        {
             for (row_group_offset, row) in row_chunk.iter().enumerate() {
                 let row_id = row.get_row_id()?.expect("row_id is not null");
-                location_map.insert(row_id, format!("parquet:{}:{}:{}", relative_path, row_group_idx, row_group_offset));
+                location_map.insert(
+                    row_id,
+                    format!(
+                        "parquet:{}:{}:{}",
+                        relative_path, row_group_idx, row_group_offset
+                    ),
+                );
             }
         }
 
-        let arrow_schema = Arc::new(schema_to_arrow_schema(self.table_schema.as_ref())?);
-        let record_batch = rows_to_arrow_record(self.table_schema.as_ref(), &rows)?;
+        let record_batch = rows_to_record_batch(&self.table_schema, &rows)?;
 
-        let writer_properties = WriterProperties::builder().set_max_row_group_size(self.table_config.parquet_row_group_size).build();
+        let writer_properties = WriterProperties::builder()
+            .set_max_row_group_size(self.table_config.parquet_row_group_size)
+            .build();
         let output_file = self.storage.create_file(relative_path).await?;
-        let mut arrow_writer = AsyncArrowWriter::try_new(output_file, arrow_schema, Some(writer_properties))?;
+        let mut arrow_writer = AsyncArrowWriter::try_new(
+            output_file,
+            self.table_schema.clone(),
+            Some(writer_properties),
+        )?;
 
         arrow_writer.write(&record_batch).await?;
         let file_size_bytes = arrow_writer.bytes_written() as i64;

@@ -20,13 +20,15 @@ pub(crate) use update::*;
 
 use crate::arrow::RecordBatchStream;
 use crate::expr::Expr;
-use crate::record::{Scalar, SchemaRef};
+use crate::record::{CatalogScalar, CatalogSchemaRef};
 use crate::utils::has_duplicated_items;
 use crate::{
     ILError, ILResult,
     catalog::{Catalog, RowStream, TransactionHelper},
     storage::Storage,
 };
+use arrow::array::RecordBatch;
+use arrow::datatypes::SchemaRef;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -55,13 +57,10 @@ impl Table {
         TransactionHelper::new(&self.catalog).await
     }
 
-    pub async fn insert(&self, columns: &[String], values: Vec<Vec<Scalar>>) -> ILResult<()> {
+    pub async fn insert(&self, record: &RecordBatch) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
-        if has_duplicated_items(columns.iter()) {
-            return Err(ILError::InvalidInput("Duplicated column names".to_string()));
-        }
-        let projected_schema = self.schema.project(columns);
-        process_insert_values(&mut tx_helper, self.table_id, &projected_schema, values).await?;
+        // TODO check schema
+        process_insert_values(&mut tx_helper, self.table_id, record).await?;
         let inline_row_count = tx_helper.count_inline_rows(self.table_id).await?;
         tx_helper.commit().await?;
 
@@ -70,19 +69,6 @@ impl Table {
         }
 
         Ok(())
-    }
-
-    pub async fn scan(&self) -> ILResult<RowStream<'static>> {
-        let mut tx_helper = self.transaction_helper().await?;
-        let row_stream = process_table_scan(
-            &mut tx_helper,
-            self.table_id,
-            &self.schema,
-            self.storage.clone(),
-        )
-        .await?;
-        tx_helper.commit().await?;
-        Ok(row_stream)
     }
 
     pub async fn scan_arrow(&self) -> ILResult<RecordBatchStream> {
@@ -98,7 +84,12 @@ impl Table {
         Ok(record_batch_stream)
     }
 
-    pub async fn update(&self, set_map: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {
+    // TODO update by arrow record batch
+    pub async fn update(
+        &self,
+        set_map: HashMap<String, CatalogScalar>,
+        condition: &Expr,
+    ) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
         process_update_rows(&mut tx_helper, self.table_id, set_map, condition).await?;
         tx_helper.commit().await?;

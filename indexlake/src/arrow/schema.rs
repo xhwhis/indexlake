@@ -1,15 +1,15 @@
 use crate::{
     ILError, ILResult,
-    record::{DataType, Field, Schema},
+    record::{CatalogDataType, CatalogSchema, Column},
 };
 use arrow::datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema};
 
-pub fn arrow_schema_to_schema(arrow_schema: &ArrowSchema) -> ILResult<Schema> {
+pub fn arrow_schema_to_schema(arrow_schema: &ArrowSchema) -> ILResult<CatalogSchema> {
     let mut fields = Vec::with_capacity(arrow_schema.fields.len());
     for arrow_field in arrow_schema.fields.iter() {
         let datatype = arrow_datatype_to_datatype(&arrow_field.data_type())?;
         fields.push(
-            Field::new(
+            Column::new(
                 arrow_field.name().clone(),
                 datatype,
                 arrow_field.is_nullable(),
@@ -17,13 +17,13 @@ pub fn arrow_schema_to_schema(arrow_schema: &ArrowSchema) -> ILResult<Schema> {
             .with_metadata(arrow_field.metadata().clone()),
         );
     }
-    Ok(Schema::new_with_metadata(
+    Ok(CatalogSchema::new_with_metadata(
         fields,
         arrow_schema.metadata.clone(),
     ))
 }
 
-pub fn schema_to_arrow_schema(schema: &Schema) -> ILResult<ArrowSchema> {
+pub fn schema_to_arrow_schema(schema: &CatalogSchema) -> ILResult<ArrowSchema> {
     let mut arrow_fields = Vec::with_capacity(schema.fields.len());
     for field in schema.fields.iter() {
         let arrow_datatype = datatype_to_arrow_datatype(&field.data_type);
@@ -59,16 +59,16 @@ pub fn arrow_schema_without_column(
     ))
 }
 
-pub fn arrow_datatype_to_datatype(datatype: &ArrowDataType) -> ILResult<DataType> {
+pub fn arrow_datatype_to_datatype(datatype: &ArrowDataType) -> ILResult<CatalogDataType> {
     match datatype {
-        ArrowDataType::Int16 => Ok(DataType::Int16),
-        ArrowDataType::Int32 => Ok(DataType::Int32),
-        ArrowDataType::Int64 => Ok(DataType::Int64),
-        ArrowDataType::Float32 => Ok(DataType::Float32),
-        ArrowDataType::Float64 => Ok(DataType::Float64),
-        ArrowDataType::Boolean => Ok(DataType::Boolean),
-        ArrowDataType::Utf8 => Ok(DataType::Utf8),
-        ArrowDataType::Binary => Ok(DataType::Binary),
+        ArrowDataType::Int16 => Ok(CatalogDataType::Int16),
+        ArrowDataType::Int32 => Ok(CatalogDataType::Int32),
+        ArrowDataType::Int64 => Ok(CatalogDataType::Int64),
+        ArrowDataType::Float32 => Ok(CatalogDataType::Float32),
+        ArrowDataType::Float64 => Ok(CatalogDataType::Float64),
+        ArrowDataType::Boolean => Ok(CatalogDataType::Boolean),
+        ArrowDataType::Utf8 => Ok(CatalogDataType::Utf8),
+        ArrowDataType::Binary => Ok(CatalogDataType::Binary),
         _ => Err(ILError::InternalError(format!(
             "Unsupported arrow datatype: {:?}",
             datatype
@@ -76,15 +76,15 @@ pub fn arrow_datatype_to_datatype(datatype: &ArrowDataType) -> ILResult<DataType
     }
 }
 
-pub fn datatype_to_arrow_datatype(datatype: &DataType) -> ArrowDataType {
+pub fn datatype_to_arrow_datatype(datatype: &CatalogDataType) -> ArrowDataType {
     match datatype {
-        DataType::Int16 => ArrowDataType::Int16,
-        DataType::Int32 => ArrowDataType::Int32,
-        DataType::Int64 => ArrowDataType::Int64,
-        DataType::Float32 => ArrowDataType::Float32,
-        DataType::Float64 => ArrowDataType::Float64,
-        DataType::Boolean => ArrowDataType::Boolean,
-        DataType::Utf8 => ArrowDataType::Utf8,
-        DataType::Binary => ArrowDataType::Binary,
+        CatalogDataType::Int16 => ArrowDataType::Int16,
+        CatalogDataType::Int32 => ArrowDataType::Int32,
+        CatalogDataType::Int64 => ArrowDataType::Int64,
+        CatalogDataType::Float32 => ArrowDataType::Float32,
+        CatalogDataType::Float64 => ArrowDataType::Float64,
+        CatalogDataType::Boolean => ArrowDataType::Boolean,
+        CatalogDataType::Utf8 => ArrowDataType::Utf8,
+        CatalogDataType::Binary => ArrowDataType::Binary,
     }
 }

@@ -1,41 +1,19 @@
 use std::sync::Arc;
 
-use arrow::array::RecordBatch;
+use arrow::{array::RecordBatch, datatypes::SchemaRef};
 use futures::{StreamExt, TryStreamExt};
 use parquet::arrow::ParquetRecordBatchStreamBuilder;
 
 use crate::{
     ILError, ILResult,
     arrow::{
-        RecordBatchStream, record_batch_to_rows, record_batch_without_column, rows_to_arrow_record,
+        RecordBatchStream, arrow_schema_to_schema, arrow_schema_without_column,
+        record_batch_to_rows, record_batch_without_column, rows_to_arrow_record,
     },
     catalog::{DataFileRecord, RowStream, TransactionHelper},
-    record::{INTERNAL_ROW_ID_FIELD_NAME, Row, SchemaRef},
+    record::{CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME, Row},
     storage::{self, Storage},
 };
-
-pub(crate) async fn process_table_scan(
-    tx_helper: &mut TransactionHelper,
-    table_id: i64,
-    table_schema: &SchemaRef,
-    storage: Arc<Storage>,
-) -> ILResult<RowStream<'static>> {
-    let schema = Arc::new(table_schema.without_row_id());
-
-    // Inline rows are not deleted, so we can scan them directly
-    let mut rows = tx_helper.scan_inline_rows(table_id, &schema).await?;
-
-    // TODO change to real stream
-    let data_files = tx_helper.get_data_files(table_id).await?;
-    for data_file in data_files {
-        let batches = read_data_file(&data_file, &storage).await?;
-        for batch in batches {
-            rows.extend(record_batch_to_rows(&batch, schema.clone())?);
-        }
-    }
-
-    Ok(Box::pin(futures::stream::iter(rows).map(Ok)))
-}
 
 pub(crate) async fn process_table_scan_arrow(
     tx_helper: &mut TransactionHelper,
@@ -43,11 +21,17 @@ pub(crate) async fn process_table_scan_arrow(
     table_schema: &SchemaRef,
     storage: Arc<Storage>,
 ) -> ILResult<RecordBatchStream> {
-    let schema = Arc::new(table_schema.without_row_id());
+    let schema = Arc::new(arrow_schema_without_column(
+        &table_schema,
+        INTERNAL_ROW_ID_FIELD_NAME,
+    )?);
+    let catalog_schema = Arc::new(arrow_schema_to_schema(&schema)?);
 
     // Inline rows are not deleted, so we can scan them directly
-    let rows = tx_helper.scan_inline_rows(table_id, &schema).await?;
-    let batch = rows_to_arrow_record(&schema, &rows)?;
+    let rows = tx_helper
+        .scan_inline_rows(table_id, &catalog_schema)
+        .await?;
+    let batch = rows_to_arrow_record(&catalog_schema, &rows)?;
 
     let mut batches = vec![batch];
 

@@ -1,21 +1,23 @@
 use std::{collections::HashMap, sync::Arc};
 
+use arrow::datatypes::{DataType, Field};
+
 use crate::catalog::DataFileRecord;
 use crate::{
     ILError, ILResult,
     catalog::{RowStream, TableRecord, TransactionHelper},
     record::{
-        DataType, Field, INTERNAL_ROW_ID_FIELD, INTERNAL_ROW_ID_FIELD_NAME, Row, Schema, SchemaRef,
-        sql_identifier,
+        CatalogDataType, CatalogSchema, CatalogSchemaRef, Column, INTERNAL_ROW_ID_FIELD,
+        INTERNAL_ROW_ID_FIELD_NAME, Row, sql_identifier,
     },
     table::TableConfig,
 };
 
 impl TransactionHelper {
     pub(crate) async fn get_max_namespace_id(&mut self) -> ILResult<i64> {
-        let schema = Arc::new(Schema::new(vec![Field::new(
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "max_namespace_id",
-            DataType::Int64,
+            CatalogDataType::Int64,
             true,
         )]));
         let rows = self
@@ -30,9 +32,9 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn get_namespace_id(&mut self, namespace_name: &str) -> ILResult<Option<i64>> {
-        let schema = Arc::new(Schema::new(vec![Field::new(
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "namespace_id",
-            DataType::Int64,
+            CatalogDataType::Int64,
             false,
         )]));
         let rows = self
@@ -53,9 +55,9 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn get_max_table_id(&mut self) -> ILResult<i64> {
-        let schema = Arc::new(Schema::new(vec![Field::new(
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "max_table_id",
-            DataType::Int64,
+            CatalogDataType::Int64,
             true,
         )]));
         let rows = self
@@ -74,11 +76,11 @@ impl TransactionHelper {
         namespace_id: i64,
         table_name: &str,
     ) -> ILResult<Option<TableRecord>> {
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("table_id", DataType::Int64, false),
-            Field::new("table_name", DataType::Utf8, false),
-            Field::new("namespace_id", DataType::Int64, false),
-            Field::new("config", DataType::Utf8, false),
+        let schema = Arc::new(CatalogSchema::new(vec![
+            Column::new("table_id", CatalogDataType::Int64, false),
+            Column::new("table_name", CatalogDataType::Utf8, false),
+            Column::new("namespace_id", CatalogDataType::Int64, false),
+            Column::new("config", CatalogDataType::Utf8, false),
         ]));
         let rows = self
             .query_rows(
@@ -106,9 +108,9 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn get_max_field_id(&mut self) -> ILResult<i64> {
-        let schema = Arc::new(Schema::new(vec![Field::new(
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "max_field_id",
-            DataType::Int64,
+            CatalogDataType::Int64,
             true,
         )]));
 
@@ -124,23 +126,23 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn get_table_fields(&mut self, table_id: i64) -> ILResult<Vec<Field>> {
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("field_name", DataType::Utf8, false),
-            Field::new("data_type", DataType::Utf8, false),
-            Field::new("nullable", DataType::Boolean, false),
-            Field::new("metadata", DataType::Utf8, false),
+        let catalog_schema = Arc::new(CatalogSchema::new(vec![
+            Column::new("field_name", CatalogDataType::Utf8, false),
+            Column::new("data_type", CatalogDataType::Utf8, false),
+            Column::new("nullable", CatalogDataType::Boolean, false),
+            Column::new("metadata", CatalogDataType::Utf8, false),
         ]));
         let rows = self
             .query_rows(
                 &format!("SELECT field_name, data_type, nullable, metadata FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"),
-                schema,
+                catalog_schema,
             )
             .await?;
         let mut fields = Vec::new();
         for row in rows {
             let field_name = row.utf8(0)?.expect("field_name is not null");
             let data_type_str = row.utf8(1)?.expect("data_type is not null");
-            let data_type = DataType::parse_sql_type(&data_type_str, self.database)?;
+            let data_type = data_type_str.parse::<DataType>()?;
             let nullable = row.boolean(2)?.expect("nullable is not null");
             let metadata_str = row.utf8(3)?.expect("metadata is not null");
             let metadata: HashMap<String, String> =
@@ -153,9 +155,9 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn get_max_row_id(&mut self, table_id: i64) -> ILResult<i64> {
-        let schema = Arc::new(Schema::new(vec![Field::new(
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "max_row_id",
-            DataType::Int64,
+            CatalogDataType::Int64,
             true,
         )]));
         let rows = self
@@ -173,9 +175,9 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn scan_row_metadata(&mut self, table_id: i64) -> ILResult<Vec<Row>> {
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("row_id", DataType::Int64, false),
-            Field::new("location", DataType::Utf8, true),
+        let schema = Arc::new(CatalogSchema::new(vec![
+            Column::new("row_id", CatalogDataType::Int64, false),
+            Column::new("location", CatalogDataType::Utf8, true),
         ]));
         self.query_rows(
                 &format!("SELECT {INTERNAL_ROW_ID_FIELD_NAME}, location FROM indexlake_row_metadata_{table_id} WHERE deleted = FALSE"),
@@ -187,7 +189,7 @@ impl TransactionHelper {
     pub(crate) async fn scan_inline_rows(
         &mut self,
         table_id: i64,
-        schema: &SchemaRef,
+        schema: &CatalogSchemaRef,
     ) -> ILResult<Vec<Row>> {
         let select_items = schema
             .fields
@@ -207,7 +209,7 @@ impl TransactionHelper {
     pub(crate) async fn scan_inline_rows_by_row_ids(
         &mut self,
         table_id: i64,
-        table_schema: &SchemaRef,
+        table_schema: &CatalogSchemaRef,
         row_ids: &[i64],
     ) -> ILResult<Vec<Row>> {
         let select_items = table_schema
@@ -232,9 +234,9 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn count_inline_rows(&mut self, table_id: i64) -> ILResult<i64> {
-        let schema = Arc::new(Schema::new(vec![Field::new(
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "count",
-            DataType::Int64,
+            CatalogDataType::Int64,
             false,
         )]));
         let rows = self
@@ -248,9 +250,9 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn scan_inline_row_ids(&mut self, table_id: i64) -> ILResult<Vec<i64>> {
-        let schema = Arc::new(Schema::new(vec![Field::new(
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             INTERNAL_ROW_ID_FIELD_NAME.to_string(),
-            DataType::Int64,
+            CatalogDataType::Int64,
             false,
         )]));
         let rows = self
@@ -274,9 +276,9 @@ impl TransactionHelper {
         table_id: i64,
         limit: usize,
     ) -> ILResult<Vec<i64>> {
-        let schema = Arc::new(Schema::new(vec![Field::new(
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             INTERNAL_ROW_ID_FIELD_NAME.to_string(),
-            DataType::Int64,
+            CatalogDataType::Int64,
             false,
         )]));
         let rows = self
@@ -296,9 +298,9 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn get_max_data_file_id(&mut self) -> ILResult<i64> {
-        let schema = Arc::new(Schema::new(vec![Field::new(
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "max_data_file_id",
-            DataType::Int64,
+            CatalogDataType::Int64,
             true,
         )]));
         let rows = self
@@ -313,13 +315,13 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn get_data_files(&mut self, table_id: i64) -> ILResult<Vec<DataFileRecord>> {
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("data_file_id", DataType::Int64, false),
-            Field::new("table_id", DataType::Int64, false),
-            Field::new("relative_path", DataType::Utf8, false),
-            Field::new("file_size_bytes", DataType::Int64, false),
-            Field::new("record_count", DataType::Int64, false),
-            Field::new("row_ids", DataType::Binary, false),
+        let schema = Arc::new(CatalogSchema::new(vec![
+            Column::new("data_file_id", CatalogDataType::Int64, false),
+            Column::new("table_id", CatalogDataType::Int64, false),
+            Column::new("relative_path", CatalogDataType::Utf8, false),
+            Column::new("file_size_bytes", CatalogDataType::Int64, false),
+            Column::new("record_count", CatalogDataType::Int64, false),
+            Column::new("row_ids", CatalogDataType::Binary, false),
         ]));
         let rows = self
             .query_rows(

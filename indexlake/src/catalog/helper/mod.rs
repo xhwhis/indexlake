@@ -13,7 +13,7 @@ use futures::TryStreamExt;
 use crate::{
     ILResult,
     catalog::{Catalog, CatalogDatabase, Transaction},
-    record::{Row, SchemaRef},
+    record::{CatalogSchemaRef, Row},
 };
 
 pub(crate) struct TransactionHelper {
@@ -30,7 +30,11 @@ impl TransactionHelper {
         })
     }
 
-    pub(crate) async fn query_rows(&mut self, sql: &str, schema: SchemaRef) -> ILResult<Vec<Row>> {
+    pub(crate) async fn query_rows(
+        &mut self,
+        sql: &str,
+        schema: CatalogSchemaRef,
+    ) -> ILResult<Vec<Row>> {
         let stream = self.transaction.query(sql, schema).await?;
         stream.try_collect::<Vec<_>>().await
     }

@@ -4,7 +4,7 @@ use crate::{
     ILError, ILResult,
     catalog::CatalogDatabase,
     expr::Expr,
-    record::{Row, Scalar},
+    record::{CatalogScalar, Row},
 };
 
 #[derive(Debug, Clone, Drive, DriveMut)]
@@ -69,27 +69,27 @@ pub struct BinaryExpr {
 }
 
 impl BinaryExpr {
-    pub fn eval(&self, row: &Row) -> ILResult<Scalar> {
+    pub fn eval(&self, row: &Row) -> ILResult<CatalogScalar> {
         let left = self.left.eval(row)?;
         let right = self.right.eval(row)?;
         match self.op {
-            BinaryOp::Eq => Ok(Scalar::Boolean(Some(left == right))),
-            BinaryOp::NotEq => Ok(Scalar::Boolean(Some(left != right))),
-            BinaryOp::Lt => Ok(Scalar::Boolean(Some(left < right))),
-            BinaryOp::LtEq => Ok(Scalar::Boolean(Some(left <= right))),
-            BinaryOp::Gt => Ok(Scalar::Boolean(Some(left > right))),
-            BinaryOp::GtEq => Ok(Scalar::Boolean(Some(left >= right))),
+            BinaryOp::Eq => Ok(CatalogScalar::Boolean(Some(left == right))),
+            BinaryOp::NotEq => Ok(CatalogScalar::Boolean(Some(left != right))),
+            BinaryOp::Lt => Ok(CatalogScalar::Boolean(Some(left < right))),
+            BinaryOp::LtEq => Ok(CatalogScalar::Boolean(Some(left <= right))),
+            BinaryOp::Gt => Ok(CatalogScalar::Boolean(Some(left > right))),
+            BinaryOp::GtEq => Ok(CatalogScalar::Boolean(Some(left >= right))),
             BinaryOp::Plus => left.add(&right),
             BinaryOp::Minus => left.sub(&right),
             BinaryOp::Multiply => left.mul(&right),
             BinaryOp::Divide => left.div(&right),
             BinaryOp::Modulo => left.rem(&right),
             BinaryOp::And => match (&left, &right) {
-                (Scalar::Boolean(Some(v1)), Scalar::Boolean(Some(v2))) => {
-                    Ok(Scalar::Boolean(Some(*v1 && *v2)))
+                (CatalogScalar::Boolean(Some(v1)), CatalogScalar::Boolean(Some(v2))) => {
+                    Ok(CatalogScalar::Boolean(Some(*v1 && *v2)))
                 }
-                (Scalar::Boolean(None), _) | (_, Scalar::Boolean(None)) => {
-                    Ok(Scalar::Boolean(None))
+                (CatalogScalar::Boolean(None), _) | (_, CatalogScalar::Boolean(None)) => {
+                    Ok(CatalogScalar::Boolean(None))
                 }
                 _ => Err(ILError::InvalidInput(format!(
                     "Cannot AND scalars: {:?} and {:?}",
@@ -97,11 +97,11 @@ impl BinaryExpr {
                 ))),
             },
             BinaryOp::Or => match (&left, &right) {
-                (Scalar::Boolean(Some(v1)), Scalar::Boolean(Some(v2))) => {
-                    Ok(Scalar::Boolean(Some(*v1 || *v2)))
+                (CatalogScalar::Boolean(Some(v1)), CatalogScalar::Boolean(Some(v2))) => {
+                    Ok(CatalogScalar::Boolean(Some(*v1 || *v2)))
                 }
-                (Scalar::Boolean(None), _) | (_, Scalar::Boolean(None)) => {
-                    Ok(Scalar::Boolean(None))
+                (CatalogScalar::Boolean(None), _) | (_, CatalogScalar::Boolean(None)) => {
+                    Ok(CatalogScalar::Boolean(None))
                 }
                 _ => Err(ILError::InvalidInput(format!(
                     "Cannot OR scalars: {:?} and {:?}",
