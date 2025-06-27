@@ -69,48 +69,6 @@ pub struct BinaryExpr {
 }
 
 impl BinaryExpr {
-    pub fn eval(&self, row: &Row) -> ILResult<CatalogScalar> {
-        let left = self.left.eval(row)?;
-        let right = self.right.eval(row)?;
-        match self.op {
-            BinaryOp::Eq => Ok(CatalogScalar::Boolean(Some(left == right))),
-            BinaryOp::NotEq => Ok(CatalogScalar::Boolean(Some(left != right))),
-            BinaryOp::Lt => Ok(CatalogScalar::Boolean(Some(left < right))),
-            BinaryOp::LtEq => Ok(CatalogScalar::Boolean(Some(left <= right))),
-            BinaryOp::Gt => Ok(CatalogScalar::Boolean(Some(left > right))),
-            BinaryOp::GtEq => Ok(CatalogScalar::Boolean(Some(left >= right))),
-            BinaryOp::Plus => left.add(&right),
-            BinaryOp::Minus => left.sub(&right),
-            BinaryOp::Multiply => left.mul(&right),
-            BinaryOp::Divide => left.div(&right),
-            BinaryOp::Modulo => left.rem(&right),
-            BinaryOp::And => match (&left, &right) {
-                (CatalogScalar::Boolean(Some(v1)), CatalogScalar::Boolean(Some(v2))) => {
-                    Ok(CatalogScalar::Boolean(Some(*v1 && *v2)))
-                }
-                (CatalogScalar::Boolean(None), _) | (_, CatalogScalar::Boolean(None)) => {
-                    Ok(CatalogScalar::Boolean(None))
-                }
-                _ => Err(ILError::InvalidInput(format!(
-                    "Cannot AND scalars: {:?} and {:?}",
-                    left, right
-                ))),
-            },
-            BinaryOp::Or => match (&left, &right) {
-                (CatalogScalar::Boolean(Some(v1)), CatalogScalar::Boolean(Some(v2))) => {
-                    Ok(CatalogScalar::Boolean(Some(*v1 || *v2)))
-                }
-                (CatalogScalar::Boolean(None), _) | (_, CatalogScalar::Boolean(None)) => {
-                    Ok(CatalogScalar::Boolean(None))
-                }
-                _ => Err(ILError::InvalidInput(format!(
-                    "Cannot OR scalars: {:?} and {:?}",
-                    left, right
-                ))),
-            },
-        }
-    }
-
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
         let left_sql = self.left.to_sql(database);
         let right_sql = self.right.to_sql(database);

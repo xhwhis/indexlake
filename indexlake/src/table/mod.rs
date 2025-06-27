@@ -21,7 +21,7 @@ pub(crate) use update::*;
 use crate::RecordBatchStream;
 use crate::catalog::{CatalogScalar, CatalogSchemaRef};
 use crate::expr::Expr;
-use crate::utils::has_duplicated_items;
+use crate::utils::{has_duplicated_items, schema_with_row_id};
 use crate::{
     ILError, ILResult,
     catalog::{Catalog, RowStream, TransactionHelper},
@@ -59,7 +59,13 @@ impl Table {
 
     pub async fn insert(&self, record: &RecordBatch) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
-        // TODO check schema
+        let schema = schema_with_row_id(&record.schema());
+        if &schema != self.schema.as_ref() {
+            return Err(ILError::InvalidInput(format!(
+                "Schema mismatch: table schema {:?}, record batch schema {:?}",
+                self.schema, schema
+            )));
+        }
         process_insert_values(&mut tx_helper, self.table_id, record).await?;
         let inline_row_count = tx_helper.count_inline_rows(self.table_id).await?;
         tx_helper.commit().await?;

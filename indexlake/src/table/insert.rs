@@ -7,8 +7,8 @@ use arrow::{
 
 use crate::{
     ILError, ILResult,
-    catalog::{CatalogSchema, INTERNAL_ROW_ID_FIELD},
-    catalog::{RowMetadataRecord, TransactionHelper},
+    catalog::{CatalogSchema, INTERNAL_ROW_ID_FIELD, RowMetadataRecord, TransactionHelper},
+    utils::record_batch_with_row_id,
 };
 
 pub(crate) async fn process_insert_values(
@@ -25,20 +25,12 @@ pub(crate) async fn process_insert_values(
         .map(|id| RowMetadataRecord::new(*id, "inline"))
         .collect::<Vec<_>>();
 
-    let row_id_array = Arc::new(Int64Array::from(row_ids)) as ArrayRef;
+    let row_id_array = Int64Array::from(row_ids);
+    let record = record_batch_with_row_id(record, row_id_array)?;
 
-    let mut new_arrays = vec![row_id_array];
-    new_arrays.extend(record.columns().iter().map(|col| col.clone()));
+    let sql_values = record_batch_to_sql_values(&record)?;
 
-    let mut new_fields = vec![Arc::new(INTERNAL_ROW_ID_FIELD.clone())];
-    new_fields.extend(record.schema().fields().iter().map(|field| field.clone()));
-    let new_schema = Schema::new_with_metadata(new_fields, record.schema().metadata().clone());
-
-    let new_record = RecordBatch::try_new(Arc::new(new_schema), new_arrays)?;
-
-    let sql_values = record_batch_to_sql_values(&new_record)?;
-
-    let inline_field_names = new_record
+    let inline_field_names = record
         .schema()
         .fields()
         .iter()

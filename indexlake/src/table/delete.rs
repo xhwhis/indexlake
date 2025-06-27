@@ -3,9 +3,9 @@ use std::sync::Arc;
 use arrow::array::BooleanArray;
 use arrow::datatypes::SchemaRef;
 
-use crate::ILResult;
 use crate::catalog::{CatalogSchema, TransactionHelper, rows_to_record_batch};
 use crate::expr::Expr;
+use crate::{ILError, ILResult};
 
 pub(crate) async fn process_delete_rows(
     tx_helper: &mut TransactionHelper,
@@ -19,10 +19,15 @@ pub(crate) async fn process_delete_rows(
         .await?;
     let record_batch = rows_to_record_batch(table_schema, &rows)?;
 
-    let mut row_ids = Vec::new();
-    // TODO handle error
     let array = condition.eval_arrow(&record_batch)?;
-    let bool_array = array.as_any().downcast_ref::<BooleanArray>().unwrap();
+    let Some(bool_array) = array.as_any().downcast_ref::<BooleanArray>() else {
+        return Err(ILError::InternalError(format!(
+            "Expected BooleanArray, got {:?}",
+            array.data_type()
+        )));
+    };
+
+    let mut row_ids = Vec::new();
     for (i, v) in bool_array.iter().enumerate() {
         // TODO let chain
         if v.is_some() && v.unwrap() {
