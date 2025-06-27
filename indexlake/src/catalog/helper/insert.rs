@@ -111,10 +111,14 @@ impl TransactionHelper {
         &mut self,
         data_files: &[DataFileRecord],
     ) -> ILResult<usize> {
-        let values = data_files.iter().map(|r| r.to_sql()).collect::<Vec<_>>();
+        let values = data_files
+            .iter()
+            .map(|r| r.to_sql(self.database))
+            .collect::<Vec<_>>();
         self.transaction
             .execute(&format!(
-                "INSERT INTO indexlake_data_file (data_file_id, table_id, relative_path, file_size_bytes, record_count) VALUES {}",
+                "INSERT INTO indexlake_data_file ({}) VALUES {}",
+                DataFileRecord::select_items().join(", "),
                 values.join(", ")
             ))
             .await

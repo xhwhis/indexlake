@@ -94,6 +94,7 @@ impl DumpTask {
                 relative_path,
                 file_size_bytes,
                 record_count,
+                row_ids: self.dump_row_ids.clone(),
             }])
             .await?;
 

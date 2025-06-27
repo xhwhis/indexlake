@@ -147,10 +147,7 @@ impl TransactionHelper {
                 serde_json::from_str(&metadata_str).map_err(|e| {
                     ILError::InternalError(format!("Failed to deserialize field metadata: {e:?}"))
                 })?;
-            fields.push(
-                Field::new(field_name, data_type, nullable)
-                    .with_metadata(metadata),
-            );
+            fields.push(Field::new(field_name, data_type, nullable).with_metadata(metadata));
         }
         Ok(fields)
     }
@@ -322,10 +319,14 @@ impl TransactionHelper {
             Field::new("relative_path", DataType::Utf8, false),
             Field::new("file_size_bytes", DataType::Int64, false),
             Field::new("record_count", DataType::Int64, false),
+            Field::new("row_ids", DataType::Binary, false),
         ]));
         let rows = self
             .query_rows(
-                &format!("SELECT data_file_id, table_id, relative_path, file_size_bytes, record_count FROM indexlake_data_file WHERE table_id = {table_id}"),
+                &format!(
+                    "SELECT {} FROM indexlake_data_file WHERE table_id = {table_id}",
+                    DataFileRecord::select_items().join(", ")
+                ),
                 schema,
             )
             .await?;
@@ -336,12 +337,24 @@ impl TransactionHelper {
             let relative_path = row.utf8(2)?.expect("relative_path is not null").to_string();
             let file_size_bytes = row.int64(3)?.expect("file_size_bytes is not null");
             let record_count = row.int64(4)?.expect("record_count is not null");
+            let row_ids_bytes = row.binary(5)?.expect("row_ids is not null");
+            if row_ids_bytes.len() % 8 != 0 {
+                return Err(ILError::InternalError(format!(
+                    "row_ids is not a multiple of 8: {}",
+                    row_ids_bytes.len()
+                )));
+            }
+            let row_ids = row_ids_bytes
+                .chunks_exact(8)
+                .map(|bytes| i64::from_le_bytes(bytes.try_into().unwrap()))
+                .collect::<Vec<_>>();
             data_files.push(DataFileRecord {
                 data_file_id,
                 table_id,
                 relative_path,
                 file_size_bytes,
                 record_count,
+                row_ids,
             });
         }
         Ok(data_files)

@@ -32,7 +32,7 @@ pub fn setup_sqlite_db() -> String {
     );
     std::fs::create_dir_all(PathBuf::from(&db_path).parent().unwrap()).unwrap();
     let conn = rusqlite::Connection::open(&db_path).unwrap();
-    conn.execute_batch(include_str!("../../init_catalog.sql"))
+    conn.execute_batch(include_str!("../testdata/sqlite/init_catalog.sql"))
         .unwrap();
     db_path
 }
