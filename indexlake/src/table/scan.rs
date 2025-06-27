@@ -72,7 +72,7 @@ pub(crate) async fn read_data_file(
 ) -> ILResult<Vec<RecordBatch>> {
     let input_file = storage.open_file(&data_file.relative_path).await?;
     let arrow_reader_builder = ParquetRecordBatchStreamBuilder::new(input_file).await?;
-    let stream = arrow_reader_builder.build().unwrap();
+    let stream = arrow_reader_builder.build()?;
     let batches = stream.try_collect::<Vec<_>>().await?;
     Ok(batches)
 }
