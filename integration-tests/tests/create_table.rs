@@ -1,8 +1,7 @@
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::util::pretty::pretty_format_batches;
 use futures::TryStreamExt;
-use indexlake::arrow::schema_without_column;
-use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
+use indexlake::catalog::INTERNAL_ROW_ID_FIELD;
 use indexlake::{
     LakeClient,
     catalog::Catalog,
@@ -57,51 +56,12 @@ async fn create_table(
     assert_eq!(table.namespace_name, namespace_name);
     assert_eq!(table.table_id, expected_table_id);
     assert_eq!(table.table_name, table_name);
-    let schema = schema_without_column(&table.schema, INTERNAL_ROW_ID_FIELD_NAME).unwrap();
-    assert_eq!(
-        schema.fields.iter().map(|f| f.name()).collect::<Vec<_>>(),
-        expected_schema
-            .fields
-            .iter()
-            .map(|f| f.name())
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(
-        schema
-            .fields
-            .iter()
-            .map(|f| f.data_type())
-            .collect::<Vec<_>>(),
-        expected_schema
-            .fields
-            .iter()
-            .map(|f| f.data_type())
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(
-        schema
-            .fields
-            .iter()
-            .map(|f| f.is_nullable())
-            .collect::<Vec<_>>(),
-        expected_schema
-            .fields
-            .iter()
-            .map(|f| f.is_nullable())
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(
-        schema
-            .fields
-            .iter()
-            .map(|f| f.metadata().clone())
-            .collect::<Vec<_>>(),
-        expected_schema
-            .fields
-            .iter()
-            .map(|f| f.metadata().clone())
-            .collect::<Vec<_>>()
-    );
+
+    let mut fields = vec![Arc::new(INTERNAL_ROW_ID_FIELD.clone())];
+    fields.extend(expected_schema.fields.iter().map(|f| f.clone()));
+    let expected_schema = Schema::new(fields);
+
+    assert_eq!(table.schema.as_ref(), &expected_schema);
 }
 
 #[rstest::rstest]
@@ -166,11 +126,11 @@ async fn table_data_types(
     println!("{}", table_str);
     assert_eq!(
         table_str,
-        r#"+-----------+-----------+-----------+----------+
-| int16_col | int32_col | int64_col | utf8_col |
-+-----------+-----------+-----------+----------+
-| 1         | 1         | 2         | utf8     |
-+-----------+-----------+-----------+----------+"#,
+        r#"+-------------------+-----------+-----------+-----------+----------+
+| _indexlake_row_id | int16_col | int32_col | int64_col | utf8_col |
++-------------------+-----------+-----------+-----------+----------+
+| 1                 | 1         | 1         | 2         | utf8     |
++-------------------+-----------+-----------+-----------+----------+"#,
     );
 }
 

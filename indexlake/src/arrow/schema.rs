@@ -17,21 +17,6 @@ pub fn schema_to_catalog_schema(schema: &Schema) -> ILResult<CatalogSchema> {
     Ok(CatalogSchema::new(fields))
 }
 
-pub fn schema_without_column(schema: &Schema, column_name: &str) -> ILResult<Schema> {
-    let field_idx = schema.index_of(&column_name).map_err(|_e| {
-        ILError::InternalError(format!(
-            "Failed to find field {column_name} in schema: {schema:?}"
-        ))
-    })?;
-    let mut fields = Vec::with_capacity(schema.fields.len() - 1);
-    for (i, field) in schema.fields.iter().enumerate() {
-        if i != field_idx {
-            fields.push(field.clone());
-        }
-    }
-    Ok(Schema::new_with_metadata(fields, schema.metadata.clone()))
-}
-
 pub fn datatype_to_catalog_datatype(datatype: &DataType) -> ILResult<CatalogDataType> {
     match datatype {
         DataType::Int16 => Ok(CatalogDataType::Int16),

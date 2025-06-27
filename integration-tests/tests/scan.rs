@@ -67,27 +67,12 @@ async fn scan_table(
     println!("{}", table_str);
     assert_eq!(
         table_str,
-        r#"+----+---------+
-| id | name    |
-+----+---------+
-| 3  | Charlie |
-| 1  | Alice   |
-| 2  | Bob     |
-+----+---------+"#,
-    );
-
-    let batch_stream = table.scan_arrow().await.unwrap();
-    let batches = batch_stream.try_collect::<Vec<_>>().await.unwrap();
-    let table_str = pretty_format_batches(&batches).unwrap().to_string();
-    println!("{}", table_str);
-    assert_eq!(
-        table_str,
-        r#"+----+---------+
-| id | name    |
-+----+---------+
-| 3  | Charlie |
-| 1  | Alice   |
-| 2  | Bob     |
-+----+---------+"#,
+        r#"+-------------------+----+---------+
+| _indexlake_row_id | id | name    |
++-------------------+----+---------+
+| 3                 | 3  | Charlie |
+| 1                 | 1  | Alice   |
+| 2                 | 2  | Bob     |
++-------------------+----+---------+"#,
     );
 }

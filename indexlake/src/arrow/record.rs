@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::arrow::{schema_to_catalog_schema, schema_without_column};
+use crate::arrow::schema_to_catalog_schema;
 use crate::catalog::CatalogSchemaRef;
 use crate::catalog::Row;
 use crate::{ILError, ILResult, catalog::CatalogScalar};
@@ -132,30 +132,4 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
         .collect();
     RecordBatch::try_new(schema.clone(), columns)
         .map_err(|e| ILError::InternalError(format!("Failed to create record batch: {e:?}")))
-}
-
-pub fn record_batch_without_column(
-    record_batch: &RecordBatch,
-    column_name: &str,
-) -> ILResult<RecordBatch> {
-    let arrow_schema = record_batch.schema();
-    let arrow_col_idx = arrow_schema.index_of(&column_name).map_err(|_e| {
-        ILError::InternalError(format!(
-            "Failed to find field {column_name} in arrow schema: {arrow_schema:?}"
-        ))
-    })?;
-
-    let new_arrow_schema = schema_without_column(&arrow_schema, column_name)?;
-
-    let mut arrays = Vec::with_capacity(record_batch.num_columns() - 1);
-    for (i, array) in record_batch.columns().iter().enumerate() {
-        if i != arrow_col_idx {
-            arrays.push(array.clone());
-        }
-    }
-
-    let options = RecordBatchOptions::new().with_row_count(Some(record_batch.num_rows()));
-    let new_batch =
-        RecordBatch::try_new_with_options(Arc::new(new_arrow_schema), arrays, &options)?;
-    Ok(new_batch)
 }
