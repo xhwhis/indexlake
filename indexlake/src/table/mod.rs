@@ -18,7 +18,7 @@ pub(crate) use scan::*;
 pub(crate) use truncate::*;
 pub(crate) use update::*;
 
-use crate::arrow::RecordBatchStream;
+use crate::RecordBatchStream;
 use crate::catalog::{CatalogScalar, CatalogSchemaRef};
 use crate::expr::Expr;
 use crate::utils::has_duplicated_items;

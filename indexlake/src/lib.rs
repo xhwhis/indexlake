@@ -1,4 +1,3 @@
-pub mod arrow;
 pub mod catalog;
 mod client;
 mod error;
@@ -10,3 +9,9 @@ mod utils;
 
 pub use client::*;
 pub use error::*;
+
+use arrow::array::RecordBatch;
+use futures::Stream;
+use std::pin::Pin;
+
+pub type RecordBatchStream = Pin<Box<dyn Stream<Item = ILResult<RecordBatch>> + Send>>;

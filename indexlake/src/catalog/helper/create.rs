@@ -2,9 +2,7 @@ use arrow::datatypes::Fields;
 
 use crate::{
     ILError, ILResult,
-    arrow::datatype_to_catalog_datatype,
-    catalog::TransactionHelper,
-    catalog::{Column, INTERNAL_ROW_ID_FIELD_NAME, sql_identifier},
+    catalog::{CatalogDataType, INTERNAL_ROW_ID_FIELD_NAME, TransactionHelper, sql_identifier},
 };
 
 impl TransactionHelper {
@@ -33,7 +31,7 @@ impl TransactionHelper {
             columns.push(format!(
                 "{} {} {}",
                 sql_identifier(&field.name(), self.database),
-                datatype_to_catalog_datatype(field.data_type())?.to_sql(self.database),
+                CatalogDataType::from_arrow(field.data_type())?.to_sql(self.database),
                 if field.is_nullable() {
                     "NULL"
                 } else {

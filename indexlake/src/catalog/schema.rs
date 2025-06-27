@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use crate::catalog::CatalogDatabase;
+use arrow::datatypes::{DataType, Schema};
+
+use crate::{ILError, ILResult, catalog::CatalogDatabase};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogDataType {
@@ -34,6 +36,23 @@ impl CatalogDataType {
                 CatalogDatabase::Postgres => "BYTEA".to_string(),
             },
             CatalogDataType::Boolean => "BOOLEAN".to_string(),
+        }
+    }
+
+    pub(crate) fn from_arrow(datatype: &DataType) -> ILResult<Self> {
+        match datatype {
+            DataType::Int16 => Ok(CatalogDataType::Int16),
+            DataType::Int32 => Ok(CatalogDataType::Int32),
+            DataType::Int64 => Ok(CatalogDataType::Int64),
+            DataType::Float32 => Ok(CatalogDataType::Float32),
+            DataType::Float64 => Ok(CatalogDataType::Float64),
+            DataType::Boolean => Ok(CatalogDataType::Boolean),
+            DataType::Utf8 => Ok(CatalogDataType::Utf8),
+            DataType::Binary => Ok(CatalogDataType::Binary),
+            _ => Err(ILError::NotSupported(format!(
+                "Unsupported datatype: {:?}",
+                datatype
+            ))),
         }
     }
 }
@@ -80,6 +99,19 @@ pub struct CatalogSchema {
 impl CatalogSchema {
     pub fn new(fields: Vec<Column>) -> Self {
         Self { fields }
+    }
+
+    pub fn from_arrow(schema: &Schema) -> ILResult<Self> {
+        let mut fields = Vec::with_capacity(schema.fields.len());
+        for field in schema.fields.iter() {
+            let catalog_datatype = CatalogDataType::from_arrow(&field.data_type())?;
+            fields.push(Column::new(
+                field.name().clone(),
+                catalog_datatype,
+                field.is_nullable(),
+            ));
+        }
+        Ok(CatalogSchema::new(fields))
     }
 
     pub fn index_of(&self, field_name: &str) -> Option<usize> {

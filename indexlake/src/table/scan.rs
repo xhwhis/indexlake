@@ -5,11 +5,9 @@ use futures::{StreamExt, TryStreamExt};
 use parquet::arrow::ParquetRecordBatchStreamBuilder;
 
 use crate::{
-    ILError, ILResult,
-    arrow::{RecordBatchStream, rows_to_record_batch, schema_to_catalog_schema},
-    catalog::{CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME, Row},
-    catalog::{DataFileRecord, RowStream, TransactionHelper},
-    storage::{self, Storage},
+    ILError, ILResult, RecordBatchStream,
+    catalog::{CatalogSchema, DataFileRecord, TransactionHelper, rows_to_record_batch},
+    storage::Storage,
 };
 
 pub(crate) async fn process_table_scan(
@@ -18,7 +16,7 @@ pub(crate) async fn process_table_scan(
     table_schema: &SchemaRef,
     storage: Arc<Storage>,
 ) -> ILResult<RecordBatchStream> {
-    let catalog_schema = Arc::new(schema_to_catalog_schema(&table_schema)?);
+    let catalog_schema = Arc::new(CatalogSchema::from_arrow(&table_schema)?);
 
     // Inline rows are not deleted, so we can scan them directly
     let rows = tx_helper

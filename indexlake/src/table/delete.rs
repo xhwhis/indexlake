@@ -4,8 +4,7 @@ use arrow::array::BooleanArray;
 use arrow::datatypes::SchemaRef;
 
 use crate::ILResult;
-use crate::arrow::{rows_to_record_batch, schema_to_catalog_schema};
-use crate::catalog::TransactionHelper;
+use crate::catalog::{CatalogSchema, TransactionHelper, rows_to_record_batch};
 use crate::expr::Expr;
 
 pub(crate) async fn process_delete_rows(
@@ -14,7 +13,7 @@ pub(crate) async fn process_delete_rows(
     table_schema: &SchemaRef,
     condition: &Expr,
 ) -> ILResult<()> {
-    let catalog_schema = Arc::new(schema_to_catalog_schema(&table_schema)?);
+    let catalog_schema = Arc::new(CatalogSchema::from_arrow(&table_schema)?);
     let rows = tx_helper
         .scan_inline_rows(table_id, &catalog_schema)
         .await?;
