@@ -3,8 +3,8 @@ use derive_visitor::{Drive, DriveMut};
 use crate::{
     ILError, ILResult,
     catalog::CatalogDatabase,
+    catalog::{CatalogScalar, Row},
     expr::Expr,
-    record::{CatalogScalar, Row},
 };
 
 #[derive(Debug, Clone, Drive, DriveMut)]

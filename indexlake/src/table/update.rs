@@ -3,8 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use crate::{
     ILError, ILResult,
     catalog::TransactionHelper,
+    catalog::{CatalogScalar, CatalogSchemaRef, INTERNAL_ROW_ID_FIELD},
     expr::Expr,
-    record::{CatalogScalar, CatalogSchemaRef, INTERNAL_ROW_ID_FIELD},
 };
 
 pub(crate) async fn process_update_rows(

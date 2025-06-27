@@ -33,7 +33,7 @@ pub fn visited_columns(expr: &Expr) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::record::CatalogScalar;
+    use crate::catalog::CatalogScalar;
 
     use super::*;
 

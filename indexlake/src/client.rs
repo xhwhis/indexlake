@@ -1,7 +1,7 @@
 use arrow::datatypes::Schema;
 
+use crate::catalog::INTERNAL_ROW_ID_FIELD;
 use crate::catalog::TransactionHelper;
-use crate::record::{CatalogSchema, CatalogSchemaRef, INTERNAL_ROW_ID_FIELD};
 use crate::table::{Table, TableCreation, process_create_table};
 use crate::{ILError, ILResult, catalog::Catalog, storage::Storage};
 use std::sync::Arc;

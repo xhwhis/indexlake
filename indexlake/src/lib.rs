@@ -4,7 +4,6 @@ mod client;
 mod error;
 pub mod expr;
 pub mod index;
-pub mod record;
 pub mod storage;
 pub mod table;
 mod utils;

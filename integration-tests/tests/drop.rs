@@ -6,7 +6,6 @@ use futures::TryStreamExt;
 use indexlake::{
     LakeClient,
     catalog::Catalog,
-    record::{CatalogDataType, CatalogScalar, CatalogSchema, Column, Row, pretty_print_rows},
     storage::Storage,
     table::{TableConfig, TableCreation},
 };

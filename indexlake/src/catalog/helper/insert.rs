@@ -1,9 +1,9 @@
 use crate::{
     ILError, ILResult,
     catalog::{DataFileRecord, RowMetadataRecord, TableRecord, TransactionHelper},
-    record::{CatalogScalar, Column, INTERNAL_ROW_ID_FIELD_NAME, sql_identifier},
+    catalog::{INTERNAL_ROW_ID_FIELD_NAME, sql_identifier},
 };
-use arrow::datatypes::{Field as ArrowField, Fields};
+use arrow::datatypes::Fields;
 
 impl TransactionHelper {
     pub(crate) async fn insert_namespace(

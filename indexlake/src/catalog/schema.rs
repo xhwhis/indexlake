@@ -1,4 +1,6 @@
-use crate::{ILError, ILResult, catalog::CatalogDatabase};
+use std::sync::Arc;
+
+use crate::catalog::CatalogDatabase;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogDataType {
@@ -34,30 +36,6 @@ impl CatalogDataType {
             CatalogDataType::Boolean => "BOOLEAN".to_string(),
         }
     }
-
-    pub(crate) fn parse_sql_type(s: &str, database: CatalogDatabase) -> ILResult<Self> {
-        match (s, database) {
-            ("SMALLINT", CatalogDatabase::Sqlite) => Ok(CatalogDataType::Int16),
-            ("INTEGER", CatalogDatabase::Sqlite) => Ok(CatalogDataType::Int32),
-            ("BIGINT", CatalogDatabase::Sqlite) => Ok(CatalogDataType::Int64),
-            ("FLOAT", CatalogDatabase::Sqlite) => Ok(CatalogDataType::Float32),
-            ("DOUBLE", CatalogDatabase::Sqlite) => Ok(CatalogDataType::Float64),
-            ("VARCHAR", CatalogDatabase::Sqlite) => Ok(CatalogDataType::Utf8),
-            ("BLOB", CatalogDatabase::Sqlite) => Ok(CatalogDataType::Binary),
-            ("BOOLEAN", CatalogDatabase::Sqlite) => Ok(CatalogDataType::Boolean),
-            ("SMALLINT", CatalogDatabase::Postgres) => Ok(CatalogDataType::Int16),
-            ("INTEGER", CatalogDatabase::Postgres) => Ok(CatalogDataType::Int32),
-            ("BIGINT", CatalogDatabase::Postgres) => Ok(CatalogDataType::Int64),
-            ("FLOAT4", CatalogDatabase::Postgres) => Ok(CatalogDataType::Float32),
-            ("FLOAT8", CatalogDatabase::Postgres) => Ok(CatalogDataType::Float64),
-            ("VARCHAR", CatalogDatabase::Postgres) => Ok(CatalogDataType::Utf8),
-            ("BYTEA", CatalogDatabase::Postgres) => Ok(CatalogDataType::Binary),
-            ("BOOLEAN", CatalogDatabase::Postgres) => Ok(CatalogDataType::Boolean),
-            _ => Err(ILError::NotSupported(format!(
-                "Unsupported data type: {s} for database: {database}"
-            ))),
-        }
-    }
 }
 
 impl std::fmt::Display for CatalogDataType {
@@ -72,5 +50,43 @@ impl std::fmt::Display for CatalogDataType {
             CatalogDataType::Binary => write!(f, "Binary"),
             CatalogDataType::Boolean => write!(f, "Boolean"),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Column {
+    pub name: String,
+    pub data_type: CatalogDataType,
+    pub nullable: bool,
+}
+
+impl Column {
+    pub fn new(name: impl Into<String>, data_type: CatalogDataType, nullable: bool) -> Self {
+        Self {
+            name: name.into(),
+            data_type,
+            nullable,
+        }
+    }
+}
+
+pub type CatalogSchemaRef = Arc<CatalogSchema>;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CatalogSchema {
+    pub fields: Vec<Column>,
+}
+
+impl CatalogSchema {
+    pub fn new(fields: Vec<Column>) -> Self {
+        Self { fields }
+    }
+
+    pub fn index_of(&self, field_name: &str) -> Option<usize> {
+        self.fields.iter().position(|f| f.name == field_name)
+    }
+
+    pub fn get_field_by_name(&self, field_name: &str) -> Option<&Column> {
+        self.fields.iter().find(|f| f.name == field_name)
     }
 }

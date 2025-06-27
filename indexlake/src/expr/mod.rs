@@ -7,11 +7,11 @@ pub use visitor::*;
 
 use derive_visitor::{Drive, DriveMut};
 
-use crate::record::sql_identifier;
+use crate::catalog::sql_identifier;
 use crate::{
     ILError, ILResult,
     catalog::CatalogDatabase,
-    record::{CatalogScalar, Row},
+    catalog::{CatalogScalar, Row},
 };
 
 /// Represents logical expressions such as `A + 1`

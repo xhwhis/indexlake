@@ -4,7 +4,7 @@ use futures::StreamExt;
 use indexlake::{
     ILError, ILResult,
     catalog::{Catalog, CatalogDatabase, RowStream, Transaction},
-    record::{CatalogDataType, CatalogScalar, CatalogSchemaRef, Row},
+    catalog::{CatalogDataType, CatalogScalar, CatalogSchemaRef, Row},
 };
 use log::debug;
 

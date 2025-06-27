@@ -4,7 +4,7 @@ use crate::{
     ILError, ILResult,
     arrow::datatype_to_catalog_datatype,
     catalog::TransactionHelper,
-    record::{Column, INTERNAL_ROW_ID_FIELD_NAME, sql_identifier},
+    catalog::{Column, INTERNAL_ROW_ID_FIELD_NAME, sql_identifier},
 };
 
 impl TransactionHelper {

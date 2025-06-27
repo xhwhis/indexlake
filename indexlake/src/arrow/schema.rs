@@ -1,6 +1,6 @@
 use crate::{
     ILError, ILResult,
-    record::{CatalogDataType, CatalogSchema, Column},
+    catalog::{CatalogDataType, CatalogSchema, Column},
 };
 use arrow::datatypes::{DataType, Schema};
 

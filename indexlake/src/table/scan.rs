@@ -10,8 +10,8 @@ use crate::{
         RecordBatchStream, record_batch_without_column, rows_to_record_batch,
         schema_to_catalog_schema, schema_without_column,
     },
+    catalog::{CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME, Row},
     catalog::{DataFileRecord, RowStream, TransactionHelper},
-    record::{CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME, Row},
     storage::{self, Storage},
 };
 

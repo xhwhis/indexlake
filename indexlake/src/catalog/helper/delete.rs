@@ -1,4 +1,4 @@
-use crate::{ILResult, catalog::TransactionHelper, record::INTERNAL_ROW_ID_FIELD_NAME};
+use crate::{ILResult, catalog::INTERNAL_ROW_ID_FIELD_NAME, catalog::TransactionHelper};
 
 impl TransactionHelper {
     pub(crate) async fn delete_inline_rows(

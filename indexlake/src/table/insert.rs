@@ -7,8 +7,8 @@ use arrow::{
 
 use crate::{
     ILError, ILResult,
+    catalog::{CatalogSchema, INTERNAL_ROW_ID_FIELD},
     catalog::{RowMetadataRecord, TransactionHelper},
-    record::{CatalogScalar, CatalogSchema, INTERNAL_ROW_ID_FIELD},
 };
 
 pub(crate) async fn process_insert_values(

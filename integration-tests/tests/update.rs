@@ -6,7 +6,7 @@ use indexlake::expr::Expr;
 use indexlake::{
     LakeClient,
     catalog::Catalog,
-    record::{CatalogScalar, CatalogSchema, Column, Row, pretty_print_rows},
+    catalog::CatalogScalar,
     storage::Storage,
     table::{TableConfig, TableCreation},
 };

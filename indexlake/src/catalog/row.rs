@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     ILError, ILResult,
-    record::{CatalogScalar, CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME},
+    catalog::{CatalogScalar, CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME},
 };
 
 #[derive(Debug)]

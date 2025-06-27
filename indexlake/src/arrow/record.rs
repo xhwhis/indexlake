@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
 use crate::arrow::{schema_to_catalog_schema, schema_without_column};
-use crate::record::{CatalogDataType, CatalogScalar, CatalogSchemaRef};
-use crate::{
-    ILError, ILResult,
-    record::{CatalogSchema, Row},
-};
+use crate::catalog::CatalogSchemaRef;
+use crate::catalog::Row;
+use crate::{ILError, ILResult, catalog::CatalogScalar};
 use arrow::array::{
     Array, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Float32Array, Float32Builder,
     Float64Array, Float64Builder, Int16Array, Int16Builder, Int32Array, Int32Builder, Int64Array,

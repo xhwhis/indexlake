@@ -5,11 +5,11 @@ use arrow::datatypes::{DataType, Field};
 use crate::catalog::DataFileRecord;
 use crate::{
     ILError, ILResult,
-    catalog::{RowStream, TableRecord, TransactionHelper},
-    record::{
+    catalog::{
         CatalogDataType, CatalogSchema, CatalogSchemaRef, Column, INTERNAL_ROW_ID_FIELD,
         INTERNAL_ROW_ID_FIELD_NAME, Row, sql_identifier,
     },
+    catalog::{RowStream, TableRecord, TransactionHelper},
     table::TableConfig,
 };
 

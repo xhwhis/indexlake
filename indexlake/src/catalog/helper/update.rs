@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use crate::{
     ILResult,
-    catalog::TransactionHelper,
+    catalog::{CatalogScalar, INTERNAL_ROW_ID_FIELD_NAME, TransactionHelper, sql_identifier},
     expr::Expr,
-    record::{CatalogScalar, INTERNAL_ROW_ID_FIELD_NAME, sql_identifier},
 };
 
 impl TransactionHelper {

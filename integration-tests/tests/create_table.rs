@@ -2,12 +2,10 @@ use arrow::datatypes::{DataType, Field, Schema};
 use arrow::util::pretty::pretty_format_batches;
 use futures::TryStreamExt;
 use indexlake::arrow::schema_without_column;
-use indexlake::record::INTERNAL_ROW_ID_FIELD_NAME;
-use indexlake::record::{CatalogScalar, pretty_print_rows};
+use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
 use indexlake::{
     LakeClient,
     catalog::Catalog,
-    record::{CatalogDataType, CatalogSchema, Column},
     storage::Storage,
     table::{TableConfig, TableCreation},
 };

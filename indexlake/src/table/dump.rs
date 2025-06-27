@@ -9,7 +9,7 @@ use crate::{
     ILError, ILResult,
     arrow::{rows_to_record_batch, schema_to_catalog_schema},
     catalog::{Catalog, DataFileRecord, TransactionHelper},
-    record::{CatalogSchemaRef, Row},
+    catalog::{CatalogSchemaRef, Row},
     storage::Storage,
     table::{Table, TableConfig},
 };

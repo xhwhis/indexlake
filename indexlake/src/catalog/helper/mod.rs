@@ -13,7 +13,7 @@ use futures::TryStreamExt;
 use crate::{
     ILResult,
     catalog::{Catalog, CatalogDatabase, Transaction},
-    record::{CatalogSchemaRef, Row},
+    catalog::{CatalogSchemaRef, Row},
 };
 
 pub(crate) struct TransactionHelper {
@@ -45,5 +45,12 @@ impl TransactionHelper {
 
     pub(crate) async fn rollback(&mut self) -> ILResult<()> {
         self.transaction.rollback().await
+    }
+}
+
+pub(crate) fn sql_identifier(ident: &str, database: CatalogDatabase) -> String {
+    match database {
+        CatalogDatabase::Sqlite => format!("`{}`", ident),
+        CatalogDatabase::Postgres => format!("\"{}\"", ident),
     }
 }
