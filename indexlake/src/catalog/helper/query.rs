@@ -128,12 +128,11 @@ impl TransactionHelper {
             Field::new("field_name", DataType::Utf8, false),
             Field::new("data_type", DataType::Utf8, false),
             Field::new("nullable", DataType::Boolean, false),
-            Field::new("default_value", DataType::Utf8, true),
             Field::new("metadata", DataType::Utf8, false),
         ]));
         let rows = self
             .query_rows(
-                &format!("SELECT field_name, data_type, nullable, default_value, metadata FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"),
+                &format!("SELECT field_name, data_type, nullable, metadata FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"),
                 schema,
             )
             .await?;
@@ -143,15 +142,13 @@ impl TransactionHelper {
             let data_type_str = row.utf8(1)?.expect("data_type is not null");
             let data_type = DataType::parse_sql_type(&data_type_str, self.database)?;
             let nullable = row.boolean(2)?.expect("nullable is not null");
-            let default_value = row.utf8(3)?.map(|v| v.to_string());
-            let metadata_str = row.utf8(4)?.expect("metadata is not null");
+            let metadata_str = row.utf8(3)?.expect("metadata is not null");
             let metadata: HashMap<String, String> =
                 serde_json::from_str(&metadata_str).map_err(|e| {
                     ILError::InternalError(format!("Failed to deserialize field metadata: {e:?}"))
                 })?;
             fields.push(
                 Field::new(field_name, data_type, nullable)
-                    .with_default_value(default_value)
                     .with_metadata(metadata),
             );
         }

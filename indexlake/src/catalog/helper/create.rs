@@ -28,19 +28,10 @@ impl TransactionHelper {
         columns.push(format!("{} BIGINT PRIMARY KEY", INTERNAL_ROW_ID_FIELD_NAME));
         for field in fields {
             columns.push(format!(
-                "{} {} {} {}",
+                "{} {} {}",
                 sql_identifier(&field.name, self.database),
                 field.data_type.to_sql(self.database),
-                if field.nullable {
-                    "NULL".to_string()
-                } else {
-                    "NOT NULL".to_string()
-                },
-                if let Some(default_value) = field.default_value.as_ref() {
-                    format!("DEFAULT {}", default_value)
-                } else {
-                    "".to_string()
-                }
+                if field.nullable { "NULL" } else { "NOT NULL" },
             ));
         }
         self.transaction

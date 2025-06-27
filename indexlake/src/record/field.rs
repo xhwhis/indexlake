@@ -10,7 +10,6 @@ pub struct Field {
     pub name: String,
     pub data_type: DataType,
     pub nullable: bool,
-    pub default_value: Option<String>,
     pub metadata: HashMap<String, String>,
 }
 
@@ -20,14 +19,8 @@ impl Field {
             name: name.into(),
             data_type,
             nullable,
-            default_value: None,
             metadata: HashMap::new(),
         }
-    }
-
-    pub fn with_default_value(mut self, default_value: Option<String>) -> Self {
-        self.default_value = default_value;
-        self
     }
 
     pub fn with_metadata(mut self, metadata: HashMap<String, String>) -> Self {

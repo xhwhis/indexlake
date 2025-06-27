@@ -87,18 +87,6 @@ async fn create_table(
         schema
             .fields
             .iter()
-            .map(|f| f.default_value.clone())
-            .collect::<Vec<_>>(),
-        expected_schema
-            .fields
-            .iter()
-            .map(|f| f.default_value.clone())
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(
-        schema
-            .fields
-            .iter()
             .map(|f| f.metadata.clone())
             .collect::<Vec<_>>(),
         expected_schema
