@@ -82,7 +82,7 @@ impl TransactionHelper {
         ]));
         let rows = self
             .query_rows(
-                &format!("SELECT table_id, table_name, namespace_id, config FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'"),
+                &format!("SELECT {} FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'", TableRecord::select_items().join(", ")),
                 schema,
             )
             .await?;

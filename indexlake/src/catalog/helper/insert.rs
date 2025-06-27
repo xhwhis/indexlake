@@ -19,12 +19,13 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn insert_table(&mut self, table_record: &TableRecord) -> ILResult<()> {
-        self.transaction.execute(&format!("INSERT INTO indexlake_table (table_id, table_name, namespace_id, config) VALUES ({}, '{}', {}, '{}')",
-            table_record.table_id,
-            table_record.table_name,
-            table_record.namespace_id,
-            serde_json::to_string(&table_record.config).map_err(|e| ILError::InternalError(format!("Failed to serialize table config: {e:?}")))?
-        )).await?;
+        self.transaction
+            .execute(&format!(
+                "INSERT INTO indexlake_table ({}) VALUES {}",
+                TableRecord::select_items().join(", "),
+                table_record.to_sql()?
+            ))
+            .await?;
         Ok(())
     }
 

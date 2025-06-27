@@ -1,4 +1,4 @@
-use crate::{catalog::CatalogDatabase, table::TableConfig};
+use crate::{ILError, ILResult, catalog::CatalogDatabase, table::TableConfig};
 
 #[derive(Debug, Clone)]
 pub(crate) struct TableRecord {
@@ -6,6 +6,22 @@ pub(crate) struct TableRecord {
     pub(crate) table_name: String,
     pub(crate) namespace_id: i64,
     pub(crate) config: TableConfig,
+}
+
+impl TableRecord {
+    pub(crate) fn to_sql(&self) -> ILResult<String> {
+        let config_str = serde_json::to_string(&self.config).map_err(|e| {
+            ILError::InternalError(format!("Failed to serialize table config: {e:?}"))
+        })?;
+        Ok(format!(
+            "({}, '{}', {}, '{}')",
+            self.table_id, self.table_name, self.namespace_id, config_str
+        ))
+    }
+
+    pub(crate) fn select_items() -> Vec<&'static str> {
+        vec!["table_id", "table_name", "namespace_id", "config"]
+    }
 }
 
 #[derive(Debug, Clone)]
