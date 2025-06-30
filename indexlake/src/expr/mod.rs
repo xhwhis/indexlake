@@ -1,4 +1,5 @@
 mod binary;
+mod builder;
 mod visitor;
 
 use std::sync::Arc;
@@ -90,14 +91,6 @@ impl Expr {
         }
     }
 
-    pub fn eq(self, other: Expr) -> Expr {
-        Expr::BinaryExpr(BinaryExpr {
-            left: Box::new(self),
-            op: BinaryOp::Eq,
-            right: Box::new(other),
-        })
-    }
-
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
         match self {
             Expr::Column(name) => sql_identifier(name, database),
@@ -120,14 +113,6 @@ impl Expr {
                 format!("{} IN ({})", in_list.expr.to_sql(database), list)
             }
         }
-    }
-
-    pub fn plus(self, other: Expr) -> Expr {
-        Expr::BinaryExpr(BinaryExpr {
-            left: Box::new(self),
-            op: BinaryOp::Plus,
-            right: Box::new(other),
-        })
     }
 }
 

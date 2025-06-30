@@ -2,7 +2,8 @@ use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::{DataType, Field};
 
-use crate::catalog::DataFileRecord;
+use crate::catalog::{DataFileRecord, RowMetadataRecord};
+use crate::expr::Expr;
 use crate::{
     ILError, ILResult,
     catalog::{
@@ -174,16 +175,42 @@ impl TransactionHelper {
         }
     }
 
-    pub(crate) async fn scan_row_metadata(&mut self, table_id: i64) -> ILResult<Vec<Row>> {
+    pub(crate) async fn scan_row_metadata(
+        &mut self,
+        table_id: i64,
+        condition: &Expr,
+    ) -> ILResult<Vec<RowMetadataRecord>> {
         let schema = Arc::new(CatalogSchema::new(vec![
-            Column::new("row_id", CatalogDataType::Int64, false),
-            Column::new("location", CatalogDataType::Utf8, true),
+            Column::new(
+                INTERNAL_ROW_ID_FIELD_NAME.to_string(),
+                CatalogDataType::Int64,
+                false,
+            ),
+            Column::new("location", CatalogDataType::Utf8, false),
+            Column::new("deleted", CatalogDataType::Boolean, false),
         ]));
-        self.query_rows(
-                &format!("SELECT {INTERNAL_ROW_ID_FIELD_NAME}, location FROM indexlake_row_metadata_{table_id} WHERE deleted = FALSE"),
+        let rows = self
+            .query_rows(
+                &format!(
+                    "SELECT {} FROM indexlake_row_metadata_{table_id} WHERE {}",
+                    RowMetadataRecord::select_items().join(", "),
+                    condition.to_sql(self.database)
+                ),
                 schema,
             )
-            .await
+            .await?;
+        let mut records = Vec::with_capacity(rows.len());
+        for row in rows {
+            let row_id = row.int64(0)?.expect("row_id is not null");
+            let location = row.utf8(1)?.expect("location is not null");
+            let deleted = row.boolean(2)?.expect("deleted is not null");
+            records.push(RowMetadataRecord {
+                row_id,
+                location: location.clone(),
+                deleted,
+            });
+        }
+        Ok(records)
     }
 
     pub(crate) async fn scan_inline_rows(

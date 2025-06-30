@@ -6,6 +6,7 @@ use crate::{ILError, ILResult, catalog::CatalogDatabase};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogDataType {
+    Boolean,
     Int16,
     Int32,
     Int64,
@@ -13,12 +14,12 @@ pub enum CatalogDataType {
     Float64,
     Utf8,
     Binary,
-    Boolean,
 }
 
 impl CatalogDataType {
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
         match self {
+            CatalogDataType::Boolean => "BOOLEAN".to_string(),
             CatalogDataType::Int16 => "SMALLINT".to_string(),
             CatalogDataType::Int32 => "INTEGER".to_string(),
             CatalogDataType::Int64 => "BIGINT".to_string(),
@@ -35,23 +36,21 @@ impl CatalogDataType {
                 CatalogDatabase::Sqlite => "BLOB".to_string(),
                 CatalogDatabase::Postgres => "BYTEA".to_string(),
             },
-            CatalogDataType::Boolean => "BOOLEAN".to_string(),
         }
     }
 
     pub(crate) fn from_arrow(datatype: &DataType) -> ILResult<Self> {
         match datatype {
+            DataType::Boolean => Ok(CatalogDataType::Boolean),
             DataType::Int16 => Ok(CatalogDataType::Int16),
             DataType::Int32 => Ok(CatalogDataType::Int32),
             DataType::Int64 => Ok(CatalogDataType::Int64),
             DataType::Float32 => Ok(CatalogDataType::Float32),
             DataType::Float64 => Ok(CatalogDataType::Float64),
-            DataType::Boolean => Ok(CatalogDataType::Boolean),
             DataType::Utf8 => Ok(CatalogDataType::Utf8),
             DataType::Binary => Ok(CatalogDataType::Binary),
             _ => Err(ILError::NotSupported(format!(
-                "Unsupported datatype: {:?}",
-                datatype
+                "Unsupported datatype: {datatype:?}"
             ))),
         }
     }
@@ -60,6 +59,7 @@ impl CatalogDataType {
 impl std::fmt::Display for CatalogDataType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            CatalogDataType::Boolean => write!(f, "Boolean"),
             CatalogDataType::Int16 => write!(f, "Int16"),
             CatalogDataType::Int32 => write!(f, "Int32"),
             CatalogDataType::Int64 => write!(f, "Int64"),
@@ -67,7 +67,6 @@ impl std::fmt::Display for CatalogDataType {
             CatalogDataType::Float64 => write!(f, "Float64"),
             CatalogDataType::Utf8 => write!(f, "Utf8"),
             CatalogDataType::Binary => write!(f, "Binary"),
-            CatalogDataType::Boolean => write!(f, "Boolean"),
         }
     }
 }

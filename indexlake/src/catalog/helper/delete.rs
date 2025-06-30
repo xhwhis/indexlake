@@ -1,7 +1,11 @@
-use crate::{ILResult, catalog::INTERNAL_ROW_ID_FIELD_NAME, catalog::TransactionHelper};
+use crate::{
+    ILResult,
+    catalog::{INTERNAL_ROW_ID_FIELD_NAME, TransactionHelper},
+    expr::Expr,
+};
 
 impl TransactionHelper {
-    pub(crate) async fn delete_inline_rows(
+    pub(crate) async fn delete_inline_rows_by_row_ids(
         &mut self,
         table_id: i64,
         row_ids: &[i64],
@@ -15,6 +19,19 @@ impl TransactionHelper {
                     .map(|id| id.to_string())
                     .collect::<Vec<_>>()
                     .join(", ")
+            ))
+            .await
+    }
+
+    pub(crate) async fn delete_inline_rows_by_condition(
+        &mut self,
+        table_id: i64,
+        condition: &Expr,
+    ) -> ILResult<usize> {
+        self.transaction
+            .execute(&format!(
+                "DELETE FROM indexlake_inline_row_{table_id} WHERE {}",
+                condition.to_sql(self.database)
             ))
             .await
     }

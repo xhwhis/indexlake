@@ -171,6 +171,17 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
     for row in rows {
         for (i, field) in schema.fields.iter().enumerate() {
             match field.data_type() {
+                DataType::Boolean => {
+                    builder_append!(
+                        array_builders[i],
+                        BooleanBuilder,
+                        field,
+                        row,
+                        boolean,
+                        i,
+                        |v| Ok::<_, ILError>(v as bool)
+                    );
+                }
                 DataType::Int16 => {
                     builder_append!(array_builders[i], Int16Builder, field, row, int16, i, |v| {
                         Ok::<_, ILError>(v as i16)
@@ -206,17 +217,6 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         float64,
                         i,
                         |v| Ok::<_, ILError>(v as f64)
-                    );
-                }
-                DataType::Boolean => {
-                    builder_append!(
-                        array_builders[i],
-                        BooleanBuilder,
-                        field,
-                        row,
-                        boolean,
-                        i,
-                        |v| Ok::<_, ILError>(v as bool)
                     );
                 }
                 DataType::Utf8 => {

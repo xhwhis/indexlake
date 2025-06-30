@@ -13,6 +13,7 @@ use crate::{ILError, ILResult, catalog::CatalogDatabase};
 
 #[derive(Debug, Clone, Drive, DriveMut)]
 pub enum Scalar {
+    Boolean(Option<bool>),
     Int16(Option<i16>),
     Int32(Option<i32>),
     Int64(Option<i64>),
@@ -20,12 +21,12 @@ pub enum Scalar {
     Float64(Option<f64>),
     Utf8(Option<String>),
     Binary(Option<Vec<u8>>),
-    Boolean(Option<bool>),
 }
 
 impl Scalar {
     pub fn try_new_null(data_type: &DataType) -> ILResult<Self> {
         Ok(match data_type {
+            DataType::Boolean => Scalar::Boolean(None),
             DataType::Int16 => Scalar::Int16(None),
             DataType::Int32 => Scalar::Int32(None),
             DataType::Int64 => Scalar::Int64(None),
@@ -33,7 +34,6 @@ impl Scalar {
             DataType::Float64 => Scalar::Float64(None),
             DataType::Utf8 => Scalar::Utf8(None),
             DataType::Binary => Scalar::Binary(None),
-            DataType::Boolean => Scalar::Boolean(None),
             _ => {
                 return Err(ILError::NotSupported(format!(
                     "Cannot create null scalar for data type: {:?}",
@@ -44,6 +44,7 @@ impl Scalar {
     }
     pub fn is_null(&self) -> bool {
         match self {
+            Scalar::Boolean(v) => v.is_none(),
             Scalar::Int16(v) => v.is_none(),
             Scalar::Int32(v) => v.is_none(),
             Scalar::Int64(v) => v.is_none(),
@@ -51,7 +52,6 @@ impl Scalar {
             Scalar::Float64(v) => v.is_none(),
             Scalar::Utf8(v) => v.is_none(),
             Scalar::Binary(v) => v.is_none(),
-            Scalar::Boolean(v) => v.is_none(),
         }
     }
 
@@ -67,6 +67,8 @@ impl Scalar {
 
     pub fn to_sql(&self, database: CatalogDatabase) -> String {
         match self {
+            Scalar::Boolean(Some(value)) => value.to_string(),
+            Scalar::Boolean(None) => "null".to_string(),
             Scalar::Int16(Some(value)) => value.to_string(),
             Scalar::Int16(None) => "null".to_string(),
             Scalar::Int32(Some(value)) => value.to_string(),
@@ -84,8 +86,6 @@ impl Scalar {
                 CatalogDatabase::Postgres => format!("E'\\\\x{}'", hex::encode(value)),
             },
             Scalar::Binary(None) => "null".to_string(),
-            Scalar::Boolean(Some(value)) => value.to_string(),
-            Scalar::Boolean(None) => "null".to_string(),
         }
     }
 
@@ -95,6 +95,7 @@ impl Scalar {
 
     pub fn to_array_of_size(&self, size: usize) -> ILResult<ArrayRef> {
         Ok(match self {
+            Scalar::Boolean(e) => Arc::new(BooleanArray::from(vec![*e; size])) as ArrayRef,
             Scalar::Int16(e) => match e {
                 Some(value) => Arc::new(Int16Array::from_value(*value, size)),
                 None => new_null_array(&DataType::Int16, size),
@@ -125,7 +126,6 @@ impl Scalar {
                 }
                 None => Arc::new(repeat_n(None::<&str>, size).collect::<BinaryArray>()),
             },
-            Scalar::Boolean(e) => Arc::new(BooleanArray::from(vec![*e; size])) as ArrayRef,
         })
     }
 
@@ -135,6 +135,10 @@ impl Scalar {
             return Self::try_new_null(array.data_type());
         }
         Ok(match array.data_type() {
+            DataType::Boolean => {
+                let array = array.as_boolean_opt().expect("Failed to cast array");
+                Scalar::Boolean(Some(array.value(index)))
+            }
             DataType::Int16 => {
                 let array = array
                     .as_primitive_opt::<Int16Type>()
@@ -173,10 +177,6 @@ impl Scalar {
                 let array = array.as_binary_opt::<i32>().expect("Failed to cast array");
                 Scalar::Binary(Some(array.value(index).to_vec()))
             }
-            DataType::Boolean => {
-                let array = array.as_boolean_opt().expect("Failed to cast array");
-                Scalar::Boolean(Some(array.value(index)))
-            }
             _ => todo!(),
         })
     }
@@ -185,6 +185,8 @@ impl Scalar {
 impl PartialEq for Scalar {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Scalar::Boolean(v1), Scalar::Boolean(v2)) => v1.eq(v2),
+            (Scalar::Boolean(_), _) => false,
             (Scalar::Int16(v1), Scalar::Int16(v2)) => v1.eq(v2),
             (Scalar::Int16(_), _) => false,
             (Scalar::Int32(v1), Scalar::Int32(v2)) => v1.eq(v2),
@@ -205,8 +207,6 @@ impl PartialEq for Scalar {
             (Scalar::Utf8(_), _) => false,
             (Scalar::Binary(v1), Scalar::Binary(v2)) => v1.eq(v2),
             (Scalar::Binary(_), _) => false,
-            (Scalar::Boolean(v1), Scalar::Boolean(v2)) => v1.eq(v2),
-            (Scalar::Boolean(_), _) => false,
         }
     }
 }
@@ -216,6 +216,8 @@ impl Eq for Scalar {}
 impl PartialOrd for Scalar {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
+            (Scalar::Boolean(v1), Scalar::Boolean(v2)) => v1.partial_cmp(v2),
+            (Scalar::Boolean(_), _) => None,
             (Scalar::Int16(v1), Scalar::Int16(v2)) => v1.partial_cmp(v2),
             (Scalar::Int16(_), _) => None,
             (Scalar::Int32(v1), Scalar::Int32(v2)) => v1.partial_cmp(v2),
@@ -236,8 +238,6 @@ impl PartialOrd for Scalar {
             (Scalar::Utf8(_), _) => None,
             (Scalar::Binary(v1), Scalar::Binary(v2)) => v1.partial_cmp(v2),
             (Scalar::Binary(_), _) => None,
-            (Scalar::Boolean(v1), Scalar::Boolean(v2)) => v1.partial_cmp(v2),
-            (Scalar::Boolean(_), _) => None,
         }
     }
 }
@@ -245,6 +245,8 @@ impl PartialOrd for Scalar {
 impl Display for Scalar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Scalar::Boolean(Some(value)) => write!(f, "{}", value),
+            Scalar::Boolean(None) => write!(f, "null"),
             Scalar::Int16(Some(value)) => write!(f, "{}", value),
             Scalar::Int16(None) => write!(f, "null"),
             Scalar::Int32(Some(value)) => write!(f, "{}", value),
@@ -259,8 +261,6 @@ impl Display for Scalar {
             Scalar::Utf8(None) => write!(f, "null"),
             Scalar::Binary(Some(value)) => write!(f, "{}", hex::encode(value)),
             Scalar::Binary(None) => write!(f, "null"),
-            Scalar::Boolean(Some(value)) => write!(f, "{}", value),
-            Scalar::Boolean(None) => write!(f, "null"),
         }
     }
 }

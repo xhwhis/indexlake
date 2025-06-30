@@ -7,7 +7,7 @@ use crate::{
 };
 
 impl TransactionHelper {
-    pub(crate) async fn mark_rows_deleted(
+    pub(crate) async fn mark_rows_deleted_by_row_ids(
         &mut self,
         table_id: i64,
         row_ids: &[i64],
@@ -21,6 +21,18 @@ impl TransactionHelper {
             .collect::<Vec<_>>()
             .join(", ");
         self.transaction.execute(&format!("UPDATE indexlake_row_metadata_{table_id} SET deleted = TRUE WHERE {INTERNAL_ROW_ID_FIELD_NAME} IN ({row_ids_str})")).await
+    }
+
+    pub(crate) async fn mark_rows_deleted_by_condition(
+        &mut self,
+        table_id: i64,
+        condition: &Expr,
+    ) -> ILResult<usize> {
+        let sql = format!(
+            "UPDATE indexlake_row_metadata_{table_id} SET deleted = TRUE WHERE {}",
+            condition.to_sql(self.database)
+        );
+        self.transaction.execute(&sql).await
     }
 
     pub(crate) async fn update_inline_rows(

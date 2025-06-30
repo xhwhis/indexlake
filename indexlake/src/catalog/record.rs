@@ -1,4 +1,8 @@
-use crate::{ILError, ILResult, catalog::CatalogDatabase, table::TableConfig};
+use crate::{
+    ILError, ILResult,
+    catalog::{CatalogDatabase, INTERNAL_ROW_ID_FIELD_NAME},
+    table::TableConfig,
+};
 
 #[derive(Debug, Clone)]
 pub(crate) struct TableRecord {
@@ -87,5 +91,9 @@ impl RowMetadataRecord {
 
     pub(crate) fn to_sql(&self) -> String {
         format!("({}, '{}', {})", self.row_id, self.location, self.deleted)
+    }
+
+    pub(crate) fn select_items() -> Vec<&'static str> {
+        vec![INTERNAL_ROW_ID_FIELD_NAME, "location", "deleted"]
     }
 }

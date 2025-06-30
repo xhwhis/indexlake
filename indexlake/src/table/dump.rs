@@ -107,7 +107,7 @@ impl DumpTask {
             .await?;
 
         let deleted_count = tx_helper
-            .delete_inline_rows(self.table_id, &self.dump_row_ids)
+            .delete_inline_rows_by_row_ids(self.table_id, &self.dump_row_ids)
             .await?;
         if deleted_count != self.dump_row_ids.len() {
             return Err(ILError::InternalError(format!(
