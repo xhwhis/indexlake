@@ -2,14 +2,16 @@ use arrow::array::{Int64Array, RecordBatch, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::util::pretty::pretty_format_batches;
 use futures::TryStreamExt;
+use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
 use indexlake::expr::Expr;
 use indexlake::{
     LakeClient,
     catalog::Catalog,
-    catalog::CatalogScalar,
+    catalog::Scalar,
     storage::Storage,
     table::{TableConfig, TableCreation},
 };
+use indexlake_integration_tests::utils::sort_record_batches;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
@@ -18,7 +20,7 @@ use std::sync::Arc;
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
-// #[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn update_table(
     #[future(awt)]
@@ -59,16 +61,14 @@ async fn update_table(
 
     table.insert(&record_batch).await.unwrap();
 
-    let set_map = HashMap::from([(
-        "name".to_string(),
-        CatalogScalar::Utf8(Some("Alice2".to_string())),
-    )]);
-    let condition = Expr::Column("id".to_string()).eq(Expr::Literal(CatalogScalar::Int64(Some(1))));
+    let set_map = HashMap::from([("name".to_string(), Scalar::Utf8(Some("Alice2".to_string())))]);
+    let condition = Expr::Column("id".to_string()).eq(Expr::Literal(Scalar::Int64(Some(1))));
     table.update(set_map, &condition).await.unwrap();
 
     let batch_stream = table.scan_arrow().await.unwrap();
     let batches = batch_stream.try_collect::<Vec<_>>().await.unwrap();
-    let table_str = pretty_format_batches(&batches).unwrap().to_string();
+    let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME).unwrap();
+    let table_str = pretty_format_batches(&[sorted_batch]).unwrap().to_string();
     println!("{}", table_str);
     assert_eq!(
         table_str,

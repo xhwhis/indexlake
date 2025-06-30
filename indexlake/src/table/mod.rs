@@ -19,7 +19,7 @@ pub(crate) use truncate::*;
 pub(crate) use update::*;
 
 use crate::RecordBatchStream;
-use crate::catalog::{CatalogScalar, CatalogSchemaRef};
+use crate::catalog::{CatalogSchemaRef, Scalar};
 use crate::expr::Expr;
 use crate::utils::{has_duplicated_items, schema_with_row_id};
 use crate::{
@@ -91,11 +91,7 @@ impl Table {
     }
 
     // TODO update by arrow record batch
-    pub async fn update(
-        &self,
-        set_map: HashMap<String, CatalogScalar>,
-        condition: &Expr,
-    ) -> ILResult<()> {
+    pub async fn update(&self, set_map: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
         process_update_rows(&mut tx_helper, self.table_id, set_map, condition).await?;
         tx_helper.commit().await?;

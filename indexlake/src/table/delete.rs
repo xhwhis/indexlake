@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use arrow::array::BooleanArray;
+use arrow::array::{AsArray, BooleanArray};
 use arrow::datatypes::SchemaRef;
 
 use crate::catalog::{CatalogSchema, TransactionHelper, rows_to_record_batch};
@@ -19,13 +19,15 @@ pub(crate) async fn process_delete_rows(
         .await?;
     let record_batch = rows_to_record_batch(table_schema, &rows)?;
 
-    let array = condition.eval_arrow(&record_batch)?;
-    let Some(bool_array) = array.as_any().downcast_ref::<BooleanArray>() else {
-        return Err(ILError::InternalError(format!(
+    let array = condition
+        .eval(&record_batch)?
+        .into_array(record_batch.num_rows())?;
+    let bool_array = array.as_boolean_opt().ok_or_else(|| {
+        ILError::InternalError(format!(
             "Expected BooleanArray, got {:?}",
             array.data_type()
-        )));
-    };
+        ))
+    })?;
 
     let mut row_ids = Vec::new();
     for (i, v) in bool_array.iter().enumerate() {

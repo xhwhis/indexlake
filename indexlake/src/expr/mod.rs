@@ -1,7 +1,9 @@
 mod binary;
 mod visitor;
 
-use arrow::array::{ArrayRef, RecordBatch};
+use std::sync::Arc;
+
+use arrow::array::{ArrayRef, AsArray, RecordBatch};
 pub use binary::*;
 pub use visitor::*;
 
@@ -11,7 +13,7 @@ use crate::catalog::sql_identifier;
 use crate::{
     ILError, ILResult,
     catalog::CatalogDatabase,
-    catalog::{CatalogScalar, Row},
+    catalog::{Row, Scalar},
 };
 
 /// Represents logical expressions such as `A + 1`
@@ -20,7 +22,7 @@ pub enum Expr {
     /// A named reference
     Column(String),
     /// A constant value
-    Literal(CatalogScalar),
+    Literal(Scalar),
     /// A binary expression such as "age > 21"
     BinaryExpr(BinaryExpr),
     /// Negation of an expression. The expression's type must be a boolean to make sense
@@ -42,8 +44,50 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn eval_arrow(&self, record: &RecordBatch) -> ILResult<ArrayRef> {
-        todo!()
+    pub fn eval(&self, batch: &RecordBatch) -> ILResult<ColumnarValue> {
+        match self {
+            Expr::Column(name) => {
+                let index = batch.schema().index_of(name)?;
+                Ok(ColumnarValue::Array(batch.column(index).clone()))
+            }
+            Expr::Literal(scalar) => Ok(ColumnarValue::Scalar(scalar.clone())),
+            Expr::BinaryExpr(binary_expr) => binary_expr.eval(batch),
+            Expr::Not(expr) => match expr.eval(batch)? {
+                ColumnarValue::Array(array) => {
+                    let array = array.as_boolean_opt().ok_or_else(|| {
+                        ILError::InternalError(format!(
+                            "Expected boolean array, got {}",
+                            array.data_type()
+                        ))
+                    })?;
+                    Ok(ColumnarValue::Array(Arc::new(
+                        arrow::compute::kernels::boolean::not(array)?,
+                    )))
+                }
+                ColumnarValue::Scalar(scalar) => {
+                    let bool_value = scalar.as_bool()?;
+                    let not_bool_value = bool_value.map(|b| !b);
+                    Ok(ColumnarValue::Scalar(Scalar::Boolean(not_bool_value)))
+                }
+            },
+            Expr::IsNull(expr) => match expr.eval(batch)? {
+                ColumnarValue::Array(array) => Ok(ColumnarValue::Array(Arc::new(
+                    arrow::compute::is_null(&array)?,
+                ))),
+                ColumnarValue::Scalar(scalar) => Ok(ColumnarValue::Scalar(Scalar::Boolean(Some(
+                    scalar.is_null(),
+                )))),
+            },
+            Expr::IsNotNull(expr) => match expr.eval(batch)? {
+                ColumnarValue::Array(array) => Ok(ColumnarValue::Array(Arc::new(
+                    arrow::compute::is_not_null(&array)?,
+                ))),
+                ColumnarValue::Scalar(scalar) => Ok(ColumnarValue::Scalar(Scalar::Boolean(Some(
+                    !scalar.is_null(),
+                )))),
+            },
+            _ => todo!(),
+        }
     }
 
     pub fn eq(self, other: Expr) -> Expr {
@@ -124,4 +168,21 @@ pub struct InList {
     pub list: Vec<Expr>,
     /// Whether the expression is negated
     pub negated: bool,
+}
+
+#[derive(Clone, Debug)]
+pub enum ColumnarValue {
+    /// Array of values
+    Array(ArrayRef),
+    /// A single value
+    Scalar(Scalar),
+}
+
+impl ColumnarValue {
+    pub fn into_array(self, num_rows: usize) -> ILResult<ArrayRef> {
+        Ok(match self {
+            ColumnarValue::Array(array) => array,
+            ColumnarValue::Scalar(scalar) => scalar.to_array_of_size(num_rows)?,
+        })
+    }
 }

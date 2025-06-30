@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     ILError, ILResult,
-    catalog::{CatalogScalar, CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME},
+    catalog::{CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME, Scalar},
 };
 use arrow::array::{
     Array, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Float32Array, Float32Builder,
@@ -14,11 +14,11 @@ use arrow::datatypes::{DataType, SchemaRef};
 #[derive(Debug)]
 pub struct Row {
     pub schema: CatalogSchemaRef,
-    pub values: Vec<CatalogScalar>,
+    pub values: Vec<Scalar>,
 }
 
 impl Row {
-    pub fn new(schema: CatalogSchemaRef, values: Vec<CatalogScalar>) -> Self {
+    pub fn new(schema: CatalogSchemaRef, values: Vec<Scalar>) -> Self {
         assert_eq!(schema.fields.len(), values.len());
         Self { schema, values }
     }
@@ -32,7 +32,7 @@ impl Row {
 
     pub fn int16(&self, index: usize) -> ILResult<Option<i16>> {
         match self.values[index] {
-            CatalogScalar::Int16(v) => Ok(v),
+            Scalar::Int16(v) => Ok(v),
             _ => Err(ILError::InternalError(format!(
                 "Expected Int16 at index {index} for row {self:?}"
             ))),
@@ -40,7 +40,7 @@ impl Row {
     }
     pub fn int32(&self, index: usize) -> ILResult<Option<i32>> {
         match self.values[index] {
-            CatalogScalar::Int32(v) => Ok(v),
+            Scalar::Int32(v) => Ok(v),
             _ => Err(ILError::InternalError(format!(
                 "Expected Int32 at index {index} for row {self:?}"
             ))),
@@ -49,7 +49,7 @@ impl Row {
 
     pub fn int64(&self, index: usize) -> ILResult<Option<i64>> {
         match self.values[index] {
-            CatalogScalar::Int64(v) => Ok(v),
+            Scalar::Int64(v) => Ok(v),
             _ => Err(ILError::InternalError(format!(
                 "Expected BigInt at index {index} for row {self:?}"
             ))),
@@ -58,7 +58,7 @@ impl Row {
 
     pub fn float32(&self, index: usize) -> ILResult<Option<f32>> {
         match self.values[index] {
-            CatalogScalar::Float32(v) => Ok(v),
+            Scalar::Float32(v) => Ok(v),
             _ => Err(ILError::InternalError(format!(
                 "Expected Float32 at index {index} for row {self:?}"
             ))),
@@ -67,7 +67,7 @@ impl Row {
 
     pub fn float64(&self, index: usize) -> ILResult<Option<f64>> {
         match self.values[index] {
-            CatalogScalar::Float64(v) => Ok(v),
+            Scalar::Float64(v) => Ok(v),
             _ => Err(ILError::InternalError(format!(
                 "Expected Float64 at index {index} for row {self:?}"
             ))),
@@ -76,7 +76,7 @@ impl Row {
 
     pub fn utf8(&self, index: usize) -> ILResult<Option<&String>> {
         match &self.values[index] {
-            CatalogScalar::Utf8(v) => Ok(v.as_ref()),
+            Scalar::Utf8(v) => Ok(v.as_ref()),
             _ => Err(ILError::InternalError(format!(
                 "Expected Varchar at index {index} for row {self:?}"
             ))),
@@ -85,7 +85,7 @@ impl Row {
 
     pub fn binary(&self, index: usize) -> ILResult<Option<&Vec<u8>>> {
         match &self.values[index] {
-            CatalogScalar::Binary(v) => Ok(v.as_ref()),
+            Scalar::Binary(v) => Ok(v.as_ref()),
             _ => Err(ILError::InternalError(format!(
                 "Expected Binary at index {index} for row {self:?}"
             ))),
@@ -94,7 +94,7 @@ impl Row {
 
     pub fn boolean(&self, index: usize) -> ILResult<Option<bool>> {
         match self.values[index] {
-            CatalogScalar::Boolean(v) => Ok(v),
+            Scalar::Boolean(v) => Ok(v),
             _ => Err(ILError::InternalError(format!(
                 "Expected Boolean at index {index} for row {self:?}"
             ))),

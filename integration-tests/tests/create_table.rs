@@ -20,7 +20,7 @@ use arrow::array::{
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
-// #[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn create_table(
     #[future(awt)]
@@ -66,7 +66,7 @@ async fn create_table(
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
-// #[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn table_data_types(
     #[future(awt)]
@@ -136,7 +136,7 @@ async fn table_data_types(
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
-// #[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn duplicated_table_name(
     #[future(awt)]

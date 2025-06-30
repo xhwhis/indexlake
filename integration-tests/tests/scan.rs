@@ -2,12 +2,14 @@ use arrow::array::{Int64Array, RecordBatch, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::util::pretty::pretty_format_batches;
 use futures::TryStreamExt;
+use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
 use indexlake::{
     LakeClient,
     catalog::Catalog,
     storage::Storage,
     table::{TableConfig, TableCreation},
 };
+use indexlake_integration_tests::utils::sort_record_batches;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
@@ -15,7 +17,7 @@ use std::sync::Arc;
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
-// #[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn scan_table(
     #[future(awt)]
@@ -63,16 +65,17 @@ async fn scan_table(
 
     let batch_stream = table.scan_arrow().await.unwrap();
     let batches = batch_stream.try_collect::<Vec<_>>().await.unwrap();
-    let table_str = pretty_format_batches(&batches).unwrap().to_string();
+    let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME).unwrap();
+    let table_str = pretty_format_batches(&[sorted_batch]).unwrap().to_string();
     println!("{}", table_str);
     assert_eq!(
         table_str,
         r#"+-------------------+----+---------+
 | _indexlake_row_id | id | name    |
 +-------------------+----+---------+
-| 3                 | 3  | Charlie |
 | 1                 | 1  | Alice   |
 | 2                 | 2  | Bob     |
+| 3                 | 3  | Charlie |
 +-------------------+----+---------+"#,
     );
 }

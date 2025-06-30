@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     ILResult,
-    catalog::{CatalogScalar, INTERNAL_ROW_ID_FIELD_NAME, TransactionHelper, sql_identifier},
+    catalog::{INTERNAL_ROW_ID_FIELD_NAME, Scalar, TransactionHelper, sql_identifier},
     expr::Expr,
 };
 
@@ -26,7 +26,7 @@ impl TransactionHelper {
     pub(crate) async fn update_inline_rows(
         &mut self,
         table_id: i64,
-        set_map: &HashMap<String, CatalogScalar>,
+        set_map: &HashMap<String, Scalar>,
         condition: &Expr,
     ) -> ILResult<()> {
         let mut set_strs = Vec::new();

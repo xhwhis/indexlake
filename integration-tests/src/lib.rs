@@ -1,4 +1,5 @@
 mod docker;
+pub mod utils;
 
 use std::{
     path::PathBuf,
