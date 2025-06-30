@@ -82,14 +82,14 @@ async fn table_data_types(
     client.create_namespace(namespace_name).await.unwrap();
 
     let table_schema = Arc::new(Schema::new(vec![
+        Field::new("boolean_col", DataType::Boolean, true),
         Field::new("int16_col", DataType::Int16, true),
         Field::new("int32_col", DataType::Int32, true),
         Field::new("int64_col", DataType::Int64, true),
-        // Field::new("float32_col", DataType::Float32, true),
-        // Field::new("float64_col", DataType::Float64, true),
+        Field::new("float32_col", DataType::Float32, true),
+        Field::new("float64_col", DataType::Float64, true),
         Field::new("utf8_col", DataType::Utf8, true),
-        // Field::new("binary_col", DataType::Binary, true),
-        // Field::new("boolean_col", DataType::Boolean, true),
+        Field::new("binary_col", DataType::Binary, true),
     ]));
 
     let table_name = "test_table";
@@ -107,14 +107,14 @@ async fn table_data_types(
     let record_batch = RecordBatch::try_new(
         table_schema.clone(),
         vec![
+            Arc::new(BooleanArray::from(vec![true])),
             Arc::new(Int16Array::from(vec![1])),
-            Arc::new(Int32Array::from(vec![1])),
-            Arc::new(Int64Array::from(vec![2])),
-            // Arc::new(Float32Array::from(vec![1.1])),
-            // Arc::new(Float64Array::from(vec![1.1])),
+            Arc::new(Int32Array::from(vec![2])),
+            Arc::new(Int64Array::from(vec![3])),
+            Arc::new(Float32Array::from(vec![1.1])),
+            Arc::new(Float64Array::from(vec![2.2])),
             Arc::new(StringArray::from(vec!["utf8"])),
-            // Arc::new(BinaryArray::from_vec(vec![b"0001"])),
-            // Arc::new(BooleanArray::from(vec![true])),
+            Arc::new(BinaryArray::from_vec(vec![&vec![0u8, 1u8]])),
         ],
     )
     .unwrap();
@@ -126,11 +126,11 @@ async fn table_data_types(
     println!("{}", table_str);
     assert_eq!(
         table_str,
-        r#"+-------------------+-----------+-----------+-----------+----------+
-| _indexlake_row_id | int16_col | int32_col | int64_col | utf8_col |
-+-------------------+-----------+-----------+-----------+----------+
-| 1                 | 1         | 1         | 2         | utf8     |
-+-------------------+-----------+-----------+-----------+----------+"#,
+        r#"+-------------------+-------------+-----------+-----------+-----------+-------------+-------------+----------+------------+
+| _indexlake_row_id | boolean_col | int16_col | int32_col | int64_col | float32_col | float64_col | utf8_col | binary_col |
++-------------------+-------------+-----------+-----------+-----------+-------------+-------------+----------+------------+
+| 1                 | true        | 1         | 2         | 3         | 1.1         | 2.2         | utf8     | 0001       |
++-------------------+-------------+-----------+-----------+-----------+-------------+-------------+----------+------------+"#,
     );
 }
 

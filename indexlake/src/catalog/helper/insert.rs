@@ -1,7 +1,7 @@
 use crate::{
     ILError, ILResult,
+    catalog::INTERNAL_ROW_ID_FIELD_NAME,
     catalog::{DataFileRecord, RowMetadataRecord, TableRecord, TransactionHelper},
-    catalog::{INTERNAL_ROW_ID_FIELD_NAME, sql_identifier},
 };
 use arrow::datatypes::Fields;
 
@@ -72,7 +72,7 @@ impl TransactionHelper {
                 "INSERT INTO indexlake_inline_row_{table_id} ({}) VALUES {}",
                 field_names
                     .iter()
-                    .map(|name| sql_identifier(name, self.database))
+                    .map(|name| self.database.sql_identifier(name))
                     .collect::<Vec<_>>()
                     .join(", "),
                 values.join(", ")

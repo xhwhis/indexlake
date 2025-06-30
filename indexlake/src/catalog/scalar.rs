@@ -81,10 +81,7 @@ impl Scalar {
             Scalar::Float64(None) => "null".to_string(),
             Scalar::Utf8(Some(value)) => format!("'{}'", value),
             Scalar::Utf8(None) => "null".to_string(),
-            Scalar::Binary(Some(value)) => match database {
-                CatalogDatabase::Sqlite => format!("X'{}'", hex::encode(value)),
-                CatalogDatabase::Postgres => format!("E'\\\\x{}'", hex::encode(value)),
-            },
+            Scalar::Binary(Some(value)) => database.sql_binary_value(value),
             Scalar::Binary(None) => "null".to_string(),
         }
     }

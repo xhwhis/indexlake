@@ -47,10 +47,3 @@ impl TransactionHelper {
         self.transaction.rollback().await
     }
 }
-
-pub(crate) fn sql_identifier(ident: &str, database: CatalogDatabase) -> String {
-    match database {
-        CatalogDatabase::Sqlite => format!("`{}`", ident),
-        CatalogDatabase::Postgres => format!("\"{}\"", ident),
-    }
-}

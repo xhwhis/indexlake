@@ -46,10 +46,7 @@ impl DataFileRecord {
             .map(|id| id.to_le_bytes())
             .flatten()
             .collect::<Vec<_>>();
-        let row_ids_sql = match database {
-            CatalogDatabase::Sqlite => format!("X'{}'", hex::encode(&row_ids_bytes)),
-            CatalogDatabase::Postgres => format!("E'\\\\x{}'", hex::encode(&row_ids_bytes)),
-        };
+        let row_ids_sql = database.sql_binary_value(&row_ids_bytes);
         format!(
             "({}, {}, '{}', {}, {}, {})",
             self.data_file_id,

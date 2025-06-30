@@ -10,7 +10,6 @@ pub use visitor::*;
 
 use derive_visitor::{Drive, DriveMut};
 
-use crate::catalog::sql_identifier;
 use crate::{
     ILError, ILResult,
     catalog::CatalogDatabase,
@@ -93,7 +92,7 @@ impl Expr {
 
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
         match self {
-            Expr::Column(name) => sql_identifier(name, database),
+            Expr::Column(name) => database.sql_identifier(name),
             Expr::Literal(scalar) => scalar.to_sql(database),
             Expr::BinaryExpr(binary_expr) => binary_expr.to_sql(database),
             Expr::Not(expr) => format!("NOT {}", expr.to_sql(database)),

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     ILResult,
-    catalog::{INTERNAL_ROW_ID_FIELD_NAME, Scalar, TransactionHelper, sql_identifier},
+    catalog::{INTERNAL_ROW_ID_FIELD_NAME, Scalar, TransactionHelper},
     expr::Expr,
 };
 
@@ -45,7 +45,7 @@ impl TransactionHelper {
         for (field_name, new_value) in set_map {
             set_strs.push(format!(
                 "{} = {}",
-                sql_identifier(field_name, self.database),
+                self.database.sql_identifier(field_name),
                 new_value.to_sql(self.database),
             ));
         }

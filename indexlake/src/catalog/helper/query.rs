@@ -8,7 +8,7 @@ use crate::{
     ILError, ILResult,
     catalog::{
         CatalogDataType, CatalogSchema, CatalogSchemaRef, Column, INTERNAL_ROW_ID_FIELD,
-        INTERNAL_ROW_ID_FIELD_NAME, Row, sql_identifier,
+        INTERNAL_ROW_ID_FIELD_NAME, Row,
     },
     catalog::{RowStream, TableRecord, TransactionHelper},
     table::TableConfig,
@@ -221,7 +221,7 @@ impl TransactionHelper {
         let select_items = schema
             .fields
             .iter()
-            .map(|f| sql_identifier(&f.name, self.database))
+            .map(|f| self.database.sql_identifier(&f.name))
             .collect::<Vec<_>>();
         self.query_rows(
             &format!(
@@ -242,7 +242,7 @@ impl TransactionHelper {
         let select_items = table_schema
             .fields
             .iter()
-            .map(|f| sql_identifier(&f.name, self.database))
+            .map(|f| self.database.sql_identifier(&f.name))
             .collect::<Vec<_>>();
         self.query_rows(
             &format!(

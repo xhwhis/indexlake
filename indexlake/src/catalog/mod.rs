@@ -1,9 +1,11 @@
+mod database;
 mod helper;
 mod record;
 mod row;
 mod scalar;
 mod schema;
 
+pub use database::*;
 pub(crate) use helper::*;
 pub(crate) use record::*;
 pub use row::*;
@@ -28,21 +30,6 @@ pub trait Catalog: Debug + Send + Sync {
 
     /// Begin a new transaction.
     async fn transaction(&self) -> ILResult<Box<dyn Transaction>>;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum CatalogDatabase {
-    Sqlite,
-    Postgres,
-}
-
-impl std::fmt::Display for CatalogDatabase {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CatalogDatabase::Sqlite => write!(f, "SQLite"),
-            CatalogDatabase::Postgres => write!(f, "Postgres"),
-        }
-    }
 }
 
 // Transaction should be rolled back when dropped.
