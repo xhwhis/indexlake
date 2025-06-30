@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::{
     ILError, ILResult,
     catalog::{CatalogDatabase, INTERNAL_ROW_ID_FIELD_NAME},
@@ -73,24 +75,86 @@ impl DataFileRecord {
 #[derive(Debug, Clone)]
 pub(crate) struct RowMetadataRecord {
     pub(crate) row_id: i64,
-    pub(crate) location: String,
+    pub(crate) location: RowLocation,
     pub(crate) deleted: bool,
 }
 
 impl RowMetadataRecord {
-    pub(crate) fn new(row_id: i64, location: impl Into<String>) -> Self {
+    pub(crate) fn new(row_id: i64, location: RowLocation) -> Self {
         Self {
             row_id,
-            location: location.into(),
+            location,
             deleted: false,
         }
     }
 
     pub(crate) fn to_sql(&self) -> String {
-        format!("({}, '{}', {})", self.row_id, self.location, self.deleted)
+        format!(
+            "({}, '{}', {})",
+            self.row_id,
+            match &self.location {
+                RowLocation::Inline => "inline".to_string(),
+                RowLocation::Parquet {
+                    relative_path,
+                    row_group_index,
+                    row_group_offset,
+                } => {
+                    format!(
+                        "parquet:{}:{}:{}",
+                        relative_path, row_group_index, row_group_offset
+                    )
+                }
+            },
+            self.deleted
+        )
     }
 
     pub(crate) fn select_items() -> Vec<&'static str> {
         vec![INTERNAL_ROW_ID_FIELD_NAME, "location", "deleted"]
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum RowLocation {
+    Inline,
+    Parquet {
+        relative_path: String,
+        row_group_index: usize,
+        row_group_offset: usize,
+    },
+}
+
+impl FromStr for RowLocation {
+    type Err = ILError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "inline" {
+            Ok(RowLocation::Inline)
+        } else if s.starts_with("parquet") {
+            let parts = s.split(':').collect::<Vec<_>>();
+            if parts.len() != 3 {
+                return Err(ILError::InvalidInput(format!(
+                    "Invalid row location: {}",
+                    s
+                )));
+            }
+            let relative_path = parts[0].to_string();
+            let row_group_index = parts[1]
+                .parse::<usize>()
+                .map_err(|e| ILError::InvalidInput(format!("Invalid row group index: {}", e)))?;
+            let row_group_offset = parts[2]
+                .parse::<usize>()
+                .map_err(|e| ILError::InvalidInput(format!("Invalid row group offset: {}", e)))?;
+            Ok(RowLocation::Parquet {
+                relative_path,
+                row_group_index,
+                row_group_offset,
+            })
+        } else {
+            Err(ILError::InvalidInput(format!(
+                "Invalid row location: {}",
+                s
+            )))
+        }
     }
 }

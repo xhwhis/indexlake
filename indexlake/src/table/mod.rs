@@ -90,7 +90,6 @@ impl Table {
         Ok(record_batch_stream)
     }
 
-    // TODO update by arrow record batch
     pub async fn update(&self, set_map: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
         process_update_rows(&mut tx_helper, self.table_id, set_map, condition).await?;
@@ -100,7 +99,14 @@ impl Table {
 
     pub async fn delete(&self, condition: &Expr) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
-        process_delete_rows(&mut tx_helper, self.table_id, &self.schema, condition).await?;
+        process_delete_rows(
+            &mut tx_helper,
+            self.storage.clone(),
+            self.table_id,
+            &self.schema,
+            condition,
+        )
+        .await?;
         tx_helper.commit().await?;
         Ok(())
     }

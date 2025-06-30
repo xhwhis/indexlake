@@ -11,7 +11,8 @@ use arrow::{
 use crate::{
     ILError, ILResult,
     catalog::{
-        CatalogDatabase, CatalogSchema, INTERNAL_ROW_ID_FIELD, RowMetadataRecord, TransactionHelper,
+        CatalogDatabase, CatalogSchema, INTERNAL_ROW_ID_FIELD, RowLocation, RowMetadataRecord,
+        TransactionHelper,
     },
     utils::record_batch_with_row_id,
 };
@@ -27,7 +28,7 @@ pub(crate) async fn process_insert_values(
     let row_ids = (max_row_id + 1..max_row_id + 1 + record.num_rows() as i64).collect::<Vec<_>>();
     let row_metadatas = row_ids
         .iter()
-        .map(|id| RowMetadataRecord::new(*id, "inline"))
+        .map(|id| RowMetadataRecord::new(*id, RowLocation::Inline))
         .collect::<Vec<_>>();
 
     let row_id_array = Int64Array::from(row_ids);
@@ -165,7 +166,12 @@ pub(crate) fn record_batch_to_sql_values(
                     });
                 }
             }
-            _ => todo!(),
+            _ => {
+                return Err(ILError::NotSupported(format!(
+                    "Unsupported data type: {:?}",
+                    field.data_type()
+                )));
+            }
         }
         column_values_list.push(column_values);
     }

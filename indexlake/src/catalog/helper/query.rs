@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::{DataType, Field};
 
-use crate::catalog::{DataFileRecord, RowMetadataRecord};
+use crate::catalog::{DataFileRecord, RowLocation, RowMetadataRecord};
 use crate::expr::Expr;
 use crate::{
     ILError, ILResult,
@@ -202,11 +202,12 @@ impl TransactionHelper {
         let mut records = Vec::with_capacity(rows.len());
         for row in rows {
             let row_id = row.int64(0)?.expect("row_id is not null");
-            let location = row.utf8(1)?.expect("location is not null");
+            let location_str = row.utf8(1)?.expect("location is not null");
+            let location = location_str.parse::<RowLocation>()?;
             let deleted = row.boolean(2)?.expect("deleted is not null");
             records.push(RowMetadataRecord {
                 row_id,
-                location: location.clone(),
+                location,
                 deleted,
             });
         }
