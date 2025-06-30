@@ -78,7 +78,7 @@ impl Table {
         Ok(())
     }
 
-    pub async fn scan_arrow(&self) -> ILResult<RecordBatchStream> {
+    pub async fn scan(&self) -> ILResult<RecordBatchStream> {
         let mut tx_helper = self.transaction_helper().await?;
         let record_batch_stream = process_table_scan(
             &mut tx_helper,

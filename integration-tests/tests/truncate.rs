@@ -58,7 +58,7 @@ async fn truncate_table(
 
     table.truncate().await.unwrap();
 
-    let batch_stream = table.scan_arrow().await.unwrap();
+    let batch_stream = table.scan().await.unwrap();
     let batches = batch_stream.try_collect::<Vec<_>>().await.unwrap();
     let table_str = pretty_format_batches(&batches).unwrap().to_string();
     println!("{}", table_str);

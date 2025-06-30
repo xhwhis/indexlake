@@ -63,7 +63,7 @@ async fn scan_table(
     // wait for dump task to finish
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
-    let batch_stream = table.scan_arrow().await.unwrap();
+    let batch_stream = table.scan().await.unwrap();
     let batches = batch_stream.try_collect::<Vec<_>>().await.unwrap();
     let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME).unwrap();
     let table_str = pretty_format_batches(&[sorted_batch]).unwrap().to_string();

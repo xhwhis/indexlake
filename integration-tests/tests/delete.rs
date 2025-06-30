@@ -1,22 +1,18 @@
-use arrow::array::{Int64Array, StringArray};
-use arrow::datatypes::{DataType, Field, Schema};
-use arrow::{array::RecordBatch, util::pretty::pretty_format_batches};
-use futures::TryStreamExt;
 use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
 use indexlake::expr::Expr;
 use indexlake::{
     LakeClient,
     catalog::Catalog,
-    catalog::{CatalogDataType, CatalogSchema, Column, Row, Scalar, pretty_print_rows},
+    catalog::{Scalar},
     storage::Storage,
-    table::{TableConfig, TableCreation},
 };
-use indexlake_integration_tests::utils::sort_record_batches;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
 use std::sync::Arc;
+use indexlake_integration_tests::{data::prepare_testing_table, utils::table_scan};
 
+// TODO fix tests
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
 #[case(async { catalog_postgres().await }, storage_s3())]
@@ -30,50 +26,22 @@ async fn delete_table(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
+    let table = prepare_testing_table(&client, "delete_table").await.unwrap();
 
-    let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name).await.unwrap();
-
-    let table_schema = Arc::new(Schema::new(vec![
-        Field::new("id", DataType::Int64, false),
-        Field::new("name", DataType::Utf8, false),
-    ]));
-    let table_name = "test_table";
-    let table_creation = TableCreation {
-        namespace_name: namespace_name.to_string(),
-        table_name: table_name.to_string(),
-        schema: table_schema.clone(),
-        config: TableConfig::default(),
-    };
-    client.create_table(table_creation).await.unwrap();
-
-    let table = client.load_table(namespace_name, table_name).await.unwrap();
-
-    let record_batch = RecordBatch::try_new(
-        table_schema.clone(),
-        vec![
-            Arc::new(Int64Array::from(vec![1, 2])),
-            Arc::new(StringArray::from(vec!["Alice", "Bob"])),
-        ],
-    )
-    .unwrap();
-    table.insert(&record_batch).await.unwrap();
-
-    let condition = Expr::Column("id".to_string()).eq(Expr::Literal(Scalar::Int64(Some(1))));
+    let condition = Expr::Column("age".to_string()).gt(Expr::Literal(Scalar::Int32(Some(21))));
     table.delete(&condition).await.unwrap();
 
-    let stream = table.scan_arrow().await.unwrap();
-    let batches = stream.try_collect::<Vec<_>>().await.unwrap();
-    let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME).unwrap();
-    let table_str = pretty_format_batches(&[sorted_batch]).unwrap().to_string();
+    let table_str = table_scan(&table).await.unwrap();
     println!("{}", table_str);
     assert_eq!(
         table_str,
-        r#"+-------------------+----+------+
-| _indexlake_row_id | id | name |
-+-------------------+----+------+
-| 2                 | 2  | Bob  |
-+-------------------+----+------+"#,
+        r#"+-------------------+---------+-----+
+| _indexlake_row_id | name    | age |
++-------------------+---------+-----+
+| 1                 | Alice   | 20  |
+| 2                 | Bob     | 21  |
+| 3                 | Charlie | 22  |
++-------------------+---------+-----+"#,
     );
 }
 
@@ -90,50 +58,23 @@ async fn delete_table_by_row_id(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-
-    let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name).await.unwrap();
-
-    let table_schema = Arc::new(Schema::new(vec![
-        Field::new("id", DataType::Int64, false),
-        Field::new("name", DataType::Utf8, false),
-    ]));
-    let table_name = "test_table";
-    let table_creation = TableCreation {
-        namespace_name: namespace_name.to_string(),
-        table_name: table_name.to_string(),
-        schema: table_schema.clone(),
-        config: TableConfig::default(),
-    };
-    client.create_table(table_creation).await.unwrap();
-
-    let table = client.load_table(namespace_name, table_name).await.unwrap();
-
-    let record_batch = RecordBatch::try_new(
-        table_schema.clone(),
-        vec![
-            Arc::new(Int64Array::from(vec![1, 2])),
-            Arc::new(StringArray::from(vec!["Alice", "Bob"])),
-        ],
-    )
-    .unwrap();
-    table.insert(&record_batch).await.unwrap();
+    let table = prepare_testing_table(&client, "delete_table_by_row_id").await.unwrap();
 
     let condition = Expr::Column(INTERNAL_ROW_ID_FIELD_NAME.to_string())
         .eq(Expr::Literal(Scalar::Int64(Some(1))));
     table.delete(&condition).await.unwrap();
 
-    let stream = table.scan_arrow().await.unwrap();
-    let batches = stream.try_collect::<Vec<_>>().await.unwrap();
-    let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME).unwrap();
-    let table_str = pretty_format_batches(&[sorted_batch]).unwrap().to_string();
+    let table_str = table_scan(&table).await.unwrap();
     println!("{}", table_str);
     assert_eq!(
         table_str,
-        r#"+-------------------+----+------+
-| _indexlake_row_id | id | name |
-+-------------------+----+------+
-| 2                 | 2  | Bob  |
-+-------------------+----+------+"#,
+        r#"+-------------------+---------+-----+
+| _indexlake_row_id | name    | age |
++-------------------+---------+-----+
+| 1                 | Alice   | 20  |
+| 2                 | Bob     | 21  |
+| 3                 | Charlie | 22  |
+| 4                 | David   | 23  |
++-------------------+---------+-----+"#,
     );
 }

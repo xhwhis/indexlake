@@ -132,17 +132,14 @@ impl FromStr for RowLocation {
             Ok(RowLocation::Inline)
         } else if s.starts_with("parquet") {
             let parts = s.split(':').collect::<Vec<_>>();
-            if parts.len() != 3 {
-                return Err(ILError::InvalidInput(format!(
-                    "Invalid row location: {}",
-                    s
-                )));
+            if parts.len() != 4 {
+                return Err(ILError::InvalidInput(format!("Invalid row location: {s}")));
             }
-            let relative_path = parts[0].to_string();
-            let row_group_index = parts[1]
+            let relative_path = parts[1].to_string();
+            let row_group_index = parts[2]
                 .parse::<usize>()
                 .map_err(|e| ILError::InvalidInput(format!("Invalid row group index: {}", e)))?;
-            let row_group_offset = parts[2]
+            let row_group_offset = parts[3]
                 .parse::<usize>()
                 .map_err(|e| ILError::InvalidInput(format!("Invalid row group offset: {}", e)))?;
             Ok(RowLocation::Parquet {

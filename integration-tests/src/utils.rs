@@ -1,5 +1,6 @@
-use arrow::array::{ArrayRef, RecordBatch, RecordBatchOptions};
-use indexlake::{ILError, ILResult};
+use arrow::{array::{ArrayRef, RecordBatch, RecordBatchOptions}, util::pretty::pretty_format_batches};
+use indexlake::{catalog::INTERNAL_ROW_ID_FIELD_NAME, table::Table, ILError, ILResult};
+use futures::TryStreamExt;
 
 pub fn sort_record_batches(batches: &[RecordBatch], sort_col: &str) -> ILResult<RecordBatch> {
     if batches.is_empty() {
@@ -24,4 +25,12 @@ pub fn sort_record_batches(batches: &[RecordBatch], sort_col: &str) -> ILResult<
         sorted_arrays,
         &options,
     )?)
+}
+
+pub async fn table_scan(table: &Table) -> ILResult<String> {
+    let stream = table.scan().await?;
+    let batches = stream.try_collect::<Vec<_>>().await?;
+    let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME)?;
+    let table_str = pretty_format_batches(&[sorted_batch])?.to_string();
+    Ok(table_str)
 }

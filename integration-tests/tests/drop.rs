@@ -62,7 +62,7 @@ async fn drop_table(
     client.create_table(table_creation).await.unwrap();
     let table = client.load_table(namespace_name, table_name).await.unwrap();
     table.insert(&record_batch).await.unwrap();
-    let stream = table.scan_arrow().await.unwrap();
+    let stream = table.scan().await.unwrap();
     let batches = stream.try_collect::<Vec<_>>().await.unwrap();
     let table_str = pretty_format_batches(&batches).unwrap().to_string();
     println!("{}", table_str);
