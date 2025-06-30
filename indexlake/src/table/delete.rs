@@ -13,7 +13,7 @@ use crate::storage::Storage;
 use crate::table::read_data_files_by_locations;
 use crate::{ILError, ILResult};
 
-pub(crate) async fn process_delete_rows(
+pub(crate) async fn process_delete(
     tx_helper: &mut TransactionHelper,
     storage: Arc<Storage>,
     table_id: i64,

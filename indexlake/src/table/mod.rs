@@ -66,7 +66,8 @@ impl Table {
                 self.schema, schema
             )));
         }
-        process_insert_values(&mut tx_helper, self.table_id, record).await?;
+        process_insert(&mut tx_helper, self.table_id, record).await?;
+        // TODO move this after txn commit
         let inline_row_count = tx_helper.count_inline_rows(self.table_id).await?;
         tx_helper.commit().await?;
 
@@ -92,14 +93,21 @@ impl Table {
 
     pub async fn update(&self, set_map: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
-        process_update_rows(&mut tx_helper, self.table_id, set_map, condition).await?;
+        process_update(
+            &mut tx_helper,
+            self.storage.clone(),
+            self.table_id,
+            set_map,
+            condition,
+        )
+        .await?;
         tx_helper.commit().await?;
         Ok(())
     }
 
     pub async fn delete(&self, condition: &Expr) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
-        process_delete_rows(
+        process_delete(
             &mut tx_helper,
             self.storage.clone(),
             self.table_id,
@@ -114,7 +122,7 @@ impl Table {
     // Delete all rows in the table
     pub async fn truncate(&self) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
-        process_table_truncate(&mut tx_helper, self.table_id).await?;
+        process_truncate(&mut tx_helper, self.table_id).await?;
         tx_helper.commit().await?;
         Ok(())
     }

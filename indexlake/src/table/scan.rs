@@ -73,6 +73,7 @@ pub(crate) async fn read_data_files_by_locations(
         }
     }
 
+    let mut streams = Vec::new();
     for (relative_path, locations) in file_locations_map {
         let input_file = storage.open_file(&relative_path).await?;
         let arrow_reader_builder = ParquetRecordBatchStreamBuilder::new(input_file).await?;
@@ -104,11 +105,13 @@ pub(crate) async fn read_data_files_by_locations(
         let stream = arrow_reader_builder
             .with_row_groups(row_groups)
             .with_row_selection(row_selection)
-            .build()?;
+            .build()?
+            .map_err(ILError::from);
 
-        todo!()
+        streams.push(stream);
     }
-    todo!()
+
+    Ok(Box::pin(futures::stream::select_all(streams)))
 }
 
 fn build_row_selection(
@@ -159,11 +162,11 @@ mod tests {
     fn test_build_row_selection() {
         let row_group_num_rows = vec![10, 20, 30, 40];
         let row_group_offsets_map =
-            BTreeMap::from([(1, vec![8, 9, 14, 15, 18]), (3, vec![4, 17, 18, 19])]);
+            BTreeMap::from([(1, vec![8, 9, 14, 15, 18]), (3, vec![4, 17, 18, 19, 39])]);
         let row_selection =
             build_row_selection(&row_group_num_rows, &row_group_offsets_map).unwrap();
-        assert_eq!(row_selection.row_count(), 9);
-        assert_eq!(row_selection.skipped_row_count(), 51);
+        assert_eq!(row_selection.row_count(), 10);
+        assert_eq!(row_selection.skipped_row_count(), 50);
         assert_eq!(
             row_selection
                 .iter()
@@ -180,7 +183,8 @@ mod tests {
                 (1, false),
                 (12, true),
                 (3, false),
-                (20, true)
+                (19, true),
+                (1, false),
             ]
         );
     }

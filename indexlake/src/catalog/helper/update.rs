@@ -72,4 +72,15 @@ impl TransactionHelper {
         }
         self.transaction.execute_batch(&update_sqls).await
     }
+
+    pub(crate) async fn update_row_location_as_inline(
+        &mut self,
+        table_id: i64,
+        row_ids: &[i64],
+    ) -> ILResult<usize> {
+        self.transaction.execute(&format!(
+            "UPDATE indexlake_row_metadata_{table_id} SET location = 'inline' WHERE {INTERNAL_ROW_ID_FIELD_NAME} IN ({})",
+            row_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(", "))
+        ).await
+    }
 }

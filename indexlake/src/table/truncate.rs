@@ -1,7 +1,7 @@
 use crate::ILResult;
 use crate::catalog::TransactionHelper;
 
-pub(crate) async fn process_table_truncate(
+pub(crate) async fn process_truncate(
     tx_helper: &mut TransactionHelper,
     table_id: i64,
 ) -> ILResult<()> {

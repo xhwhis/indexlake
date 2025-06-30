@@ -17,7 +17,7 @@ use crate::{
     utils::record_batch_with_row_id,
 };
 
-pub(crate) async fn process_insert_values(
+pub(crate) async fn process_insert(
     tx_helper: &mut TransactionHelper,
     table_id: i64,
     record: &RecordBatch,
@@ -34,6 +34,19 @@ pub(crate) async fn process_insert_values(
     let row_id_array = Int64Array::from(row_ids);
     let record = record_batch_with_row_id(record, row_id_array)?;
 
+    process_insert_batch_with_row_id(tx_helper, table_id, &record).await?;
+
+    tx_helper
+        .insert_row_metadatas(table_id, &row_metadatas)
+        .await?;
+    Ok(())
+}
+
+pub(crate) async fn process_insert_batch_with_row_id(
+    tx_helper: &mut TransactionHelper,
+    table_id: i64,
+    record: &RecordBatch,
+) -> ILResult<()> {
     let sql_values = record_batch_to_sql_values(&record, tx_helper.database)?;
 
     let inline_field_names = record
@@ -45,10 +58,6 @@ pub(crate) async fn process_insert_values(
 
     tx_helper
         .insert_inline_rows(table_id, &inline_field_names, sql_values)
-        .await?;
-
-    tx_helper
-        .insert_row_metadatas(table_id, &row_metadatas)
         .await?;
     Ok(())
 }
