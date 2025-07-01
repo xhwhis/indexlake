@@ -4,8 +4,16 @@ mod visitor;
 
 use std::sync::Arc;
 
-use arrow::array::{ArrayRef, AsArray, RecordBatch};
+use arrow::{
+    array::{ArrayRef, AsArray, BooleanArray, RecordBatch},
+    datatypes::{Schema, SchemaRef},
+    error::ArrowError,
+};
 pub use binary::*;
+use parquet::arrow::{
+    ArrowSchemaConverter, ProjectionMask, arrow_reader::ArrowPredicate, arrow_to_parquet_schema,
+    encode_arrow_schema,
+};
 pub use visitor::*;
 
 use derive_visitor::{Drive, DriveMut};
@@ -140,6 +148,52 @@ impl std::fmt::Display for Expr {
                     .join(", ")
             ),
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ExprPredicate {
+    expr: Expr,
+    projection: ProjectionMask,
+}
+
+impl ExprPredicate {
+    pub(crate) fn try_new(expr: Expr, table_schema: &Schema) -> ILResult<Self> {
+        let visited_cols = visited_columns(&expr);
+        let mut indices = Vec::new();
+        for visited_col in visited_cols {
+            let index = table_schema.index_of(&visited_col)?;
+            indices.push(index);
+        }
+
+        let parquet_schema = ArrowSchemaConverter::new().convert(table_schema)?;
+        let projection = ProjectionMask::roots(&parquet_schema, indices);
+
+        Ok(Self { expr, projection })
+    }
+}
+
+impl ArrowPredicate for ExprPredicate {
+    fn projection(&self) -> &ProjectionMask {
+        &self.projection
+    }
+
+    fn evaluate(&mut self, batch: RecordBatch) -> Result<BooleanArray, ArrowError> {
+        let expr_value = self
+            .expr
+            .eval(&batch)
+            .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+        let array = expr_value
+            .into_array(batch.num_rows())
+            .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+        let bool_array = array.as_boolean_opt().ok_or_else(|| {
+            ArrowError::ComputeError(format!(
+                "ExprPredicate evaluation expected boolean array, got {}",
+                array.data_type()
+            ))
+        })?;
+
+        Ok(bool_array.clone())
     }
 }
 

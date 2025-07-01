@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use arrow::{
     array::{AsArray, Int64Array, RecordBatch, RecordBatchOptions},
-    datatypes::Int64Type,
+    datatypes::{Int64Type, SchemaRef},
 };
 use futures::StreamExt;
 
@@ -18,6 +18,7 @@ pub(crate) async fn process_update(
     tx_helper: &mut TransactionHelper,
     storage: Arc<Storage>,
     table_id: i64,
+    table_schema: &SchemaRef,
     set_map: HashMap<String, Scalar>,
     condition: &Expr,
 ) -> ILResult<()> {
@@ -37,7 +38,13 @@ pub(crate) async fn process_update(
         .collect::<Vec<_>>();
 
     let mut updated_row_ids = Vec::new();
-    let mut stream = read_data_files_by_locations(storage, data_file_locations).await?;
+    let mut stream = read_data_files_by_locations(
+        storage,
+        table_schema.clone(),
+        data_file_locations,
+        Some(condition.clone()),
+    )
+    .await?;
     while let Some(batch) = stream.next().await {
         let batch = batch?;
         let array = condition.eval(&batch)?.into_array(batch.num_rows())?;

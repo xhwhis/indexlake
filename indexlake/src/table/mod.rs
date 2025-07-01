@@ -96,6 +96,7 @@ impl Table {
             &mut tx_helper,
             self.storage.clone(),
             self.table_id,
+            &self.schema,
             set_map,
             condition,
         )

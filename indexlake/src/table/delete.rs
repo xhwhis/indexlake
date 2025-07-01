@@ -27,7 +27,8 @@ pub(crate) async fn process_delete(
     let inline_row_ids =
         find_matched_inline_row_ids(tx_helper, table_id, table_schema, condition).await?;
     let data_file_row_ids =
-        find_matched_data_file_row_ids(tx_helper, storage, table_id, condition).await?;
+        find_matched_data_file_row_ids(tx_helper, storage, table_id, table_schema, condition)
+            .await?;
 
     let row_ids = [inline_row_ids, data_file_row_ids].concat();
 
@@ -84,6 +85,7 @@ pub(crate) async fn find_matched_data_file_row_ids(
     tx_helper: &mut TransactionHelper,
     storage: Arc<Storage>,
     table_id: i64,
+    table_schema: &SchemaRef,
     condition: &Expr,
 ) -> ILResult<Vec<i64>> {
     let row_metadata_condition =
@@ -97,7 +99,13 @@ pub(crate) async fn find_matched_data_file_row_ids(
         .map(|meta| meta.location)
         .collect::<Vec<_>>();
 
-    let mut stream = read_data_files_by_locations(storage, data_file_locations).await?;
+    let mut stream = read_data_files_by_locations(
+        storage,
+        table_schema.clone(),
+        data_file_locations,
+        Some(condition.clone()),
+    )
+    .await?;
 
     let mut row_ids = Vec::new();
     while let Some(batch) = stream.next().await {

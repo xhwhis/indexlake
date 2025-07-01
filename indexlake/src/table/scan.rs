@@ -5,11 +5,15 @@ use std::{
 
 use arrow::datatypes::SchemaRef;
 use futures::TryStreamExt;
-use parquet::arrow::{ParquetRecordBatchStreamBuilder, arrow_reader::RowSelection};
+use parquet::arrow::{
+    ParquetRecordBatchStreamBuilder,
+    arrow_reader::{RowFilter, RowSelection},
+};
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
     catalog::{CatalogHelper, CatalogSchema, RowLocation, rows_to_record_batch},
+    expr::{Expr, ExprPredicate},
     storage::Storage,
 };
 
@@ -38,7 +42,9 @@ pub(crate) async fn process_table_scan(
         .map(|meta| meta.location)
         .collect::<Vec<_>>();
 
-    let stream = read_data_files_by_locations(storage, data_file_locations).await?;
+    let stream =
+        read_data_files_by_locations(storage, table_schema.clone(), data_file_locations, None)
+            .await?;
 
     Ok(Box::pin(futures::stream::select_all(vec![
         batch_stream,
@@ -49,8 +55,15 @@ pub(crate) async fn process_table_scan(
 // TODO support projection
 pub(crate) async fn read_data_files_by_locations(
     storage: Arc<Storage>,
+    table_schema: SchemaRef,
     data_file_locations: Vec<RowLocation>,
+    predicate: Option<Expr>,
 ) -> ILResult<RecordBatchStream> {
+    let arrow_predicate_opt = match predicate {
+        Some(expr) => Some(ExprPredicate::try_new(expr, &table_schema)?),
+        None => None,
+    };
+
     let mut file_locations_map: HashMap<String, Vec<RowLocation>> = HashMap::new();
     for location in data_file_locations {
         if let RowLocation::Parquet { relative_path, .. } = &location {
@@ -64,7 +77,7 @@ pub(crate) async fn read_data_files_by_locations(
     let mut streams = Vec::new();
     for (relative_path, locations) in file_locations_map {
         let input_file = storage.open_file(&relative_path).await?;
-        let arrow_reader_builder = ParquetRecordBatchStreamBuilder::new(input_file).await?;
+        let mut arrow_reader_builder = ParquetRecordBatchStreamBuilder::new(input_file).await?;
         let parquet_metadata = arrow_reader_builder.metadata();
         let row_groups_metadata = parquet_metadata.row_groups();
 
@@ -90,6 +103,11 @@ pub(crate) async fn read_data_files_by_locations(
             .map(|rg| rg.num_rows() as usize)
             .collect::<Vec<_>>();
         let row_selection = build_row_selection(&row_group_num_rows, row_group_offsets_map)?;
+
+        if let Some(arrow_predicate) = &arrow_predicate_opt {
+            arrow_reader_builder = arrow_reader_builder
+                .with_row_filter(RowFilter::new(vec![Box::new(arrow_predicate.clone())]));
+        }
 
         let stream = arrow_reader_builder
             .with_row_groups(row_groups)
