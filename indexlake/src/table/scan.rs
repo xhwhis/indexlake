@@ -1,31 +1,20 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    ops::Range,
     sync::Arc,
 };
 
-use arrow::{array::RecordBatch, datatypes::SchemaRef};
-use futures::{StreamExt, TryStreamExt};
-use parquet::{
-    arrow::{
-        ParquetRecordBatchStreamBuilder,
-        arrow_reader::{RowSelection, RowSelector},
-    },
-    file::metadata::RowGroupMetaData,
-};
+use arrow::datatypes::SchemaRef;
+use futures::TryStreamExt;
+use parquet::arrow::{ParquetRecordBatchStreamBuilder, arrow_reader::RowSelection};
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
-    catalog::{
-        CatalogSchema, DataFileRecord, INTERNAL_ROW_ID_FIELD_NAME, RowLocation, TransactionHelper,
-        rows_to_record_batch,
-    },
-    expr::Expr,
+    catalog::{CatalogHelper, CatalogSchema, RowLocation, rows_to_record_batch},
     storage::Storage,
 };
 
 pub(crate) async fn process_table_scan(
-    tx_helper: &mut TransactionHelper,
+    catalog_helper: &CatalogHelper,
     table_id: i64,
     table_schema: &SchemaRef,
     storage: Arc<Storage>,
@@ -33,14 +22,16 @@ pub(crate) async fn process_table_scan(
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(&table_schema)?);
 
     // Inline rows are not deleted, so we can scan them directly
-    let rows = tx_helper
+    let rows = catalog_helper
         .scan_inline_rows(table_id, &catalog_schema)
         .await?;
     let batch = rows_to_record_batch(&table_schema, &rows)?;
     let batch_stream =
         Box::pin(futures::stream::once(futures::future::ready(Ok(batch)))) as RecordBatchStream;
 
-    let row_metadatas = tx_helper.scan_all_undeleted_row_metadata(table_id).await?;
+    let row_metadatas = catalog_helper
+        .scan_all_undeleted_row_metadata(table_id)
+        .await?;
     let data_file_locations = row_metadatas
         .into_iter()
         .filter(|meta| matches!(meta.location, RowLocation::Parquet { .. }))
@@ -92,13 +83,14 @@ pub(crate) async fn read_data_files_by_locations(
             }
         }
 
+        let row_groups = row_group_offsets_map.keys().copied().collect::<Vec<_>>();
+
         let row_group_num_rows = row_groups_metadata
             .iter()
             .map(|rg| rg.num_rows() as usize)
             .collect::<Vec<_>>();
-        let row_selection = build_row_selection(&row_group_num_rows, &row_group_offsets_map)?;
+        let row_selection = build_row_selection(&row_group_num_rows, row_group_offsets_map)?;
 
-        let row_groups = row_group_offsets_map.keys().copied().collect::<Vec<_>>();
         let stream = arrow_reader_builder
             .with_row_groups(row_groups)
             .with_row_selection(row_selection)
@@ -113,21 +105,22 @@ pub(crate) async fn read_data_files_by_locations(
 
 fn build_row_selection(
     row_group_num_rows: &[usize],
-    row_group_offsets_map: &BTreeMap<usize, Vec<usize>>,
+    row_group_offsets_map: BTreeMap<usize, Vec<usize>>,
 ) -> ILResult<RowSelection> {
     // merge these row group offsets into a single list of global offsets
     let mut total_rows = 0;
     let mut global_offsets = Vec::new();
-    for (row_group_idx, offsets) in row_group_offsets_map {
-        if *row_group_idx >= row_group_num_rows.len() {
+    for (row_group_idx, mut offsets) in row_group_offsets_map {
+        if row_group_idx >= row_group_num_rows.len() {
             return Err(ILError::InternalError(format!(
                 "Row group index out of bounds: {}",
                 row_group_idx
             )));
         }
-        let num_rows = row_group_num_rows[*row_group_idx];
+        let num_rows = row_group_num_rows[row_group_idx];
+        offsets.sort();
         for offset in offsets {
-            global_offsets.push(*offset + total_rows);
+            global_offsets.push(offset + total_rows);
         }
         total_rows += num_rows;
     }
@@ -161,7 +154,7 @@ mod tests {
         let row_group_offsets_map =
             BTreeMap::from([(1, vec![8, 9, 14, 15, 18]), (3, vec![4, 17, 18, 19, 39])]);
         let row_selection =
-            build_row_selection(&row_group_num_rows, &row_group_offsets_map).unwrap();
+            build_row_selection(&row_group_num_rows, row_group_offsets_map).unwrap();
         assert_eq!(row_selection.row_count(), 10);
         assert_eq!(row_selection.skipped_row_count(), 50);
         assert_eq!(

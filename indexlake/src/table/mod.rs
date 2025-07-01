@@ -19,7 +19,7 @@ pub(crate) use truncate::*;
 pub(crate) use update::*;
 
 use crate::RecordBatchStream;
-use crate::catalog::{CatalogSchemaRef, Scalar};
+use crate::catalog::{CatalogHelper, CatalogSchemaRef, Scalar};
 use crate::expr::Expr;
 use crate::utils::{has_duplicated_items, schema_with_row_id};
 use crate::{
@@ -67,10 +67,10 @@ impl Table {
             )));
         }
         process_insert(&mut tx_helper, self.table_id, record).await?;
-        // TODO move this after txn commit
-        let inline_row_count = tx_helper.count_inline_rows(self.table_id).await?;
         tx_helper.commit().await?;
 
+        let catalog_helper = CatalogHelper::new(self.catalog.clone());
+        let inline_row_count = catalog_helper.count_inline_rows(self.table_id).await?;
         if inline_row_count as usize >= self.config.inline_row_count_limit {
             spawn_dump_task(self).await?;
         }
@@ -79,15 +79,14 @@ impl Table {
     }
 
     pub async fn scan(&self) -> ILResult<RecordBatchStream> {
-        let mut tx_helper = self.transaction_helper().await?;
+        let catalog_helper = CatalogHelper::new(self.catalog.clone());
         let record_batch_stream = process_table_scan(
-            &mut tx_helper,
+            &catalog_helper,
             self.table_id,
             &self.schema,
             self.storage.clone(),
         )
         .await?;
-        tx_helper.commit().await?;
         Ok(record_batch_stream)
     }
 

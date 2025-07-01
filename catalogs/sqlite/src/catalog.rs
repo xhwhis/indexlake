@@ -31,6 +31,28 @@ impl Catalog for SqliteCatalog {
         CatalogDatabase::Sqlite
     }
 
+    async fn query(&self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream<'static>> {
+        debug!("sqlite query: {sql}");
+        let conn = rusqlite::Connection::open(&self.path)
+            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+        let mut stmt = conn
+            .prepare(sql)
+            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+        let mut sqlite_rows = stmt
+            .query([])
+            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+
+        let mut rows: Vec<Row> = Vec::new();
+        while let Some(sqlite_row) = sqlite_rows
+            .next()
+            .map_err(|e| ILError::CatalogError(e.to_string()))?
+        {
+            let row = sqlite_row_to_row(sqlite_row, &schema)?;
+            rows.push(row);
+        }
+        Ok(Box::pin(futures::stream::iter(rows).map(Ok)))
+    }
+
     async fn transaction(&self) -> ILResult<Box<dyn Transaction>> {
         let conn = rusqlite::Connection::open(&self.path)
             .map_err(|e| ILError::CatalogError(e.to_string()))?;

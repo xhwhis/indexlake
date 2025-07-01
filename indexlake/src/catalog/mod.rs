@@ -28,6 +28,8 @@ pub static INTERNAL_ROW_ID_FIELD: LazyLock<Field> =
 pub trait Catalog: Debug + Send + Sync {
     fn database(&self) -> CatalogDatabase;
 
+    async fn query(&self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream<'static>>;
+
     /// Begin a new transaction.
     async fn transaction(&self) -> ILResult<Box<dyn Transaction>>;
 }

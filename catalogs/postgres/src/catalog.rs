@@ -41,6 +41,25 @@ impl Catalog for PostgresCatalog {
         CatalogDatabase::Postgres
     }
 
+    async fn query(&self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream<'static>> {
+        debug!("postgres query: {sql}");
+        let conn = self
+            .pool
+            .get_owned()
+            .await
+            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+        let pg_row_stream = conn
+            .query_raw(sql, Vec::<String>::new())
+            .await
+            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+
+        let stream = pg_row_stream.map(move |row| {
+            let pg_row = row.map_err(|e| ILError::CatalogError(e.to_string()))?;
+            pg_row_to_row(&pg_row, &schema)
+        });
+        Ok(Box::pin(stream))
+    }
+
     async fn transaction(&self) -> ILResult<Box<dyn Transaction>> {
         let conn = self
             .pool

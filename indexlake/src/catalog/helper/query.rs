@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::{DataType, Field};
 
-use crate::catalog::{DataFileRecord, RowLocation, RowMetadataRecord, Scalar};
+use crate::catalog::{CatalogHelper, DataFileRecord, RowLocation, RowMetadataRecord, Scalar};
 use crate::expr::Expr;
 use crate::{
     ILError, ILResult,
@@ -270,22 +270,6 @@ impl TransactionHelper {
         .await
     }
 
-    pub(crate) async fn count_inline_rows(&mut self, table_id: i64) -> ILResult<i64> {
-        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
-            "count",
-            CatalogDataType::Int64,
-            false,
-        )]));
-        let rows = self
-            .query_rows(
-                &format!("SELECT COUNT(1) FROM indexlake_inline_row_{table_id}"),
-                schema,
-            )
-            .await?;
-        let count = rows[0].int64(0)?.expect("count is not null");
-        Ok(count)
-    }
-
     pub(crate) async fn scan_inline_row_ids(&mut self, table_id: i64) -> ILResult<Vec<i64>> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             INTERNAL_ROW_ID_FIELD_NAME.to_string(),
@@ -397,5 +381,91 @@ impl TransactionHelper {
             });
         }
         Ok(data_files)
+    }
+}
+
+impl CatalogHelper {
+    pub(crate) async fn count_inline_rows(&self, table_id: i64) -> ILResult<i64> {
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
+            "count",
+            CatalogDataType::Int64,
+            false,
+        )]));
+        let rows = self
+            .query_rows(
+                &format!("SELECT COUNT(1) FROM indexlake_inline_row_{table_id}"),
+                schema,
+            )
+            .await?;
+        let count = rows[0].int64(0)?.expect("count is not null");
+        Ok(count)
+    }
+
+    pub(crate) async fn scan_inline_rows(
+        &self,
+        table_id: i64,
+        schema: &CatalogSchemaRef,
+    ) -> ILResult<Vec<Row>> {
+        let select_items = schema
+            .fields
+            .iter()
+            .map(|f| self.catalog.database().sql_identifier(&f.name))
+            .collect::<Vec<_>>();
+        self.query_rows(
+            &format!(
+                "SELECT {}  FROM indexlake_inline_row_{table_id}",
+                select_items.join(", ")
+            ),
+            Arc::clone(schema),
+        )
+        .await
+    }
+
+    pub(crate) async fn scan_all_undeleted_row_metadata(
+        &self,
+        table_id: i64,
+    ) -> ILResult<Vec<RowMetadataRecord>> {
+        let condition =
+            Expr::Column("deleted".to_string()).eq(Expr::Literal(Scalar::Boolean(Some(false))));
+        self.scan_row_metadata(table_id, &condition).await
+    }
+
+    pub(crate) async fn scan_row_metadata(
+        &self,
+        table_id: i64,
+        condition: &Expr,
+    ) -> ILResult<Vec<RowMetadataRecord>> {
+        let schema = Arc::new(CatalogSchema::new(vec![
+            Column::new(
+                INTERNAL_ROW_ID_FIELD_NAME.to_string(),
+                CatalogDataType::Int64,
+                false,
+            ),
+            Column::new("location", CatalogDataType::Utf8, false),
+            Column::new("deleted", CatalogDataType::Boolean, false),
+        ]));
+        let rows = self
+            .query_rows(
+                &format!(
+                    "SELECT {} FROM indexlake_row_metadata_{table_id} WHERE {}",
+                    RowMetadataRecord::select_items().join(", "),
+                    condition.to_sql(self.catalog.database())
+                ),
+                schema,
+            )
+            .await?;
+        let mut records = Vec::with_capacity(rows.len());
+        for row in rows {
+            let row_id = row.int64(0)?.expect("row_id is not null");
+            let location_str = row.utf8(1)?.expect("location is not null");
+            let location = location_str.parse::<RowLocation>()?;
+            let deleted = row.boolean(2)?.expect("deleted is not null");
+            records.push(RowMetadataRecord {
+                row_id,
+                location,
+                deleted,
+            });
+        }
+        Ok(records)
     }
 }

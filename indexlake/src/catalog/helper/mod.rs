@@ -47,3 +47,22 @@ impl TransactionHelper {
         self.transaction.rollback().await
     }
 }
+
+pub(crate) struct CatalogHelper {
+    pub(crate) catalog: Arc<dyn Catalog>,
+}
+
+impl CatalogHelper {
+    pub(crate) fn new(catalog: Arc<dyn Catalog>) -> Self {
+        Self { catalog }
+    }
+
+    pub(crate) async fn query_rows(
+        &self,
+        sql: &str,
+        schema: CatalogSchemaRef,
+    ) -> ILResult<Vec<Row>> {
+        let stream = self.catalog.query(sql, schema).await?;
+        stream.try_collect::<Vec<_>>().await
+    }
+}
