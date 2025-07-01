@@ -4,16 +4,19 @@ use std::{
     sync::Arc,
 };
 
-use arrow::datatypes::SchemaRef;
+use arrow::{array::RecordBatch, datatypes::SchemaRef};
 use futures::{TryStreamExt, future::BoxFuture};
 use parquet::{
     arrow::{
-        ParquetRecordBatchStreamBuilder,
+        AsyncArrowWriter, ParquetRecordBatchStreamBuilder,
         arrow_reader::{ArrowReaderOptions, RowFilter, RowSelection},
         async_reader::AsyncFileReader,
         async_writer::AsyncFileWriter,
     },
-    file::metadata::{ParquetMetaData, ParquetMetaDataReader},
+    file::{
+        metadata::{ParquetMetaData, ParquetMetaDataReader},
+        properties::WriterProperties,
+    },
 };
 
 use crate::{
@@ -80,6 +83,27 @@ impl AsyncFileWriter for OutputFile {
             Ok(())
         })
     }
+}
+
+pub(crate) async fn write_parquet_file(
+    storage: Arc<Storage>,
+    batch: RecordBatch,
+    relative_path: &str,
+    row_group_size: usize,
+) -> ILResult<usize> {
+    let writer_properties = WriterProperties::builder()
+        .set_max_row_group_size(row_group_size)
+        .build();
+    let output_file = storage.create_file(relative_path).await?;
+    let mut arrow_writer =
+        AsyncArrowWriter::try_new(output_file, batch.schema().clone(), Some(writer_properties))?;
+
+    arrow_writer.write(&batch).await?;
+    let file_size_bytes = arrow_writer.bytes_written();
+
+    arrow_writer.close().await?;
+
+    Ok(file_size_bytes)
 }
 
 // TODO support projection

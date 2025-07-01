@@ -10,7 +10,7 @@ use crate::{
     catalog::{
         Catalog, CatalogSchema, DataFileRecord, Row, TransactionHelper, rows_to_record_batch,
     },
-    storage::Storage,
+    storage::{Storage, write_parquet_file},
     table::{Table, TableConfig},
 };
 
@@ -148,21 +148,14 @@ impl DumpTask {
 
         let record_batch = rows_to_record_batch(&self.table_schema, &rows)?;
 
-        let writer_properties = WriterProperties::builder()
-            .set_max_row_group_size(self.table_config.parquet_row_group_size)
-            .build();
-        let output_file = self.storage.create_file(relative_path).await?;
-        let mut arrow_writer = AsyncArrowWriter::try_new(
-            output_file,
-            self.table_schema.clone(),
-            Some(writer_properties),
-        )?;
+        let file_size_bytes = write_parquet_file(
+            self.storage.clone(),
+            record_batch,
+            relative_path,
+            self.table_config.parquet_row_group_size,
+        )
+        .await?;
 
-        arrow_writer.write(&record_batch).await?;
-        let file_size_bytes = arrow_writer.bytes_written() as i64;
-
-        arrow_writer.close().await?;
-
-        Ok((location_map, file_size_bytes))
+        Ok((location_map, file_size_bytes as i64))
     }
 }
