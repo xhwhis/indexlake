@@ -10,8 +10,8 @@ use crate::{
     ILError, ILResult,
     catalog::{INTERNAL_ROW_ID_FIELD_NAME, RowLocation, Scalar, TransactionHelper},
     expr::{Expr, visited_columns},
-    storage::Storage,
-    table::{process_insert_batch_with_row_id, read_data_files_by_locations},
+    storage::{Storage, read_parquet_files_by_locations},
+    table::process_insert_batch_with_row_id,
 };
 
 pub(crate) async fn process_update(
@@ -38,7 +38,7 @@ pub(crate) async fn process_update(
         .collect::<Vec<_>>();
 
     let mut updated_row_ids = Vec::new();
-    let mut stream = read_data_files_by_locations(
+    let mut stream = read_parquet_files_by_locations(
         storage,
         table_schema.clone(),
         data_file_locations,

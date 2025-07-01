@@ -2,19 +2,17 @@ mod binary;
 mod builder;
 mod visitor;
 
+pub use binary::*;
+pub use visitor::*;
+
 use std::sync::Arc;
 
 use arrow::{
     array::{ArrayRef, AsArray, BooleanArray, RecordBatch},
-    datatypes::{Schema, SchemaRef},
+    datatypes::Schema,
     error::ArrowError,
 };
-pub use binary::*;
-use parquet::arrow::{
-    ArrowSchemaConverter, ProjectionMask, arrow_reader::ArrowPredicate, arrow_to_parquet_schema,
-    encode_arrow_schema,
-};
-pub use visitor::*;
+use parquet::arrow::{ArrowSchemaConverter, ProjectionMask, arrow_reader::ArrowPredicate};
 
 use derive_visitor::{Drive, DriveMut};
 

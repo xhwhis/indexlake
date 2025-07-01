@@ -10,7 +10,7 @@ use crate::catalog::{
 };
 use crate::expr::{Expr, visited_columns};
 use crate::storage::Storage;
-use crate::table::read_data_files_by_locations;
+use crate::storage::read_parquet_files_by_locations;
 use crate::{ILError, ILResult};
 
 pub(crate) async fn process_delete(
@@ -99,7 +99,7 @@ pub(crate) async fn find_matched_data_file_row_ids(
         .map(|meta| meta.location)
         .collect::<Vec<_>>();
 
-    let mut stream = read_data_files_by_locations(
+    let mut stream = read_parquet_files_by_locations(
         storage,
         table_schema.clone(),
         data_file_locations,
