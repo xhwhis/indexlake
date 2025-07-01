@@ -1,6 +1,9 @@
-use arrow::{array::{ArrayRef, RecordBatch, RecordBatchOptions}, util::pretty::pretty_format_batches};
-use indexlake::{catalog::INTERNAL_ROW_ID_FIELD_NAME, table::Table, ILError, ILResult};
+use arrow::{
+    array::{ArrayRef, RecordBatch, RecordBatchOptions},
+    util::pretty::pretty_format_batches,
+};
 use futures::TryStreamExt;
+use indexlake::{ILError, ILResult, catalog::INTERNAL_ROW_ID_FIELD_NAME, table::Table};
 
 pub fn sort_record_batches(batches: &[RecordBatch], sort_col: &str) -> ILResult<RecordBatch> {
     if batches.is_empty() {

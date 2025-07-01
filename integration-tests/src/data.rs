@@ -1,7 +1,13 @@
 use std::sync::Arc;
 
-use arrow::{array::{Int32Array, RecordBatch, StringArray}, datatypes::{DataType, Field, Schema}};
-use indexlake::{table::{Table, TableConfig, TableCreation}, ILResult, LakeClient};
+use arrow::{
+    array::{Int32Array, RecordBatch, StringArray},
+    datatypes::{DataType, Field, Schema},
+};
+use indexlake::{
+    ILResult, LakeClient,
+    table::{Table, TableConfig, TableCreation},
+};
 
 pub async fn prepare_testing_table(client: &LakeClient, table_name: &str) -> ILResult<Table> {
     let namespace_name = "test_namespace";
@@ -37,7 +43,10 @@ pub async fn prepare_testing_table(client: &LakeClient, table_name: &str) -> ILR
     Ok(table)
 }
 
-pub async fn create_namespace_if_not_exists(client: &LakeClient, namespace_name: &str) -> ILResult<i64> {
+pub async fn create_namespace_if_not_exists(
+    client: &LakeClient,
+    namespace_name: &str,
+) -> ILResult<i64> {
     if let Some(namespace_id) = client.get_namespace_id(namespace_name).await? {
         return Ok(namespace_id);
     }

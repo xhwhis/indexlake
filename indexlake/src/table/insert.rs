@@ -47,6 +47,9 @@ pub(crate) async fn process_insert_batch_with_row_id(
     table_id: i64,
     record: &RecordBatch,
 ) -> ILResult<()> {
+    if record.num_rows() == 0 {
+        return Ok(());
+    }
     let sql_values = record_batch_to_sql_values(&record, tx_helper.database)?;
 
     let inline_field_names = record

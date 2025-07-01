@@ -78,6 +78,9 @@ impl TransactionHelper {
         table_id: i64,
         row_ids: &[i64],
     ) -> ILResult<usize> {
+        if row_ids.is_empty() {
+            return Ok(0);
+        }
         self.transaction.execute(&format!(
             "UPDATE indexlake_row_metadata_{table_id} SET location = 'inline' WHERE {INTERNAL_ROW_ID_FIELD_NAME} IN ({})",
             row_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(", "))

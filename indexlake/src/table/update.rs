@@ -70,6 +70,9 @@ pub(crate) async fn process_update(
 
         let indices = Arc::new(Int64Array::from(selected_indices));
         let selected_batch = arrow::compute::take_record_batch(&batch, indices.as_ref())?;
+        if selected_batch.num_rows() == 0 {
+            continue;
+        }
         let updated_batch = update_record_batch(&selected_batch, &set_map)?;
         process_insert_batch_with_row_id(tx_helper, table_id, &updated_batch).await?;
     }

@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::{DataType, Field};
 
-use crate::catalog::{DataFileRecord, RowLocation, RowMetadataRecord};
+use crate::catalog::{DataFileRecord, RowLocation, RowMetadataRecord, Scalar};
 use crate::expr::Expr;
 use crate::{
     ILError, ILResult,
@@ -173,6 +173,15 @@ impl TransactionHelper {
             let max_row_id = rows[0].int64(0)?;
             Ok(max_row_id.unwrap_or(0))
         }
+    }
+
+    pub(crate) async fn scan_all_undeleted_row_metadata(
+        &mut self,
+        table_id: i64,
+    ) -> ILResult<Vec<RowMetadataRecord>> {
+        let condition =
+            Expr::Column("deleted".to_string()).eq(Expr::Literal(Scalar::Boolean(Some(false))));
+        self.scan_row_metadata(table_id, &condition).await
     }
 
     pub(crate) async fn scan_row_metadata(

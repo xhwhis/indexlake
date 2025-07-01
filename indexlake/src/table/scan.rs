@@ -17,8 +17,10 @@ use parquet::{
 use crate::{
     ILError, ILResult, RecordBatchStream,
     catalog::{
-        CatalogSchema, DataFileRecord, RowLocation, TransactionHelper, rows_to_record_batch,
+        CatalogSchema, DataFileRecord, INTERNAL_ROW_ID_FIELD_NAME, RowLocation, TransactionHelper,
+        rows_to_record_batch,
     },
+    expr::Expr,
     storage::Storage,
 };
 
@@ -35,27 +37,22 @@ pub(crate) async fn process_table_scan(
         .scan_inline_rows(table_id, &catalog_schema)
         .await?;
     let batch = rows_to_record_batch(&table_schema, &rows)?;
+    let batch_stream =
+        Box::pin(futures::stream::once(futures::future::ready(Ok(batch)))) as RecordBatchStream;
 
-    let mut batches = vec![batch];
+    let row_metadatas = tx_helper.scan_all_undeleted_row_metadata(table_id).await?;
+    let data_file_locations = row_metadatas
+        .into_iter()
+        .filter(|meta| matches!(meta.location, RowLocation::Parquet { .. }))
+        .map(|meta| meta.location)
+        .collect::<Vec<_>>();
 
-    // TODO change to real stream
-    let data_files = tx_helper.get_data_files(table_id).await?;
-    for data_file in data_files {
-        batches.extend(read_data_file(&data_file, &storage).await?);
-    }
+    let stream = read_data_files_by_locations(storage, data_file_locations).await?;
 
-    Ok(Box::pin(futures::stream::iter(batches).map(Ok)))
-}
-
-pub(crate) async fn read_data_file(
-    data_file: &DataFileRecord,
-    storage: &Storage,
-) -> ILResult<Vec<RecordBatch>> {
-    let input_file = storage.open_file(&data_file.relative_path).await?;
-    let arrow_reader_builder = ParquetRecordBatchStreamBuilder::new(input_file).await?;
-    let stream = arrow_reader_builder.build()?;
-    let batches = stream.try_collect::<Vec<_>>().await?;
-    Ok(batches)
+    Ok(Box::pin(futures::stream::select_all(vec![
+        batch_stream,
+        stream,
+    ])))
 }
 
 // TODO support projection

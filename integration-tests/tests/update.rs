@@ -1,17 +1,7 @@
-use arrow::array::{Int64Array, RecordBatch, StringArray};
-use arrow::datatypes::{DataType, Field, Schema};
-use arrow::util::pretty::pretty_format_batches;
-use futures::TryStreamExt;
-use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
 use indexlake::expr::Expr;
-use indexlake::{
-    LakeClient,
-    catalog::Catalog,
-    catalog::Scalar,
-    storage::Storage,
-    table::{TableConfig, TableCreation},
-};
-use indexlake_integration_tests::utils::sort_record_batches;
+use indexlake::{LakeClient, catalog::Catalog, catalog::Scalar, storage::Storage};
+use indexlake_integration_tests::data::prepare_testing_table;
+use indexlake_integration_tests::utils::table_scan;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
@@ -31,52 +21,26 @@ async fn update_table(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
+    let table = prepare_testing_table(&client, "update_table")
+        .await
+        .unwrap();
 
-    let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name).await.unwrap();
-
-    let table_schema = Arc::new(Schema::new(vec![
-        Field::new("id", DataType::Int64, false),
-        Field::new("name", DataType::Utf8, false),
-    ]));
-    let table_name = "test_table";
-    let table_creation = TableCreation {
-        namespace_name: namespace_name.to_string(),
-        table_name: table_name.to_string(),
-        schema: table_schema.clone(),
-        config: TableConfig::default(),
-    };
-    client.create_table(table_creation).await.unwrap();
-
-    let table = client.load_table(namespace_name, table_name).await.unwrap();
-
-    let record_batch = RecordBatch::try_new(
-        table_schema.clone(),
-        vec![
-            Arc::new(Int64Array::from(vec![1, 2])),
-            Arc::new(StringArray::from(vec!["Alice", "Bob"])),
-        ],
-    )
-    .unwrap();
-
-    table.insert(&record_batch).await.unwrap();
-
-    let set_map = HashMap::from([("name".to_string(), Scalar::Utf8(Some("Alice2".to_string())))]);
-    let condition = Expr::Column("id".to_string()).eq(Expr::Literal(Scalar::Int64(Some(1))));
+    let set_map = HashMap::from([("age".to_string(), Scalar::Int32(Some(30)))]);
+    let condition =
+        Expr::Column("name".to_string()).eq(Expr::Literal(Scalar::Utf8(Some("Alice".to_string()))));
     table.update(set_map, &condition).await.unwrap();
 
-    let batch_stream = table.scan().await.unwrap();
-    let batches = batch_stream.try_collect::<Vec<_>>().await.unwrap();
-    let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME).unwrap();
-    let table_str = pretty_format_batches(&[sorted_batch]).unwrap().to_string();
+    let table_str = table_scan(&table).await.unwrap();
     println!("{}", table_str);
     assert_eq!(
         table_str,
-        r#"+-------------------+----+--------+
-| _indexlake_row_id | id | name   |
-+-------------------+----+--------+
-| 1                 | 1  | Alice2 |
-| 2                 | 2  | Bob    |
-+-------------------+----+--------+"#,
+        r#"+-------------------+---------+-----+
+| _indexlake_row_id | name    | age |
++-------------------+---------+-----+
+| 1                 | Alice   | 30  |
+| 2                 | Bob     | 21  |
+| 3                 | Charlie | 22  |
+| 4                 | David   | 23  |
++-------------------+---------+-----+"#,
     );
 }
