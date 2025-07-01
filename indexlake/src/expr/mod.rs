@@ -1,14 +1,17 @@
 mod binary;
 mod builder;
+mod compute;
 mod visitor;
 
 pub use binary::*;
+pub use compute::*;
 pub use visitor::*;
 
 use std::sync::Arc;
 
 use arrow::{
     array::{ArrayRef, AsArray, BooleanArray, RecordBatch},
+    buffer::BooleanBuffer,
     datatypes::Schema,
     error::ArrowError,
 };
@@ -37,14 +40,6 @@ pub enum Expr {
     IsNull(Box<Expr>),
     /// True if argument is not NULL, false otherwise
     IsNotNull(Box<Expr>),
-    /// True if argument is true, false otherwise
-    IsTrue(Box<Expr>),
-    /// True if argument is false, false otherwise
-    IsFalse(Box<Expr>),
-    /// True if argument is FALSE or NULL, false otherwise
-    IsNotTrue(Box<Expr>),
-    /// True if argument is TRUE or NULL, false otherwise
-    IsNotFalse(Box<Expr>),
     /// Returns whether the list contains the expr value
     InList(InList),
 }
@@ -92,7 +87,26 @@ impl Expr {
                     !scalar.is_null(),
                 )))),
             },
-            _ => todo!(),
+            Expr::InList(in_list) => {
+                let num_rows = batch.num_rows();
+                let value = in_list.expr.eval(batch)?.into_array(num_rows)?;
+                let is_nested = value.data_type().is_nested();
+                let found = in_list.list.iter().map(|expr| expr.eval(batch)).try_fold(
+                    BooleanArray::new(BooleanBuffer::new_unset(num_rows), None),
+                    |result, expr| -> ILResult<BooleanArray> {
+                        let rhs = compare_with_eq(&value, &expr?.into_array(num_rows)?, is_nested)?;
+                        Ok(arrow::compute::or_kleene(&result, &rhs)?)
+                    },
+                )?;
+
+                let r = if in_list.negated {
+                    arrow::compute::not(&found)?
+                } else {
+                    found
+                };
+
+                Ok(ColumnarValue::Array(Arc::new(r)))
+            }
         }
     }
 
@@ -104,10 +118,6 @@ impl Expr {
             Expr::Not(expr) => format!("NOT {}", expr.to_sql(database)),
             Expr::IsNull(expr) => format!("{} IS NULL", expr.to_sql(database)),
             Expr::IsNotNull(expr) => format!("{} IS NOT NULL", expr.to_sql(database)),
-            Expr::IsTrue(expr) => format!("{} IS TRUE", expr.to_sql(database)),
-            Expr::IsFalse(expr) => format!("{} IS FALSE", expr.to_sql(database)),
-            Expr::IsNotTrue(expr) => format!("{} IS NOT TRUE", expr.to_sql(database)),
-            Expr::IsNotFalse(expr) => format!("{} IS NOT FALSE", expr.to_sql(database)),
             Expr::InList(in_list) => {
                 let list = in_list
                     .list
@@ -130,10 +140,6 @@ impl std::fmt::Display for Expr {
             Expr::Not(expr) => write!(f, "NOT {}", expr),
             Expr::IsNull(expr) => write!(f, "{} IS NULL", expr),
             Expr::IsNotNull(expr) => write!(f, "{} IS NOT NULL", expr),
-            Expr::IsTrue(expr) => write!(f, "{} IS TRUE", expr),
-            Expr::IsFalse(expr) => write!(f, "{} IS FALSE", expr),
-            Expr::IsNotTrue(expr) => write!(f, "{} IS NOT TRUE", expr),
-            Expr::IsNotFalse(expr) => write!(f, "{} IS NOT FALSE", expr),
             Expr::InList(in_list) => write!(
                 f,
                 "{} IN ({})",
