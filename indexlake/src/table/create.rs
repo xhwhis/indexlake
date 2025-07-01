@@ -1,8 +1,18 @@
+use std::collections::HashMap;
+
+use arrow::datatypes::SchemaRef;
+
 use crate::{
-    ILError, ILResult,
-    catalog::{TableRecord, TransactionHelper},
-    table::TableCreation,
+    catalog::{IndexRecord, TableRecord, TransactionHelper}, index::IndexDefination, table::{Table, TableConfig}, ILError, ILResult
 };
+
+#[derive(Debug, Clone)]
+pub struct TableCreation {
+    pub namespace_name: String,
+    pub table_name: String,
+    pub schema: SchemaRef,
+    pub config: TableConfig,
+}
 
 pub(crate) async fn process_create_table(
     tx_helper: &mut TransactionHelper,
@@ -15,8 +25,8 @@ pub(crate) async fn process_create_table(
             ILError::CatalogError(format!("Namespace {} not found", creation.namespace_name))
         })?;
 
-    if let Some(_) = tx_helper
-        .get_table(namespace_id, &creation.table_name)
+    if tx_helper
+        .table_name_exists(namespace_id, &creation.table_name)
         .await?
     {
         return Err(ILError::InvalidInput(format!(
@@ -49,4 +59,77 @@ pub(crate) async fn process_create_table(
         .await?;
 
     Ok(table_id)
+}
+
+#[derive(Debug, Clone)]
+pub struct IndexCreation {
+    pub name: String,
+    pub kind: String,
+    pub key_column_names: Vec<String>,
+    pub include_column_names: Vec<String>,
+    pub config: HashMap<String, String>,
+}
+
+pub(crate) async fn process_create_index(
+    tx_helper: &mut TransactionHelper,
+    table: &Table,
+    creation: IndexCreation,
+) -> ILResult<i64> {
+    if tx_helper
+        .index_name_exists(table.table_id, &creation.name)
+        .await?
+    {
+        return Err(ILError::InvalidInput(format!(
+            "Index name {} already exists",
+            creation.name
+        )));
+    }
+
+    let mut key_column_indexes = Vec::new();
+    for field_name in creation.key_column_names.iter() {
+        key_column_indexes.push(table.schema.index_of(field_name)?);
+    }
+
+    let mut include_column_indexes = Vec::new();
+    for field_name in creation.include_column_names.iter() {
+        include_column_indexes.push(table.schema.index_of(field_name)?);
+    }
+
+    let index_def = IndexDefination {
+        name: creation.name.clone(),
+        kind: creation.kind.clone(),
+        table_id: table.table_id,
+        table_name: table.table_name.clone(),
+        table_schema: table.schema.clone(),
+        key_columns: key_column_indexes,
+        include_columns: include_column_indexes,
+        config: creation.config.clone(),
+    };
+
+    if let Some(index) = table.topk_index_kinds.get(&creation.kind) {
+        let _ = index.build(&index_def, &[])?;
+    } else if let Some(index) = table.filter_index_kinds.get(&creation.kind) {
+        let _ = index.build(&index_def, &[])?;
+    } else {
+        return Err(ILError::InvalidInput(format!(
+            "Index kind {} not supported",
+            creation.kind
+        )));
+    }
+
+    let max_index_id = tx_helper.get_max_index_id().await?;
+    let index_id = max_index_id + 1;
+
+    tx_helper.insert_index(&IndexRecord {
+        index_id,
+        index_name: creation.name.clone(),
+        index_kind: creation.kind.clone(),
+        table_id: table.table_id,
+        // TODO find field ids
+        key_field_ids: Vec::new(),
+        include_field_ids: Vec::new(),
+        config: creation.config.clone(),
+    }).await?;
+
+    Ok(index_id)
 }

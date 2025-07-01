@@ -9,7 +9,7 @@ mod truncate;
 mod update;
 
 pub use config::*;
-pub(crate) use create::*;
+pub use create::*;
 pub(crate) use delete::*;
 pub(crate) use drop::*;
 pub(crate) use dump::*;
@@ -18,6 +18,7 @@ pub(crate) use scan::*;
 pub(crate) use truncate::*;
 pub(crate) use update::*;
 
+use crate::index::{FilterIndex, TopKIndex};
 use crate::RecordBatchStream;
 use crate::catalog::{CatalogHelper, CatalogSchemaRef, Scalar};
 use crate::expr::Expr;
@@ -33,28 +34,30 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
-pub struct TableCreation {
-    pub namespace_name: String,
-    pub table_name: String,
-    pub schema: SchemaRef,
-    pub config: TableConfig,
-}
-
-#[derive(Debug, Clone)]
 pub struct Table {
     pub namespace_id: i64,
     pub namespace_name: String,
     pub table_id: i64,
     pub table_name: String,
+    pub field_ids: Vec<i64>,
     pub schema: SchemaRef,
     pub config: Arc<TableConfig>,
     pub catalog: Arc<dyn Catalog>,
     pub storage: Arc<Storage>,
+    pub topk_index_kinds: HashMap<String, Arc<dyn TopKIndex>>,
+    pub filter_index_kinds: HashMap<String, Arc<dyn FilterIndex>>,
 }
 
 impl Table {
     pub(crate) async fn transaction_helper(&self) -> ILResult<TransactionHelper> {
         TransactionHelper::new(&self.catalog).await
+    }
+
+    pub async fn create_index(&self, index_creation: IndexCreation) -> ILResult<()> {
+        let mut tx_helper = self.transaction_helper().await?;
+        process_create_index(&mut tx_helper, self, index_creation).await?;
+        tx_helper.commit().await?;
+        Ok(())
     }
 
     pub async fn insert(&self, record: &RecordBatch) -> ILResult<()> {

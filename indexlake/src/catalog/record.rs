@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use crate::{
     ILError, ILResult,
@@ -153,5 +153,52 @@ impl FromStr for RowLocation {
                 s
             )))
         }
+    }
+}
+
+pub(crate) struct IndexRecord {
+    pub(crate) index_id: i64,
+    pub(crate) index_name: String,
+    pub(crate) index_kind: String,
+    pub(crate) table_id: i64,
+    pub(crate) key_field_ids: Vec<i64>,
+    pub(crate) include_field_ids: Vec<i64>,
+    pub(crate) config: HashMap<String, String>,
+}
+
+impl IndexRecord {
+    pub(crate) fn to_sql(&self) -> ILResult<String> {
+        let config_str = serde_json::to_string(&self.config).map_err(|e| {
+            ILError::InternalError(format!("Failed to serialize index config: {e:?}"))
+        })?;
+        let key_field_ids_str = serde_json::to_string(&self.key_field_ids).map_err(|e| {
+            ILError::InternalError(format!("Failed to serialize key field ids: {e:?}"))
+        })?;
+        let include_field_ids_str =
+            serde_json::to_string(&self.include_field_ids).map_err(|e| {
+                ILError::InternalError(format!("Failed to serialize include field ids: {e:?}"))
+            })?;
+        Ok(format!(
+            "({}, '{}', '{}', {}, '{}', '{}', '{}')",
+            self.index_id,
+            self.index_name,
+            self.index_kind,
+            self.table_id,
+            key_field_ids_str,
+            include_field_ids_str,
+            config_str
+        ))
+    }
+
+    pub(crate) fn select_items() -> Vec<&'static str> {
+        vec![
+            "index_id",
+            "index_name",
+            "index_kind",
+            "table_id",
+            "key_field_ids",
+            "include_field_ids",
+            "config",
+        ]
     }
 }

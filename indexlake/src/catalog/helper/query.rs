@@ -72,6 +72,20 @@ impl TransactionHelper {
         }
     }
 
+    pub(crate) async fn table_name_exists(
+        &mut self,
+        namespace_id: i64,
+        table_name: &str,
+    ) -> ILResult<bool> {
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
+            "table_id",
+            CatalogDataType::Int64,
+            false,
+        )]));
+        let rows = self.query_rows(&format!("SELECT table_id FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'"), schema).await?;
+        Ok(rows.len() > 0)
+    }
+
     pub(crate) async fn get_table(
         &mut self,
         namespace_id: i64,
@@ -126,8 +140,9 @@ impl TransactionHelper {
         }
     }
 
-    pub(crate) async fn get_table_fields(&mut self, table_id: i64) -> ILResult<Vec<Field>> {
+    pub(crate) async fn get_table_fields(&mut self, table_id: i64) -> ILResult<(Vec<i64>, Vec<Field>)> {
         let catalog_schema = Arc::new(CatalogSchema::new(vec![
+            Column::new("field_id", CatalogDataType::Int64, false),
             Column::new("field_name", CatalogDataType::Utf8, false),
             Column::new("data_type", CatalogDataType::Utf8, false),
             Column::new("nullable", CatalogDataType::Boolean, false),
@@ -135,24 +150,27 @@ impl TransactionHelper {
         ]));
         let rows = self
             .query_rows(
-                &format!("SELECT field_name, data_type, nullable, metadata FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"),
+                &format!("SELECT field_id, field_name, data_type, nullable, metadata FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"),
                 catalog_schema,
             )
             .await?;
+        let mut field_ids = Vec::new();
         let mut fields = Vec::new();
         for row in rows {
-            let field_name = row.utf8(0)?.expect("field_name is not null");
-            let data_type_str = row.utf8(1)?.expect("data_type is not null");
+            let field_id = row.int64(0)?.expect("field_id is not null");
+            let field_name = row.utf8(1)?.expect("field_name is not null");
+            let data_type_str = row.utf8(2)?.expect("data_type is not null");
             let data_type = data_type_str.parse::<DataType>()?;
-            let nullable = row.boolean(2)?.expect("nullable is not null");
-            let metadata_str = row.utf8(3)?.expect("metadata is not null");
+            let nullable = row.boolean(3)?.expect("nullable is not null");
+            let metadata_str = row.utf8(4)?.expect("metadata is not null");
             let metadata: HashMap<String, String> =
                 serde_json::from_str(&metadata_str).map_err(|e| {
                     ILError::InternalError(format!("Failed to deserialize field metadata: {e:?}"))
                 })?;
+            field_ids.push(field_id);
             fields.push(Field::new(field_name, data_type, nullable).with_metadata(metadata));
         }
-        Ok(fields)
+        Ok((field_ids, fields))
     }
 
     pub(crate) async fn get_max_row_id(&mut self, table_id: i64) -> ILResult<i64> {
@@ -381,6 +399,35 @@ impl TransactionHelper {
             });
         }
         Ok(data_files)
+    }
+
+    pub(crate) async fn index_name_exists(
+        &mut self,
+        table_id: i64,
+        index_name: &str,
+    ) -> ILResult<bool> {
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
+            "index_id",
+            CatalogDataType::Int64,
+            false,
+        )]));
+        let rows = self.query_rows(&format!("SELECT index_id FROM indexlake_index WHERE table_id = {table_id} AND index_name = '{index_name}'"), schema).await?;
+        Ok(rows.len() > 0)
+    }
+
+    pub(crate) async fn get_max_index_id(&mut self) -> ILResult<i64> {
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
+            "max_index_id",
+            CatalogDataType::Int64,
+            true,
+        )]));
+        let rows = self.query_rows("SELECT MAX(index_id) FROM indexlake_index", schema).await?;
+        if rows.is_empty() {
+            Ok(0)
+        } else {
+            let max_index_id = rows[0].int64(0)?;
+            Ok(max_index_id.unwrap_or(0))
+        }
     }
 }
 

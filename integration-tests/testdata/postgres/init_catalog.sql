@@ -31,3 +31,21 @@ CREATE TABLE indexlake_data_file (
     record_count BIGINT NOT NULL,
     row_ids BYTEA NOT NULL
 );
+
+CREATE TABLE indexlake_index (
+    index_id BIGINT PRIMARY KEY,
+    table_id BIGINT NOT NULL,
+    index_name VARCHAR NOT NULL,
+    index_kind VARCHAR NOT NULL,
+    key_field_ids VARCHAR NOT NULL,
+    include_field_ids VARCHAR NOT NULL,
+    config VARCHAR NOT NULL
+);
+
+CREATE TABLE indexlake_index_file (
+    index_file_id BIGINT PRIMARY KEY,
+    index_id BIGINT NOT NULL,
+    data_file_id BIGINT NOT NULL,
+    relative_path VARCHAR NOT NULL,
+    file_size_bytes BIGINT NOT NULL
+);
