@@ -1,14 +1,13 @@
 use std::{collections::HashMap, sync::Arc};
 
-use arrow::datatypes::{DataType, Field};
+use arrow::datatypes::{DataType, Field, FieldRef};
 
 use crate::catalog::{CatalogHelper, DataFileRecord, RowLocation, RowMetadataRecord, Scalar};
 use crate::expr::Expr;
 use crate::{
     ILError, ILResult,
     catalog::{
-        CatalogDataType, CatalogSchema, CatalogSchemaRef, Column, INTERNAL_ROW_ID_FIELD,
-        INTERNAL_ROW_ID_FIELD_NAME, Row,
+        CatalogDataType, CatalogSchema, CatalogSchemaRef, Column, INTERNAL_ROW_ID_FIELD_NAME, Row,
     },
     catalog::{RowStream, TableRecord, TransactionHelper},
     table::TableConfig,
@@ -140,7 +139,10 @@ impl TransactionHelper {
         }
     }
 
-    pub(crate) async fn get_table_fields(&mut self, table_id: i64) -> ILResult<(Vec<i64>, Vec<Field>)> {
+    pub(crate) async fn get_table_fields(
+        &mut self,
+        table_id: i64,
+    ) -> ILResult<HashMap<i64, FieldRef>> {
         let catalog_schema = Arc::new(CatalogSchema::new(vec![
             Column::new("field_id", CatalogDataType::Int64, false),
             Column::new("field_name", CatalogDataType::Utf8, false),
@@ -154,8 +156,7 @@ impl TransactionHelper {
                 catalog_schema,
             )
             .await?;
-        let mut field_ids = Vec::new();
-        let mut fields = Vec::new();
+        let mut field_map = HashMap::new();
         for row in rows {
             let field_id = row.int64(0)?.expect("field_id is not null");
             let field_name = row.utf8(1)?.expect("field_name is not null");
@@ -167,10 +168,12 @@ impl TransactionHelper {
                 serde_json::from_str(&metadata_str).map_err(|e| {
                     ILError::InternalError(format!("Failed to deserialize field metadata: {e:?}"))
                 })?;
-            field_ids.push(field_id);
-            fields.push(Field::new(field_name, data_type, nullable).with_metadata(metadata));
+            field_map.insert(
+                field_id,
+                Arc::new(Field::new(field_name, data_type, nullable).with_metadata(metadata)),
+            );
         }
-        Ok((field_ids, fields))
+        Ok(field_map)
     }
 
     pub(crate) async fn get_max_row_id(&mut self, table_id: i64) -> ILResult<i64> {
@@ -421,7 +424,9 @@ impl TransactionHelper {
             CatalogDataType::Int64,
             true,
         )]));
-        let rows = self.query_rows("SELECT MAX(index_id) FROM indexlake_index", schema).await?;
+        let rows = self
+            .query_rows("SELECT MAX(index_id) FROM indexlake_index", schema)
+            .await?;
         if rows.is_empty() {
             Ok(0)
         } else {

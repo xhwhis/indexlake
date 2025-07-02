@@ -10,6 +10,7 @@ repository.workspace = true
 indexlake = { workspace = true }
 indexlake-catalog-postgres = { workspace = true }
 indexlake-catalog-sqlite = { workspace = true }
+indexlake-index-rstar = { workspace = true }
 
 arrow = { workspace = true, features = ["prettyprint"]}
 bytes = { workspace = true }

@@ -23,6 +23,7 @@ indexlake = { path = "indexlake" }
 indexlake-catalog-postgres = { path = "catalogs/postgres" }
 indexlake-catalog-sqlite = { path = "catalogs/sqlite" }
 indexlake-datafusion = { path = "integrations/datafusion" }
+indexlake-index-rstar = { path = "indexes/rstar" }
 
 arrow = "55"
 async-trait = "0.1"

@@ -1,7 +1,7 @@
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::util::pretty::pretty_format_batches;
 use futures::TryStreamExt;
-use indexlake::catalog::INTERNAL_ROW_ID_FIELD;
+use indexlake::catalog::INTERNAL_ROW_ID_FIELD_REF;
 use indexlake::{
     LakeClient,
     catalog::Catalog,
@@ -57,7 +57,7 @@ async fn create_table(
     assert_eq!(table.table_id, expected_table_id);
     assert_eq!(table.table_name, table_name);
 
-    let mut fields = vec![Arc::new(INTERNAL_ROW_ID_FIELD.clone())];
+    let mut fields = vec![INTERNAL_ROW_ID_FIELD_REF.clone()];
     fields.extend(expected_schema.fields.iter().map(|f| f.clone()));
     let expected_schema = Schema::new(fields);
 

@@ -10,10 +10,7 @@ use arrow::{
 
 use crate::{
     ILError, ILResult,
-    catalog::{
-        CatalogDatabase, CatalogSchema, INTERNAL_ROW_ID_FIELD, RowLocation, RowMetadataRecord,
-        TransactionHelper,
-    },
+    catalog::{CatalogDatabase, RowLocation, RowMetadataRecord, TransactionHelper},
     utils::record_batch_with_row_id,
 };
 

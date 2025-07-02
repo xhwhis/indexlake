@@ -5,7 +5,7 @@ use arrow::{
     datatypes::Schema,
 };
 
-use crate::{ILResult, catalog::INTERNAL_ROW_ID_FIELD};
+use crate::{ILResult, catalog::INTERNAL_ROW_ID_FIELD_REF};
 
 pub fn has_duplicated_items(container: impl Iterator<Item = impl Eq + Hash>) -> bool {
     let mut set = HashSet::new();
@@ -19,7 +19,7 @@ pub fn has_duplicated_items(container: impl Iterator<Item = impl Eq + Hash>) -> 
 }
 
 pub(crate) fn schema_with_row_id(schema: &Schema) -> Schema {
-    let mut fields = vec![Arc::new(INTERNAL_ROW_ID_FIELD.clone())];
+    let mut fields = vec![INTERNAL_ROW_ID_FIELD_REF.clone()];
     fields.extend(schema.fields.iter().map(|field| field.clone()));
     Schema::new_with_metadata(fields, schema.metadata().clone())
 }

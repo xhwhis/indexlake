@@ -8,3 +8,5 @@ repository.workspace = true
 
 [dependencies]
 indexlake = { workspace = true }
+
+arrow = { workspace = true }

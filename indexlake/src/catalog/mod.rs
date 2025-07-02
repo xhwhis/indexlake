@@ -15,14 +15,23 @@ pub use schema::*;
 use futures::Stream;
 
 use crate::ILResult;
-use arrow::datatypes::{DataType, Field};
-use std::{fmt::Debug, pin::Pin, sync::LazyLock};
+use arrow::datatypes::{DataType, Field, FieldRef};
+use std::{
+    fmt::Debug,
+    pin::Pin,
+    sync::{Arc, LazyLock},
+};
 
 pub type RowStream<'a> = Pin<Box<dyn Stream<Item = ILResult<Row>> + Send + 'a>>;
 
 pub static INTERNAL_ROW_ID_FIELD_NAME: &str = "_indexlake_row_id";
-pub static INTERNAL_ROW_ID_FIELD: LazyLock<Field> =
-    LazyLock::new(|| Field::new(INTERNAL_ROW_ID_FIELD_NAME, DataType::Int64, false));
+pub static INTERNAL_ROW_ID_FIELD_REF: LazyLock<FieldRef> = LazyLock::new(|| {
+    Arc::new(Field::new(
+        INTERNAL_ROW_ID_FIELD_NAME,
+        DataType::Int64,
+        false,
+    ))
+});
 
 #[async_trait::async_trait]
 pub trait Catalog: Debug + Send + Sync {

@@ -2082,6 +2082,7 @@ dependencies = [
 name = "indexlake-index-rstar"
 version = "0.1.0"
 dependencies = [
+ "arrow",
  "indexlake",
 ]
 
@@ -2096,6 +2097,7 @@ dependencies = [
  "indexlake",
  "indexlake-catalog-postgres",
  "indexlake-catalog-sqlite",
+ "indexlake-index-rstar",
  "opendal",
  "rstest",
  "rusqlite",

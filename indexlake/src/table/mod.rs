@@ -18,10 +18,10 @@ pub(crate) use scan::*;
 pub(crate) use truncate::*;
 pub(crate) use update::*;
 
-use crate::index::{FilterIndex, TopKIndex};
 use crate::RecordBatchStream;
 use crate::catalog::{CatalogHelper, CatalogSchemaRef, Scalar};
 use crate::expr::Expr;
+use crate::index::{FilterIndex, IndexKindManager, TopKIndex};
 use crate::utils::{has_duplicated_items, schema_with_row_id};
 use crate::{
     ILError, ILResult,
@@ -29,7 +29,7 @@ use crate::{
     storage::Storage,
 };
 use arrow::array::RecordBatch;
-use arrow::datatypes::SchemaRef;
+use arrow::datatypes::{FieldRef, SchemaRef};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -39,13 +39,12 @@ pub struct Table {
     pub namespace_name: String,
     pub table_id: i64,
     pub table_name: String,
-    pub field_ids: Vec<i64>,
+    pub field_map: HashMap<i64, FieldRef>,
     pub schema: SchemaRef,
     pub config: Arc<TableConfig>,
     pub catalog: Arc<dyn Catalog>,
     pub storage: Arc<Storage>,
-    pub topk_index_kinds: HashMap<String, Arc<dyn TopKIndex>>,
-    pub filter_index_kinds: HashMap<String, Arc<dyn FilterIndex>>,
+    pub index_kind_manager: IndexKindManager,
 }
 
 impl Table {

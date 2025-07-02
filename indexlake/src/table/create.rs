@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use arrow::datatypes::SchemaRef;
 
 use crate::{
-    catalog::{IndexRecord, TableRecord, TransactionHelper}, index::IndexDefination, table::{Table, TableConfig}, ILError, ILResult
+    ILError, ILResult,
+    catalog::{IndexRecord, TableRecord, TransactionHelper},
+    index::IndexDefination,
+    table::{Table, TableConfig},
 };
 
 #[derive(Debug, Clone)]
@@ -106,30 +109,54 @@ pub(crate) async fn process_create_index(
         config: creation.config.clone(),
     };
 
-    if let Some(index) = table.topk_index_kinds.get(&creation.kind) {
-        let _ = index.build(&index_def, &[])?;
-    } else if let Some(index) = table.filter_index_kinds.get(&creation.kind) {
-        let _ = index.build(&index_def, &[])?;
-    } else {
-        return Err(ILError::InvalidInput(format!(
-            "Index kind {} not supported",
-            creation.kind
-        )));
-    }
+    table.index_kind_manager.supports(&index_def)?;
 
     let max_index_id = tx_helper.get_max_index_id().await?;
     let index_id = max_index_id + 1;
 
-    tx_helper.insert_index(&IndexRecord {
-        index_id,
-        index_name: creation.name.clone(),
-        index_kind: creation.kind.clone(),
-        table_id: table.table_id,
-        // TODO find field ids
-        key_field_ids: Vec::new(),
-        include_field_ids: Vec::new(),
-        config: creation.config.clone(),
-    }).await?;
+    let mut key_field_ids = Vec::new();
+    for key_col_name in creation.key_column_names.iter() {
+        let field_id_opt = table
+            .field_map
+            .iter()
+            .find(|(_, field)| field.name() == key_col_name)
+            .map(|(field_id, _)| *field_id);
+        if let Some(field_id) = field_id_opt {
+            key_field_ids.push(field_id);
+        } else {
+            return Err(ILError::InvalidInput(format!(
+                "Key column name {key_col_name} not found in table schema"
+            )));
+        }
+    }
+
+    let mut include_field_ids = Vec::new();
+    for include_col_name in creation.include_column_names.iter() {
+        let field_id_opt = table
+            .field_map
+            .iter()
+            .find(|(_, field)| field.name() == include_col_name)
+            .map(|(field_id, _)| *field_id);
+        if let Some(field_id) = field_id_opt {
+            include_field_ids.push(field_id);
+        } else {
+            return Err(ILError::InvalidInput(format!(
+                "Include column name {include_col_name} not found in table schema"
+            )));
+        }
+    }
+
+    tx_helper
+        .insert_index(&IndexRecord {
+            index_id,
+            index_name: creation.name.clone(),
+            index_kind: creation.kind.clone(),
+            table_id: table.table_id,
+            key_field_ids,
+            include_field_ids,
+            config: creation.config.clone(),
+        })
+        .await?;
 
     Ok(index_id)
 }

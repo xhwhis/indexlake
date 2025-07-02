@@ -1,20 +1,17 @@
 use arrow::datatypes::Schema;
 
-use crate::catalog::INTERNAL_ROW_ID_FIELD;
+use crate::catalog::INTERNAL_ROW_ID_FIELD_REF;
 use crate::catalog::TransactionHelper;
-use crate::index::FilterIndex;
-use crate::index::TopKIndex;
+use crate::index::{FilterIndex, IndexKindManager, TopKIndex};
 use crate::table::{Table, TableCreation, process_create_table};
 use crate::{ILError, ILResult, catalog::Catalog, storage::Storage};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct LakeClient {
     pub catalog: Arc<dyn Catalog>,
     pub storage: Arc<Storage>,
-    pub topk_index_kinds: HashMap<String, Arc<dyn TopKIndex>>,
-    pub filter_index_kinds: HashMap<String, Arc<dyn FilterIndex>>,
+    pub index_kind_manager: IndexKindManager,
 }
 
 impl LakeClient {
@@ -22,8 +19,7 @@ impl LakeClient {
         Self {
             catalog,
             storage,
-            topk_index_kinds: HashMap::new(),
-            filter_index_kinds: HashMap::new(),
+            index_kind_manager: IndexKindManager::new_empty(),
         }
     }
 
@@ -32,25 +28,11 @@ impl LakeClient {
     }
 
     pub fn register_topk_index(&mut self, index: Arc<dyn TopKIndex>) -> ILResult<()> {
-        let kind = index.kind();
-        if self.topk_index_kinds.contains_key(kind) || self.filter_index_kinds.contains_key(kind) {
-            return Err(ILError::InvalidInput(format!(
-                "Index kind {kind} already registered"
-            )));
-        }
-        self.topk_index_kinds.insert(kind.to_string(), index);
-        Ok(())
+        self.index_kind_manager.register_topk_index(index)
     }
 
     pub fn register_filter_index(&mut self, index: Arc<dyn FilterIndex>) -> ILResult<()> {
-        let kind = index.kind();
-        if self.topk_index_kinds.contains_key(kind) || self.filter_index_kinds.contains_key(kind) {
-            return Err(ILError::InvalidInput(format!(
-                "Index kind {kind} already registered"
-            )));
-        }
-        self.filter_index_kinds.insert(kind.to_string(), index);
-        Ok(())
+        self.index_kind_manager.register_filter_index(index)
     }
 
     pub async fn create_namespace(&self, namespace_name: &str) -> ILResult<i64> {
@@ -107,8 +89,10 @@ impl LakeClient {
                 ))
             })?;
 
-        let (field_ids, mut fields) = tx_helper.get_table_fields(table_record.table_id).await?;
-        fields.insert(0, INTERNAL_ROW_ID_FIELD.clone());
+        let field_map = tx_helper.get_table_fields(table_record.table_id).await?;
+
+        let mut fields = field_map.values().cloned().collect::<Vec<_>>();
+        fields.insert(0, INTERNAL_ROW_ID_FIELD_REF.clone());
         // TODO support schema metadata
         let schema = Arc::new(Schema::new(fields));
 
@@ -117,14 +101,12 @@ impl LakeClient {
             namespace_name: namespace_name.to_string(),
             table_id: table_record.table_id,
             table_name: table_name.to_string(),
-            field_ids,
+            field_map,
             schema,
             config: Arc::new(table_record.config),
             catalog: self.catalog.clone(),
             storage: self.storage.clone(),
-            // TODO cheaper way
-            topk_index_kinds: self.topk_index_kinds.clone(),
-            filter_index_kinds: self.filter_index_kinds.clone(),
+            index_kind_manager: self.index_kind_manager.clone(),
         })
     }
 }

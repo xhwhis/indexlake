@@ -1,3 +1,7 @@
+mod manager;
+
+pub use manager::*;
+
 use std::{collections::HashMap, fmt::Debug};
 
 use arrow::{
@@ -13,6 +17,8 @@ pub type BytesStream = Box<dyn Stream<Item = Vec<u8>>>;
 pub trait TopKIndex: Debug + Send + Sync {
     // The kind of the index.
     fn kind(&self) -> &str;
+
+    fn supports(&self, index_def: &IndexDefination) -> ILResult<()>;
 
     // Build the index from the given batches.
     fn build(&self, index_def: &IndexDefination, batches: &[RecordBatch]) -> ILResult<BytesStream>;
@@ -37,6 +43,8 @@ pub struct TopKIndexEntries {
 pub trait FilterIndex: Debug + Send + Sync {
     // The kind of the index.
     fn kind(&self) -> &str;
+
+    fn supports(&self, index_def: &IndexDefination) -> ILResult<()>;
 
     // Build the index from the given batches.
     fn build(&self, index_def: &IndexDefination, batches: &[RecordBatch]) -> ILResult<BytesStream>;
