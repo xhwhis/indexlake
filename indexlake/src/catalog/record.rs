@@ -163,14 +163,11 @@ pub(crate) struct IndexRecord {
     pub(crate) table_id: i64,
     pub(crate) key_field_ids: Vec<i64>,
     pub(crate) include_field_ids: Vec<i64>,
-    pub(crate) config: HashMap<String, String>,
+    pub(crate) params: String,
 }
 
 impl IndexRecord {
     pub(crate) fn to_sql(&self) -> ILResult<String> {
-        let config_str = serde_json::to_string(&self.config).map_err(|e| {
-            ILError::InternalError(format!("Failed to serialize index config: {e:?}"))
-        })?;
         let key_field_ids_str = serde_json::to_string(&self.key_field_ids).map_err(|e| {
             ILError::InternalError(format!("Failed to serialize key field ids: {e:?}"))
         })?;
@@ -186,7 +183,7 @@ impl IndexRecord {
             self.table_id,
             key_field_ids_str,
             include_field_ids_str,
-            config_str
+            self.params
         ))
     }
 

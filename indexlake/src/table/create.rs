@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::SchemaRef;
 
 use crate::{
     ILError, ILResult,
     catalog::{IndexRecord, TableRecord, TransactionHelper},
-    index::IndexDefination,
+    index::{IndexDefination, IndexParams},
     table::{Table, TableConfig},
 };
 
@@ -70,7 +70,7 @@ pub struct IndexCreation {
     pub kind: String,
     pub key_column_names: Vec<String>,
     pub include_column_names: Vec<String>,
-    pub config: HashMap<String, String>,
+    pub params: Arc<dyn IndexParams>,
 }
 
 pub(crate) async fn process_create_index(
@@ -96,7 +96,7 @@ pub(crate) async fn process_create_index(
         table_schema: table.schema.clone(),
         key_columns: key_column_indexes,
         include_columns: include_column_indexes,
-        config: creation.config.clone(),
+        params: creation.params.clone(),
     };
 
     table.index_kind_manager.supports(&index_def)?;
@@ -154,7 +154,7 @@ pub(crate) async fn process_create_index(
             table_id: table.table_id,
             key_field_ids,
             include_field_ids,
-            config: creation.config.clone(),
+            params: creation.params.encode()?,
         })
         .await?;
 
