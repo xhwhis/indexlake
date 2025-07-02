@@ -78,16 +78,6 @@ pub(crate) async fn process_create_index(
     table: &Table,
     creation: IndexCreation,
 ) -> ILResult<i64> {
-    if tx_helper
-        .index_name_exists(table.table_id, &creation.name)
-        .await?
-    {
-        return Err(ILError::InvalidInput(format!(
-            "Index name {} already exists",
-            creation.name
-        )));
-    }
-
     let mut key_column_indexes = Vec::new();
     for field_name in creation.key_column_names.iter() {
         key_column_indexes.push(table.schema.index_of(field_name)?);
@@ -110,6 +100,16 @@ pub(crate) async fn process_create_index(
     };
 
     table.index_kind_manager.supports(&index_def)?;
+
+    if tx_helper
+        .index_name_exists(table.table_id, &creation.name)
+        .await?
+    {
+        return Err(ILError::InvalidInput(format!(
+            "Index name {} already exists",
+            creation.name
+        )));
+    }
 
     let max_index_id = tx_helper.get_max_index_id().await?;
     let index_id = max_index_id + 1;

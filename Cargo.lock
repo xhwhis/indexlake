@@ -2072,6 +2072,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "indexlake-index-hash"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "indexlake",
+]
+
+[[package]]
 name = "indexlake-index-hnsw"
 version = "0.1.0"
 dependencies = [
@@ -2097,6 +2105,7 @@ dependencies = [
  "indexlake",
  "indexlake-catalog-postgres",
  "indexlake-catalog-sqlite",
+ "indexlake-index-hash",
  "indexlake-index-rstar",
  "opendal",
  "rstest",
