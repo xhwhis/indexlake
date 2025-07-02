@@ -21,7 +21,7 @@ pub(crate) use update::*;
 use crate::RecordBatchStream;
 use crate::catalog::{CatalogHelper, CatalogSchemaRef, Scalar};
 use crate::expr::Expr;
-use crate::index::{FilterIndex, IndexKindManager, TopKIndex};
+use crate::index::{FilterIndex, IndexDefination, IndexKindManager, TopKIndex};
 use crate::utils::{has_duplicated_items, schema_with_row_id};
 use crate::{
     ILError, ILResult,
@@ -41,6 +41,7 @@ pub struct Table {
     pub table_name: String,
     pub field_map: BTreeMap<i64, FieldRef>,
     pub schema: SchemaRef,
+    pub indexes: HashMap<String, IndexDefination>,
     pub config: Arc<TableConfig>,
     pub catalog: Arc<dyn Catalog>,
     pub storage: Arc<Storage>,

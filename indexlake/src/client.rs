@@ -1,10 +1,13 @@
 use arrow::datatypes::Schema;
 
+use crate::catalog::CatalogHelper;
 use crate::catalog::INTERNAL_ROW_ID_FIELD_REF;
 use crate::catalog::TransactionHelper;
+use crate::index::IndexDefination;
 use crate::index::{FilterIndex, IndexKindManager, TopKIndex};
 use crate::table::{Table, TableCreation, process_create_table};
 use crate::{ILError, ILResult, catalog::Catalog, storage::Storage};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -71,16 +74,16 @@ impl LakeClient {
     }
 
     pub async fn load_table(&self, namespace_name: &str, table_name: &str) -> ILResult<Table> {
-        let mut tx_helper = self.transaction_helper().await?;
+        let mut catalog_helper = CatalogHelper::new(self.catalog.clone());
 
-        let namespace_id = tx_helper
+        let namespace_id = catalog_helper
             .get_namespace_id(namespace_name)
             .await?
             .ok_or_else(|| {
                 ILError::CatalogError(format!("Namespace {namespace_name} not found"))
             })?;
 
-        let table_record = tx_helper
+        let table_record = catalog_helper
             .get_table(namespace_id, table_name)
             .await?
             .ok_or_else(|| {
@@ -89,12 +92,29 @@ impl LakeClient {
                 ))
             })?;
 
-        let field_map = tx_helper.get_table_fields(table_record.table_id).await?;
+        let field_map = catalog_helper
+            .get_table_fields(table_record.table_id)
+            .await?;
 
         let mut fields = field_map.values().cloned().collect::<Vec<_>>();
         fields.insert(0, INTERNAL_ROW_ID_FIELD_REF.clone());
         // TODO support schema metadata
         let schema = Arc::new(Schema::new(fields));
+
+        let index_records = catalog_helper
+            .get_table_indexes(table_record.table_id)
+            .await?;
+        let mut indexes = HashMap::new();
+        for index_record in index_records {
+            let index = IndexDefination::from_index_record(
+                &index_record,
+                &field_map,
+                table_name,
+                &schema,
+                &self.index_kind_manager,
+            )?;
+            indexes.insert(index_record.index_name.clone(), index);
+        }
 
         Ok(Table {
             namespace_id,
@@ -103,6 +123,7 @@ impl LakeClient {
             table_name: table_name.to_string(),
             field_map,
             schema,
+            indexes,
             config: Arc::new(table_record.config),
             catalog: self.catalog.clone(),
             storage: self.storage.clone(),

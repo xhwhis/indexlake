@@ -1,6 +1,9 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
-use arrow::datatypes::SchemaRef;
+use arrow::datatypes::{FieldRef, SchemaRef};
 
 use crate::{
     ILError, ILResult,
@@ -68,8 +71,8 @@ pub(crate) async fn process_create_table(
 pub struct IndexCreation {
     pub name: String,
     pub kind: String,
-    pub key_column_names: Vec<String>,
-    pub include_column_names: Vec<String>,
+    pub key_columns: Vec<String>,
+    pub include_columns: Vec<String>,
     pub params: Arc<dyn IndexParams>,
 }
 
@@ -78,24 +81,14 @@ pub(crate) async fn process_create_index(
     table: &Table,
     creation: IndexCreation,
 ) -> ILResult<i64> {
-    let mut key_column_indexes = Vec::new();
-    for field_name in creation.key_column_names.iter() {
-        key_column_indexes.push(table.schema.index_of(field_name)?);
-    }
-
-    let mut include_column_indexes = Vec::new();
-    for field_name in creation.include_column_names.iter() {
-        include_column_indexes.push(table.schema.index_of(field_name)?);
-    }
-
     let index_def = IndexDefination {
         name: creation.name.clone(),
         kind: creation.kind.clone(),
         table_id: table.table_id,
         table_name: table.table_name.clone(),
         table_schema: table.schema.clone(),
-        key_columns: key_column_indexes,
-        include_columns: include_column_indexes,
+        key_columns: creation.key_columns.clone(),
+        include_columns: creation.include_columns.clone(),
         params: creation.params.clone(),
     };
 
@@ -114,37 +107,8 @@ pub(crate) async fn process_create_index(
     let max_index_id = tx_helper.get_max_index_id().await?;
     let index_id = max_index_id + 1;
 
-    let mut key_field_ids = Vec::new();
-    for key_col_name in creation.key_column_names.iter() {
-        let field_id_opt = table
-            .field_map
-            .iter()
-            .find(|(_, field)| field.name() == key_col_name)
-            .map(|(field_id, _)| *field_id);
-        if let Some(field_id) = field_id_opt {
-            key_field_ids.push(field_id);
-        } else {
-            return Err(ILError::InvalidInput(format!(
-                "Key column name {key_col_name} not found in table schema"
-            )));
-        }
-    }
-
-    let mut include_field_ids = Vec::new();
-    for include_col_name in creation.include_column_names.iter() {
-        let field_id_opt = table
-            .field_map
-            .iter()
-            .find(|(_, field)| field.name() == include_col_name)
-            .map(|(field_id, _)| *field_id);
-        if let Some(field_id) = field_id_opt {
-            include_field_ids.push(field_id);
-        } else {
-            return Err(ILError::InvalidInput(format!(
-                "Include column name {include_col_name} not found in table schema"
-            )));
-        }
-    }
+    let key_field_ids = field_names_to_ids(&table.field_map, &creation.key_columns)?;
+    let include_field_ids = field_names_to_ids(&table.field_map, &creation.include_columns)?;
 
     tx_helper
         .insert_index(&IndexRecord {
@@ -159,4 +123,22 @@ pub(crate) async fn process_create_index(
         .await?;
 
     Ok(index_id)
+}
+
+fn field_names_to_ids(field_map: &BTreeMap<i64, FieldRef>, names: &[String]) -> ILResult<Vec<i64>> {
+    let mut field_ids = Vec::new();
+    for name in names.iter() {
+        let field_id_opt = field_map
+            .iter()
+            .find(|(_, field)| field.name() == name)
+            .map(|(field_id, _)| *field_id);
+        if let Some(field_id) = field_id_opt {
+            field_ids.push(field_id);
+        } else {
+            return Err(ILError::InvalidInput(format!(
+                "Field name {name} not found in table schema"
+            )));
+        }
+    }
+    Ok(field_ids)
 }

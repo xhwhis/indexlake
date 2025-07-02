@@ -2,15 +2,24 @@ mod manager;
 
 pub use manager::*;
 
-use std::{any::Any, collections::HashMap, fmt::Debug, sync::Arc};
+use std::{
+    any::Any,
+    collections::{BTreeMap, HashMap},
+    fmt::Debug,
+    sync::Arc,
+};
 
 use arrow::{
     array::{ArrayRef, Float64Array, Int64Array, RecordBatch},
-    datatypes::SchemaRef,
+    datatypes::{FieldRef, SchemaRef},
 };
 use futures::Stream;
 
-use crate::{ILResult, catalog::Scalar, expr::Expr};
+use crate::{
+    ILError, ILResult,
+    catalog::{IndexRecord, Scalar},
+    expr::Expr,
+};
 
 pub type BytesStream = Box<dyn Stream<Item = Vec<u8>>>;
 
@@ -80,7 +89,50 @@ pub struct IndexDefination {
     pub table_id: i64,
     pub table_name: String,
     pub table_schema: SchemaRef,
-    pub key_columns: Vec<usize>,
-    pub include_columns: Vec<usize>,
+    pub key_columns: Vec<String>,
+    pub include_columns: Vec<String>,
     pub params: Arc<dyn IndexParams>,
+}
+
+impl IndexDefination {
+    pub fn from_index_record(
+        index_record: &IndexRecord,
+        field_map: &BTreeMap<i64, FieldRef>,
+        table_name: &str,
+        table_schema: &SchemaRef,
+        index_kind_manager: &IndexKindManager,
+    ) -> ILResult<Self> {
+        let mut key_columns = Vec::new();
+        for key_field_id in index_record.key_field_ids.iter() {
+            let field = field_map.get(key_field_id).ok_or_else(|| {
+                ILError::InternalError(format!(
+                    "Key field id {key_field_id} not found in field map"
+                ))
+            })?;
+            key_columns.push(field.name().to_string());
+        }
+        let mut include_columns = Vec::new();
+        for include_field_id in index_record.include_field_ids.iter() {
+            let field = field_map.get(include_field_id).ok_or_else(|| {
+                ILError::InternalError(format!(
+                    "Include field id {include_field_id} not found in field map"
+                ))
+            })?;
+            include_columns.push(field.name().to_string());
+        }
+
+        let params = index_kind_manager
+            .decode_index_params(&index_record.index_kind, &index_record.params)?;
+
+        Ok(Self {
+            name: index_record.index_name.clone(),
+            kind: index_record.index_kind.clone(),
+            table_id: index_record.table_id,
+            table_name: table_name.to_string(),
+            table_schema: table_schema.clone(),
+            key_columns,
+            include_columns,
+            params,
+        })
+    }
 }

@@ -3,7 +3,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::{DataType, Field, FieldRef};
 
-use crate::catalog::{CatalogHelper, DataFileRecord, RowLocation, RowMetadataRecord, Scalar};
+use crate::catalog::{
+    CatalogHelper, DataFileRecord, IndexRecord, RowLocation, RowMetadataRecord, Scalar,
+};
 use crate::expr::Expr;
 use crate::{
     ILError, ILResult,
@@ -86,42 +88,6 @@ impl TransactionHelper {
         Ok(rows.len() > 0)
     }
 
-    pub(crate) async fn get_table(
-        &mut self,
-        namespace_id: i64,
-        table_name: &str,
-    ) -> ILResult<Option<TableRecord>> {
-        let schema = Arc::new(CatalogSchema::new(vec![
-            Column::new("table_id", CatalogDataType::Int64, false),
-            Column::new("table_name", CatalogDataType::Utf8, false),
-            Column::new("namespace_id", CatalogDataType::Int64, false),
-            Column::new("config", CatalogDataType::Utf8, false),
-        ]));
-        let rows = self
-            .query_rows(
-                &format!("SELECT {} FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'", TableRecord::select_items().join(", ")),
-                schema,
-            )
-            .await?;
-        if rows.is_empty() {
-            Ok(None)
-        } else {
-            let table_id = rows[0].int64(0)?.expect("table_id is not null");
-            let table_name = rows[0].utf8(1)?.expect("table_name is not null");
-            let namespace_id = rows[0].int64(2)?.expect("namespace_id is not null");
-            let config_str = rows[0].utf8(3)?.expect("config is not null");
-            let config: TableConfig = serde_json::from_str(&config_str).map_err(|e| {
-                ILError::InternalError(format!("Failed to deserialize table config: {e:?}"))
-            })?;
-            Ok(Some(TableRecord {
-                table_id,
-                table_name: table_name.clone(),
-                namespace_id,
-                config,
-            }))
-        }
-    }
-
     pub(crate) async fn get_max_field_id(&mut self) -> ILResult<i64> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "max_field_id",
@@ -138,43 +104,6 @@ impl TransactionHelper {
             let max_field_id = rows[0].int64(0)?;
             Ok(max_field_id.unwrap_or(0))
         }
-    }
-
-    pub(crate) async fn get_table_fields(
-        &mut self,
-        table_id: i64,
-    ) -> ILResult<BTreeMap<i64, FieldRef>> {
-        let catalog_schema = Arc::new(CatalogSchema::new(vec![
-            Column::new("field_id", CatalogDataType::Int64, false),
-            Column::new("field_name", CatalogDataType::Utf8, false),
-            Column::new("data_type", CatalogDataType::Utf8, false),
-            Column::new("nullable", CatalogDataType::Boolean, false),
-            Column::new("metadata", CatalogDataType::Utf8, false),
-        ]));
-        let rows = self
-            .query_rows(
-                &format!("SELECT field_id, field_name, data_type, nullable, metadata FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"),
-                catalog_schema,
-            )
-            .await?;
-        let mut field_map = BTreeMap::new();
-        for row in rows {
-            let field_id = row.int64(0)?.expect("field_id is not null");
-            let field_name = row.utf8(1)?.expect("field_name is not null");
-            let data_type_str = row.utf8(2)?.expect("data_type is not null");
-            let data_type = data_type_str.parse::<DataType>()?;
-            let nullable = row.boolean(3)?.expect("nullable is not null");
-            let metadata_str = row.utf8(4)?.expect("metadata is not null");
-            let metadata: HashMap<String, String> =
-                serde_json::from_str(&metadata_str).map_err(|e| {
-                    ILError::InternalError(format!("Failed to deserialize field metadata: {e:?}"))
-                })?;
-            field_map.insert(
-                field_id,
-                Arc::new(Field::new(field_name, data_type, nullable).with_metadata(metadata)),
-            );
-        }
-        Ok(field_map)
     }
 
     pub(crate) async fn get_max_row_id(&mut self, table_id: i64) -> ILResult<i64> {
@@ -438,6 +367,151 @@ impl TransactionHelper {
 }
 
 impl CatalogHelper {
+    pub(crate) async fn get_namespace_id(&self, namespace_name: &str) -> ILResult<Option<i64>> {
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
+            "namespace_id",
+            CatalogDataType::Int64,
+            false,
+        )]));
+        let rows = self
+            .query_rows(
+                &format!(
+                    "SELECT namespace_id FROM indexlake_namespace WHERE namespace_name = '{namespace_name}'"
+                ),
+                schema,
+            )
+            .await?;
+        if rows.is_empty() {
+            Ok(None)
+        } else {
+            let namespace_id_opt = rows[0].int64(0)?;
+            assert!(namespace_id_opt.is_some());
+            Ok(namespace_id_opt)
+        }
+    }
+
+    pub(crate) async fn get_table(
+        &self,
+        namespace_id: i64,
+        table_name: &str,
+    ) -> ILResult<Option<TableRecord>> {
+        let schema = Arc::new(CatalogSchema::new(vec![
+            Column::new("table_id", CatalogDataType::Int64, false),
+            Column::new("table_name", CatalogDataType::Utf8, false),
+            Column::new("namespace_id", CatalogDataType::Int64, false),
+            Column::new("config", CatalogDataType::Utf8, false),
+        ]));
+        let rows = self
+            .query_rows(
+                &format!("SELECT {} FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'", TableRecord::select_items().join(", ")),
+                schema,
+            )
+            .await?;
+        if rows.is_empty() {
+            Ok(None)
+        } else {
+            let table_id = rows[0].int64(0)?.expect("table_id is not null");
+            let table_name = rows[0].utf8(1)?.expect("table_name is not null");
+            let namespace_id = rows[0].int64(2)?.expect("namespace_id is not null");
+            let config_str = rows[0].utf8(3)?.expect("config is not null");
+            let config: TableConfig = serde_json::from_str(&config_str).map_err(|e| {
+                ILError::InternalError(format!("Failed to deserialize table config: {e:?}"))
+            })?;
+            Ok(Some(TableRecord {
+                table_id,
+                table_name: table_name.clone(),
+                namespace_id,
+                config,
+            }))
+        }
+    }
+
+    pub(crate) async fn get_table_fields(
+        &self,
+        table_id: i64,
+    ) -> ILResult<BTreeMap<i64, FieldRef>> {
+        let catalog_schema = Arc::new(CatalogSchema::new(vec![
+            Column::new("field_id", CatalogDataType::Int64, false),
+            Column::new("field_name", CatalogDataType::Utf8, false),
+            Column::new("data_type", CatalogDataType::Utf8, false),
+            Column::new("nullable", CatalogDataType::Boolean, false),
+            Column::new("metadata", CatalogDataType::Utf8, false),
+        ]));
+        let rows = self
+            .query_rows(
+                &format!("SELECT field_id, field_name, data_type, nullable, metadata FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"),
+                catalog_schema,
+            )
+            .await?;
+        let mut field_map = BTreeMap::new();
+        for row in rows {
+            let field_id = row.int64(0)?.expect("field_id is not null");
+            let field_name = row.utf8(1)?.expect("field_name is not null");
+            let data_type_str = row.utf8(2)?.expect("data_type is not null");
+            let data_type = data_type_str.parse::<DataType>()?;
+            let nullable = row.boolean(3)?.expect("nullable is not null");
+            let metadata_str = row.utf8(4)?.expect("metadata is not null");
+            let metadata: HashMap<String, String> =
+                serde_json::from_str(&metadata_str).map_err(|e| {
+                    ILError::InternalError(format!("Failed to deserialize field metadata: {e:?}"))
+                })?;
+            field_map.insert(
+                field_id,
+                Arc::new(Field::new(field_name, data_type, nullable).with_metadata(metadata)),
+            );
+        }
+        Ok(field_map)
+    }
+
+    pub(crate) async fn get_table_indexes(&self, table_id: i64) -> ILResult<Vec<IndexRecord>> {
+        let catalog_schema = Arc::new(CatalogSchema::new(vec![
+            Column::new("index_id", CatalogDataType::Int64, false),
+            Column::new("index_name", CatalogDataType::Utf8, false),
+            Column::new("table_id", CatalogDataType::Int64, false),
+            Column::new("kind", CatalogDataType::Utf8, false),
+            Column::new("key_field_ids", CatalogDataType::Utf8, false),
+            Column::new("include_field_ids", CatalogDataType::Utf8, false),
+            Column::new("params", CatalogDataType::Utf8, false),
+        ]));
+        let rows = self
+            .query_rows(
+                &format!(
+                    "SELECT {} FROM indexlake_index WHERE table_id = {table_id}",
+                    IndexRecord::select_items().join(", ")
+                ),
+                catalog_schema,
+            )
+            .await?;
+        let mut indexes = Vec::with_capacity(rows.len());
+        for row in rows {
+            let index_id = row.int64(0)?.expect("index_id is not null");
+            let index_name = row.utf8(1)?.expect("index_name is not null");
+            let table_id = row.int64(2)?.expect("table_id is not null");
+            let kind = row.utf8(3)?.expect("kind is not null");
+            let key_field_ids_str = row.utf8(4)?.expect("key_field_ids is not null");
+            let key_field_ids = key_field_ids_str
+                .split(",")
+                .map(|id| id.parse::<i64>().unwrap())
+                .collect::<Vec<_>>();
+            let include_field_ids_str = row.utf8(5)?.expect("include_field_ids is not null");
+            let include_field_ids = include_field_ids_str
+                .split(",")
+                .map(|id| id.parse::<i64>().unwrap())
+                .collect::<Vec<_>>();
+            let params = row.utf8(6)?.expect("params is not null");
+            indexes.push(IndexRecord {
+                index_id,
+                index_name: index_name.clone(),
+                index_kind: kind.clone(),
+                table_id,
+                key_field_ids,
+                include_field_ids,
+                params: params.clone(),
+            });
+        }
+        Ok(indexes)
+    }
+
     pub(crate) async fn count_inline_rows(&self, table_id: i64) -> ILResult<i64> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "count",

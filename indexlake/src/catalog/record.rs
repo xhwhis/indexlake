@@ -167,15 +167,20 @@ pub(crate) struct IndexRecord {
 }
 
 impl IndexRecord {
-    pub(crate) fn to_sql(&self) -> ILResult<String> {
-        let key_field_ids_str = serde_json::to_string(&self.key_field_ids).map_err(|e| {
-            ILError::InternalError(format!("Failed to serialize key field ids: {e:?}"))
-        })?;
-        let include_field_ids_str =
-            serde_json::to_string(&self.include_field_ids).map_err(|e| {
-                ILError::InternalError(format!("Failed to serialize include field ids: {e:?}"))
-            })?;
-        Ok(format!(
+    pub(crate) fn to_sql(&self) -> String {
+        let key_field_ids_str = self
+            .key_field_ids
+            .iter()
+            .map(|id| id.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        let include_field_ids_str = self
+            .include_field_ids
+            .iter()
+            .map(|id| id.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(
             "({}, '{}', '{}', {}, '{}', '{}', '{}')",
             self.index_id,
             self.index_name,
@@ -184,7 +189,7 @@ impl IndexRecord {
             key_field_ids_str,
             include_field_ids_str,
             self.params
-        ))
+        )
     }
 
     pub(crate) fn select_items() -> Vec<&'static str> {
@@ -195,7 +200,7 @@ impl IndexRecord {
             "table_id",
             "key_field_ids",
             "include_field_ids",
-            "config",
+            "params",
         ]
     }
 }

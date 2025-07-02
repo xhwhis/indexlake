@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     ILError, ILResult,
-    index::{FilterIndex, IndexDefination, TopKIndex},
+    index::{FilterIndex, IndexDefination, IndexParams, TopKIndex},
 };
 
 #[derive(Debug, Clone)]
@@ -54,6 +54,19 @@ impl IndexKindManager {
             Err(ILError::InvalidInput(format!(
                 "Index kind {} not found",
                 index_def.kind
+            )))
+        }
+    }
+
+    pub fn decode_index_params(&self, kind: &str, params: &str) -> ILResult<Arc<dyn IndexParams>> {
+        if let Some(index) = self.topk_index_kinds.get(kind) {
+            index.decode_params(params)
+        } else if let Some(index) = self.filter_index_kinds.get(kind) {
+            index.decode_params(params)
+        } else {
+            Err(ILError::InvalidInput(format!(
+                "Index kind {} not found",
+                kind
             )))
         }
     }

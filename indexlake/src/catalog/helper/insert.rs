@@ -123,7 +123,7 @@ impl TransactionHelper {
             .execute(&format!(
                 "INSERT INTO indexlake_index ({}) VALUES {}",
                 IndexRecord::select_items().join(", "),
-                index_record.to_sql()?
+                index_record.to_sql()
             ))
             .await
     }

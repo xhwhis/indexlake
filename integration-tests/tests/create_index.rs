@@ -40,8 +40,8 @@ async fn duplicated_index_name(
     let index_creation = IndexCreation {
         name: "test_index".to_string(),
         kind: HashIndex.kind().to_string(),
-        key_column_names: vec!["name".to_string()],
-        include_column_names: vec!["age".to_string()],
+        key_columns: vec!["name".to_string()],
+        include_columns: vec!["age".to_string()],
         params: Arc::new(HashIndexParams),
     };
 
@@ -73,8 +73,8 @@ async fn unsupported_index_kind(
     let index_creation = IndexCreation {
         name: "test_index".to_string(),
         kind: "unsupported_index_kind".to_string(),
-        key_column_names: vec!["name".to_string()],
-        include_column_names: vec!["age".to_string()],
+        key_columns: vec!["name".to_string()],
+        include_columns: vec!["age".to_string()],
         params: Arc::new(HashIndexParams),
     };
 

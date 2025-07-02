@@ -39,7 +39,7 @@ CREATE TABLE indexlake_index (
     index_kind VARCHAR NOT NULL,
     key_field_ids VARCHAR NOT NULL,
     include_field_ids VARCHAR NOT NULL,
-    config VARCHAR NOT NULL
+    params VARCHAR NOT NULL
 );
 
 CREATE TABLE indexlake_index_file (
