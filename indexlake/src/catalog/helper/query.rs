@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::{DataType, Field, FieldRef};
@@ -142,7 +143,7 @@ impl TransactionHelper {
     pub(crate) async fn get_table_fields(
         &mut self,
         table_id: i64,
-    ) -> ILResult<HashMap<i64, FieldRef>> {
+    ) -> ILResult<BTreeMap<i64, FieldRef>> {
         let catalog_schema = Arc::new(CatalogSchema::new(vec![
             Column::new("field_id", CatalogDataType::Int64, false),
             Column::new("field_name", CatalogDataType::Utf8, false),
@@ -156,7 +157,7 @@ impl TransactionHelper {
                 catalog_schema,
             )
             .await?;
-        let mut field_map = HashMap::new();
+        let mut field_map = BTreeMap::new();
         for row in rows {
             let field_id = row.int64(0)?.expect("field_id is not null");
             let field_name = row.utf8(1)?.expect("field_name is not null");

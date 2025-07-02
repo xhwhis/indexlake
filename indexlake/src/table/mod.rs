@@ -30,7 +30,7 @@ use crate::{
 };
 use arrow::array::RecordBatch;
 use arrow::datatypes::{FieldRef, SchemaRef};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -39,7 +39,7 @@ pub struct Table {
     pub namespace_name: String,
     pub table_id: i64,
     pub table_name: String,
-    pub field_map: HashMap<i64, FieldRef>,
+    pub field_map: BTreeMap<i64, FieldRef>,
     pub schema: SchemaRef,
     pub config: Arc<TableConfig>,
     pub catalog: Arc<dyn Catalog>,
