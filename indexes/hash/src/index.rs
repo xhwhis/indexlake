@@ -27,7 +27,7 @@ impl Index for HashIndex {
         Ok(())
     }
 
-    fn builder(&self, index_def: &IndexDefinationRef) -> ILResult<Arc<dyn IndexBuilder>> {
+    fn builder(&self, index_def: &IndexDefinationRef) -> ILResult<Box<dyn IndexBuilder>> {
         todo!()
     }
 

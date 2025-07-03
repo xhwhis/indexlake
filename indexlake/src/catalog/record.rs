@@ -70,6 +70,14 @@ impl DataFileRecord {
             "row_ids",
         ]
     }
+
+    pub(crate) fn build_relative_path(
+        namespace_id: i64,
+        table_id: i64,
+        data_file_id: i64,
+    ) -> String {
+        format!("{}/{}/{}.parquet", namespace_id, table_id, data_file_id)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -202,5 +210,38 @@ impl IndexRecord {
             "include_field_ids",
             "params",
         ]
+    }
+}
+
+pub(crate) struct IndexFileRecord {
+    pub(crate) index_file_id: i64,
+    pub(crate) index_id: i64,
+    pub(crate) data_file_id: i64,
+    pub(crate) relative_path: String,
+}
+
+impl IndexFileRecord {
+    pub(crate) fn to_sql(&self) -> String {
+        format!(
+            "({}, {}, {}, '{}')",
+            self.index_file_id, self.index_id, self.data_file_id, self.relative_path
+        )
+    }
+
+    pub(crate) fn select_items() -> Vec<&'static str> {
+        vec!["index_file_id", "index_id", "data_file_id", "relative_path"]
+    }
+
+    pub(crate) fn build_relative_path(
+        namespace_id: i64,
+        table_id: i64,
+        data_file_id: i64,
+        index_id: i64,
+        index_file_id: i64,
+    ) -> String {
+        format!(
+            "{}/{}/{}-{}-{}.index",
+            namespace_id, table_id, data_file_id, index_id, index_file_id
+        )
     }
 }

@@ -81,7 +81,10 @@ pub(crate) async fn process_create_index(
     table: &Table,
     creation: IndexCreation,
 ) -> ILResult<i64> {
+    let index_id = tx_helper.get_max_index_id().await? + 1;
+
     let index_def = IndexDefination {
+        index_id,
         name: creation.name.clone(),
         kind: creation.kind.clone(),
         table_id: table.table_id,
@@ -107,9 +110,6 @@ pub(crate) async fn process_create_index(
             creation.name
         )));
     }
-
-    let max_index_id = tx_helper.get_max_index_id().await?;
-    let index_id = max_index_id + 1;
 
     let key_field_ids = field_names_to_ids(&table.field_map, &creation.key_columns)?;
     let include_field_ids = field_names_to_ids(&table.field_map, &creation.include_columns)?;

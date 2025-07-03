@@ -1,8 +1,8 @@
 use crate::{
     ILError, ILResult,
     catalog::{
-        DataFileRecord, INTERNAL_ROW_ID_FIELD_NAME, IndexRecord, RowMetadataRecord, TableRecord,
-        TransactionHelper,
+        DataFileRecord, INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, IndexRecord,
+        RowMetadataRecord, TableRecord, TransactionHelper,
     },
 };
 use arrow::datatypes::Fields;
@@ -124,6 +124,20 @@ impl TransactionHelper {
                 "INSERT INTO indexlake_index ({}) VALUES {}",
                 IndexRecord::select_items().join(", "),
                 index_record.to_sql()
+            ))
+            .await
+    }
+
+    pub(crate) async fn insert_index_files(
+        &mut self,
+        index_files: &[IndexFileRecord],
+    ) -> ILResult<usize> {
+        let values = index_files.iter().map(|r| r.to_sql()).collect::<Vec<_>>();
+        self.transaction
+            .execute(&format!(
+                "INSERT INTO indexlake_index_file ({}) VALUES {}",
+                IndexFileRecord::select_items().join(", "),
+                values.join(", ")
             ))
             .await
     }

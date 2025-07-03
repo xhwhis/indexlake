@@ -365,6 +365,26 @@ impl TransactionHelper {
             Ok(max_index_id.unwrap_or(0))
         }
     }
+
+    pub(crate) async fn get_max_index_file_id(&mut self) -> ILResult<i64> {
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
+            "max_index_file_id",
+            CatalogDataType::Int64,
+            true,
+        )]));
+        let rows = self
+            .query_rows(
+                "SELECT MAX(index_file_id) FROM indexlake_index_file",
+                schema,
+            )
+            .await?;
+        if rows.is_empty() {
+            Ok(0)
+        } else {
+            let max_index_file_id = rows[0].int64(0)?;
+            Ok(max_index_file_id.unwrap_or(0))
+        }
+    }
 }
 
 impl CatalogHelper {

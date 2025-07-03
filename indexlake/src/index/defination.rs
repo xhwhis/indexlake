@@ -16,6 +16,7 @@ pub type IndexDefinationRef = Arc<IndexDefination>;
 
 #[derive(Debug, Clone)]
 pub struct IndexDefination {
+    pub index_id: i64,
     pub name: String,
     pub kind: String,
     pub table_id: i64,
@@ -109,6 +110,7 @@ impl IndexDefination {
         let params = index_kind.decode_params(&index_record.params)?;
 
         Ok(Self {
+            index_id: index_record.index_id,
             name: index_record.index_name.clone(),
             kind: index_record.index_kind.clone(),
             table_id: index_record.table_id,

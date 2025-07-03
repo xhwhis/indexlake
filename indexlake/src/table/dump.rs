@@ -8,9 +8,10 @@ use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 use crate::{
     ILError, ILResult,
     catalog::{
-        Catalog, CatalogSchema, DataFileRecord, Row, RowStream, TransactionHelper,
+        Catalog, CatalogSchema, DataFileRecord, IndexFileRecord, Row, RowStream, TransactionHelper,
         rows_to_record_batch,
     },
+    index::{Index, IndexBuilder, IndexDefination, IndexDefinationRef},
     storage::Storage,
     table::{Table, TableConfig},
 };
@@ -33,6 +34,8 @@ pub(crate) async fn spawn_dump_task(table: &Table) -> ILResult<()> {
         namespace_id: table.namespace_id,
         table_id: table.table_id,
         table_schema: table.schema.clone(),
+        table_indexes: table.indexes.clone(),
+        index_kinds: table.index_kinds.clone(),
         table_config: table.config.clone(),
         catalog: table.catalog.clone(),
         storage: table.storage.clone(),
@@ -56,6 +59,8 @@ pub(crate) struct DumpTask {
     namespace_id: i64,
     table_id: i64,
     table_schema: SchemaRef,
+    table_indexes: HashMap<String, IndexDefinationRef>,
+    index_kinds: HashMap<String, Arc<dyn Index>>,
     table_config: Arc<TableConfig>,
     catalog: Arc<dyn Catalog>,
     storage: Arc<Storage>,
@@ -70,20 +75,28 @@ impl DumpTask {
             return Ok(());
         }
 
+        let data_file_id = tx_helper.get_max_data_file_id().await? + 1;
+
         let catalog_schema = Arc::new(CatalogSchema::from_arrow(&self.table_schema)?);
         let row_stream = tx_helper
             .scan_inline_rows_by_row_ids(self.table_id, &catalog_schema, &self.dump_row_ids)
             .await?;
 
-        let relative_path = format!(
-            "{}/{}/{}.parquet",
-            self.namespace_id,
-            self.table_id,
-            uuid::Uuid::new_v4()
-        );
+        let relative_path =
+            DataFileRecord::build_relative_path(self.namespace_id, self.table_id, data_file_id);
 
-        let (location_map, file_size_bytes, record_count) =
-            self.write_dump_file(row_stream, &relative_path).await?;
+        let mut index_builders = HashMap::new();
+        for (index_name, index_def) in self.table_indexes.iter() {
+            let index_kind = self.index_kinds.get(&index_def.kind).ok_or_else(|| {
+                ILError::InternalError(format!("Index kind {} not found", index_def.kind))
+            })?;
+            let index_builder = index_kind.builder(index_def)?;
+            index_builders.insert(index_name.clone(), index_builder);
+        }
+
+        let (location_map, file_size_bytes, record_count) = self
+            .write_dump_file(row_stream, &relative_path, &mut index_builders)
+            .await?;
 
         if record_count != self.dump_row_ids.len() {
             return Err(ILError::InternalError(format!(
@@ -93,7 +106,6 @@ impl DumpTask {
             )));
         }
 
-        let data_file_id = tx_helper.get_max_data_file_id().await? + 1;
         tx_helper
             .insert_data_files(&[DataFileRecord {
                 data_file_id,
@@ -104,6 +116,33 @@ impl DumpTask {
                 row_ids: self.dump_row_ids.clone(),
             }])
             .await?;
+
+        let mut index_file_id = tx_helper.get_max_index_file_id().await? + 1;
+        let mut index_file_records = Vec::new();
+        for (index_name, index_builder) in index_builders.iter_mut() {
+            let index_def = self
+                .table_indexes
+                .get(index_name)
+                .ok_or_else(|| ILError::InternalError(format!("Index {index_name} not found")))?;
+            let relative_path = IndexFileRecord::build_relative_path(
+                self.namespace_id,
+                self.table_id,
+                data_file_id,
+                index_def.index_id,
+                index_file_id,
+            );
+            let output_file = self.storage.create_file(&relative_path).await?;
+            index_builder.write(output_file).await?;
+            index_file_records.push(IndexFileRecord {
+                index_file_id,
+                index_id: index_def.index_id,
+                data_file_id,
+                relative_path,
+            });
+            index_file_id += 1;
+        }
+
+        tx_helper.insert_index_files(&index_file_records).await?;
 
         tx_helper
             .update_row_locations(self.table_id, &location_map)
@@ -131,6 +170,7 @@ impl DumpTask {
         &self,
         row_stream: RowStream<'_>,
         relative_path: &str,
+        index_builders: &mut HashMap<String, Box<dyn IndexBuilder>>,
     ) -> ILResult<(HashMap<i64, String>, usize, usize)> {
         let mut location_map = HashMap::new();
 
@@ -163,7 +203,13 @@ impl DumpTask {
                 rows.push(row);
             }
             let record_batch = rows_to_record_batch(&self.table_schema, &rows)?;
+
+            for (_index_name, index_builder) in index_builders.iter_mut() {
+                index_builder.update(&record_batch)?;
+            }
+
             arrow_writer.write(&record_batch).await?;
+
             record_count += record_batch.num_rows();
             row_group_idx += 1;
         }

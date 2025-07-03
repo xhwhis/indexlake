@@ -56,8 +56,8 @@ impl Index for RStarIndex {
         Ok(())
     }
 
-    fn builder(&self, index_def: &IndexDefinationRef) -> ILResult<Arc<dyn IndexBuilder>> {
-        Ok(Arc::new(RStarIndexBuilder::try_new(index_def.clone())?))
+    fn builder(&self, index_def: &IndexDefinationRef) -> ILResult<Box<dyn IndexBuilder>> {
+        Ok(Box::new(RStarIndexBuilder::try_new(index_def.clone())?))
     }
 
     async fn search(

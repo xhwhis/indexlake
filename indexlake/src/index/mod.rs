@@ -19,7 +19,7 @@ pub trait Index: Debug + Send + Sync {
 
     fn supports(&self, index_def: &IndexDefination) -> ILResult<()>;
 
-    fn builder(&self, index_def: &IndexDefinationRef) -> ILResult<Arc<dyn IndexBuilder>>;
+    fn builder(&self, index_def: &IndexDefinationRef) -> ILResult<Box<dyn IndexBuilder>>;
 
     async fn search(
         &self,
