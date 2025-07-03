@@ -71,7 +71,7 @@ impl LakeClient {
     }
 
     pub async fn load_table(&self, namespace_name: &str, table_name: &str) -> ILResult<Table> {
-        let mut catalog_helper = CatalogHelper::new(self.catalog.clone());
+        let catalog_helper = CatalogHelper::new(self.catalog.clone());
 
         let namespace_id = catalog_helper
             .get_namespace_id(namespace_name)

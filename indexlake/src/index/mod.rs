@@ -7,7 +7,7 @@ use std::{
 
 use arrow::{
     array::{ArrayRef, Float64Array, Int64Array, RecordBatch},
-    datatypes::{FieldRef, SchemaRef},
+    datatypes::{Field, FieldRef, SchemaRef},
 };
 use futures::Stream;
 
@@ -15,7 +15,7 @@ use crate::{
     ILError, ILResult, RecordBatchStream,
     catalog::{IndexRecord, Scalar},
     expr::Expr,
-    storage::InputFile,
+    storage::{InputFile, OutputFile},
 };
 
 pub type BytesStream = Box<dyn Stream<Item = Vec<u8>> + Send>;
@@ -34,7 +34,8 @@ pub trait Index: Debug + Send + Sync {
         &self,
         index_def: &IndexDefination,
         batch_stream: RecordBatchStream,
-    ) -> ILResult<BytesStream>;
+        output_file: OutputFile,
+    ) -> ILResult<()>;
 
     async fn search(
         &self,
@@ -43,6 +44,7 @@ pub trait Index: Debug + Send + Sync {
         query: &dyn SearchQuery,
     ) -> ILResult<SearchIndexEntries>;
 
+    // TODO return a stream of entries
     async fn filter(
         &self,
         index_def: &IndexDefination,
@@ -62,7 +64,7 @@ pub struct SearchIndexEntries {
 #[derive(Debug, Clone)]
 pub struct FilterIndexEntries {
     pub row_ids: Int64Array,
-    pub include_columns: HashMap<usize, ArrayRef>,
+    pub include_columns: HashMap<String, ArrayRef>,
 }
 
 pub trait SearchQuery: Debug + Send + Sync {
@@ -90,6 +92,56 @@ pub struct IndexDefination {
 }
 
 impl IndexDefination {
+    pub fn key_fields(&self) -> ILResult<Vec<&Field>> {
+        let mut key_fields = Vec::new();
+        for key_field_id in self.key_columns.iter() {
+            let field = self.table_schema.field_with_name(key_field_id)?;
+            key_fields.push(field);
+        }
+        Ok(key_fields)
+    }
+
+    pub fn include_fields(&self) -> ILResult<Vec<&Field>> {
+        let mut include_fields = Vec::new();
+        for include_field_id in self.include_columns.iter() {
+            let field = self.table_schema.field_with_name(include_field_id)?;
+            include_fields.push(field);
+        }
+        Ok(include_fields)
+    }
+
+    pub fn include_arrays(&self, record_batch: &RecordBatch) -> ILResult<Vec<ArrayRef>> {
+        let mut include_arrays = Vec::new();
+        for col_name in self.include_columns.iter() {
+            let col_index = self.table_schema.index_of(col_name)?;
+            let array = record_batch.column(col_index).clone();
+            include_arrays.push(array);
+        }
+        Ok(include_arrays)
+    }
+
+    pub fn include_array_map(
+        &self,
+        record_batch: &RecordBatch,
+    ) -> ILResult<HashMap<String, ArrayRef>> {
+        let mut include_array_map = HashMap::new();
+        for col_name in self.include_columns.iter() {
+            let col_index = self.table_schema.index_of(col_name)?;
+            let array = record_batch.column(col_index).clone();
+            include_array_map.insert(col_name.clone(), array);
+        }
+        Ok(include_array_map)
+    }
+
+    pub fn downcast_params<T: 'static>(&self) -> ILResult<&T> {
+        self.params.as_any().downcast_ref::<T>().ok_or_else(|| {
+            ILError::InternalError(format!(
+                "Index params is not {}",
+                std::any::type_name::<T>()
+            ))
+        })
+    }
+
     pub(crate) fn from_index_record(
         index_record: &IndexRecord,
         field_map: &BTreeMap<i64, FieldRef>,

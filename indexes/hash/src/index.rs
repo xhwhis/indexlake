@@ -7,7 +7,7 @@ use indexlake::{
         BytesStream, FilterIndexEntries, Index, IndexDefination, IndexParams, SearchIndexEntries,
         SearchQuery,
     },
-    storage::InputFile,
+    storage::{InputFile, OutputFile},
 };
 
 #[derive(Debug)]
@@ -31,7 +31,8 @@ impl Index for HashIndex {
         &self,
         index_def: &IndexDefination,
         batch_stream: RecordBatchStream,
-    ) -> ILResult<BytesStream> {
+        output_file: OutputFile,
+    ) -> ILResult<()> {
         todo!()
     }
     async fn search(

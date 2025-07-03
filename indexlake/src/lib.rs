@@ -5,7 +5,7 @@ pub mod expr;
 pub mod index;
 pub mod storage;
 pub mod table;
-mod utils;
+pub mod utils;
 
 pub use client::*;
 pub use error::*;
