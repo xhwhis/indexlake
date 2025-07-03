@@ -12,13 +12,12 @@ use arrow::{
 use futures::Stream;
 
 use crate::{
-    ILError, ILResult,
-    catalog::{IndexRecord, Scalar},
-    expr::Expr,
+    catalog::{IndexRecord, Scalar}, expr::Expr, ILError, ILResult, RecordBatchStream
 };
 
-pub type BytesStream = Box<dyn Stream<Item = Vec<u8>>>;
+pub type BytesStream = Box<dyn Stream<Item = Vec<u8>> + Send>;
 
+#[async_trait::async_trait]
 pub trait Index: Debug + Send + Sync {
     // The kind of the index.
     fn kind(&self) -> &str;
@@ -28,16 +27,16 @@ pub trait Index: Debug + Send + Sync {
     fn supports(&self, index_def: &IndexDefination) -> ILResult<()>;
 
     // Build the index from the given batches.
-    fn build(&self, index_def: &IndexDefination, batches: &[RecordBatch]) -> ILResult<BytesStream>;
+    async fn build(&self, index_def: &IndexDefination, batch_stream: RecordBatchStream) -> ILResult<BytesStream>;
 
-    fn search(
+    async fn search(
         &self,
         index_def: &IndexDefination,
         index: BytesStream,
         query: &dyn SearchQuery,
     ) -> ILResult<TopKIndexEntries>;
 
-    fn filter(
+    async fn filter(
         &self,
         index_def: &IndexDefination,
         index: BytesStream,

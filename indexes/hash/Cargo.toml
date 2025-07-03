@@ -10,3 +10,4 @@ repository.workspace = true
 indexlake = { workspace = true }
 
 arrow = { workspace = true }
+async-trait = { workspace = true}

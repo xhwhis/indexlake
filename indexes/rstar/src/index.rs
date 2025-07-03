@@ -1,18 +1,16 @@
 use std::sync::Arc;
 
-use arrow::array::RecordBatch;
 use indexlake::{
-    ILError, ILResult,
-    expr::Expr,
-    index::{
+    expr::Expr, index::{
         BytesStream, FilterIndexEntries, Index, IndexDefination, IndexParams, SearchQuery,
         TopKIndexEntries,
-    },
+    }, ILError, ILResult, RecordBatchStream
 };
 
 #[derive(Debug, Clone)]
 pub struct RStarIndex;
 
+#[async_trait::async_trait]
 impl Index for RStarIndex {
     fn kind(&self) -> &str {
         "rstar"
@@ -26,11 +24,11 @@ impl Index for RStarIndex {
         Ok(())
     }
 
-    fn build(&self, index_def: &IndexDefination, batches: &[RecordBatch]) -> ILResult<BytesStream> {
+    async fn build(&self, index_def: &IndexDefination, batch_stream: RecordBatchStream) -> ILResult<BytesStream> {
         todo!()
     }
 
-    fn search(
+    async fn search(
         &self,
         index_def: &IndexDefination,
         index: BytesStream,
@@ -41,7 +39,7 @@ impl Index for RStarIndex {
         )))
     }
 
-    fn filter(
+    async fn filter(
         &self,
         index_def: &IndexDefination,
         index: BytesStream,

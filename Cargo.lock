@@ -2076,6 +2076,7 @@ name = "indexlake-index-hash"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "async-trait",
  "indexlake",
 ]
 
@@ -2091,6 +2092,7 @@ name = "indexlake-index-rstar"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "async-trait",
  "indexlake",
 ]
 
