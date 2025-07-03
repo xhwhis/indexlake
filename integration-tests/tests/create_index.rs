@@ -2,6 +2,7 @@ use arrow::datatypes::{DataType, Field, Schema};
 use indexlake::{
     LakeClient,
     catalog::Catalog,
+    index::Index,
     storage::Storage,
     table::{TableConfig, TableCreation},
 };
@@ -13,7 +14,6 @@ use std::sync::Arc;
 
 use std::collections::HashMap;
 
-use indexlake::index::FilterIndex;
 use indexlake::table::IndexCreation;
 use indexlake_index_hash::{HashIndex, HashIndexParams};
 use indexlake_index_rstar::RStarIndex;
@@ -31,7 +31,7 @@ async fn duplicated_index_name(
     init_env_logger();
 
     let mut client = LakeClient::new(catalog, storage);
-    client.register_filter_index(Arc::new(HashIndex)).unwrap();
+    client.register_index(Arc::new(HashIndex)).unwrap();
 
     let table = prepare_testing_table(&mut client, "duplicated_index_name")
         .await
@@ -64,7 +64,7 @@ async fn unsupported_index_kind(
     init_env_logger();
 
     let mut client = LakeClient::new(catalog, storage);
-    client.register_filter_index(Arc::new(HashIndex)).unwrap();
+    client.register_index(Arc::new(HashIndex)).unwrap();
 
     let table = prepare_testing_table(&mut client, "duplicated_index_name")
         .await

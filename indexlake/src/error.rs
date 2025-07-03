@@ -6,6 +6,7 @@ pub enum ILError {
     NotSupported(String),
     CatalogError(String),
     StorageError(String),
+    IndexError(String),
     InvalidInput(String),
 }
 
@@ -16,6 +17,7 @@ impl std::fmt::Display for ILError {
             ILError::NotSupported(msg) => write!(f, "Not supported: {}", msg),
             ILError::CatalogError(msg) => write!(f, "Catalog error: {}", msg),
             ILError::StorageError(msg) => write!(f, "Storage error: {}", msg),
+            ILError::IndexError(msg) => write!(f, "Index error: {}", msg),
             ILError::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
         }
     }

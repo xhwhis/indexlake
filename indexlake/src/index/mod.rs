@@ -1,7 +1,3 @@
-mod manager;
-
-pub use manager::*;
-
 use std::{
     any::Any,
     collections::{BTreeMap, HashMap},
@@ -23,7 +19,7 @@ use crate::{
 
 pub type BytesStream = Box<dyn Stream<Item = Vec<u8>>>;
 
-pub trait TopKIndex: Debug + Send + Sync {
+pub trait Index: Debug + Send + Sync {
     // The kind of the index.
     fn kind(&self) -> &str;
 
@@ -38,9 +34,15 @@ pub trait TopKIndex: Debug + Send + Sync {
         &self,
         index_def: &IndexDefination,
         index: BytesStream,
-        input: &Scalar,
-        limit: usize,
+        query: &dyn SearchQuery,
     ) -> ILResult<TopKIndexEntries>;
+
+    fn filter(
+        &self,
+        index_def: &IndexDefination,
+        index: BytesStream,
+        filter: &Expr,
+    ) -> ILResult<FilterIndexEntries>;
 }
 
 #[derive(Debug, Clone)]
@@ -51,35 +53,22 @@ pub struct TopKIndexEntries {
     pub include_columns: HashMap<usize, ArrayRef>,
 }
 
-pub trait FilterIndex: Debug + Send + Sync {
-    // The kind of the index.
-    fn kind(&self) -> &str;
+#[derive(Debug, Clone)]
+pub struct FilterIndexEntries {
+    pub row_ids: Int64Array,
+    pub include_columns: HashMap<usize, ArrayRef>,
+}
 
-    fn decode_params(&self, value: &str) -> ILResult<Arc<dyn IndexParams>>;
+pub trait SearchQuery: Debug + Send + Sync {
+    fn as_any(&self) -> &dyn Any;
 
-    fn supports(&self, index_def: &IndexDefination) -> ILResult<()>;
-
-    // Build the index from the given batches.
-    fn build(&self, index_def: &IndexDefination, batches: &[RecordBatch]) -> ILResult<BytesStream>;
-
-    fn filter(
-        &self,
-        index_def: &IndexDefination,
-        index: BytesStream,
-        filter: &Expr,
-    ) -> ILResult<FilterIndexEntries>;
+    fn limit(&self) -> Option<usize>;
 }
 
 pub trait IndexParams: Debug + Send + Sync {
     fn as_any(&self) -> &dyn Any;
 
     fn encode(&self) -> ILResult<String>;
-}
-
-#[derive(Debug, Clone)]
-pub struct FilterIndexEntries {
-    pub row_ids: Int64Array,
-    pub include_columns: HashMap<usize, ArrayRef>,
 }
 
 #[derive(Debug, Clone)]
@@ -100,7 +89,7 @@ impl IndexDefination {
         field_map: &BTreeMap<i64, FieldRef>,
         table_name: &str,
         table_schema: &SchemaRef,
-        index_kind_manager: &IndexKindManager,
+        index_kinds: &HashMap<String, Arc<dyn Index>>,
     ) -> ILResult<Self> {
         let mut key_columns = Vec::new();
         for key_field_id in index_record.key_field_ids.iter() {
@@ -121,8 +110,10 @@ impl IndexDefination {
             include_columns.push(field.name().to_string());
         }
 
-        let params = index_kind_manager
-            .decode_index_params(&index_record.index_kind, &index_record.params)?;
+        let index_kind = index_kinds.get(&index_record.index_kind).ok_or_else(|| {
+            ILError::InternalError(format!("Index kind {} not found", index_record.index_kind))
+        })?;
+        let params = index_kind.decode_params(&index_record.params)?;
 
         Ok(Self {
             name: index_record.index_name.clone(),

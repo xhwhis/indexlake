@@ -21,7 +21,7 @@ pub(crate) use update::*;
 use crate::RecordBatchStream;
 use crate::catalog::{CatalogHelper, CatalogSchemaRef, Scalar};
 use crate::expr::Expr;
-use crate::index::{FilterIndex, IndexDefination, IndexKindManager, TopKIndex};
+use crate::index::{Index, IndexDefination, SearchQuery};
 use crate::utils::{has_duplicated_items, schema_with_row_id};
 use crate::{
     ILError, ILResult,
@@ -45,7 +45,7 @@ pub struct Table {
     pub config: Arc<TableConfig>,
     pub catalog: Arc<dyn Catalog>,
     pub storage: Arc<Storage>,
-    pub index_kind_manager: IndexKindManager,
+    pub index_kinds: HashMap<String, Arc<dyn Index>>,
 }
 
 impl Table {
@@ -91,6 +91,10 @@ impl Table {
         )
         .await?;
         Ok(record_batch_stream)
+    }
+
+    pub async fn search(&self, query: Arc<dyn SearchQuery>) -> ILResult<RecordBatchStream> {
+        todo!()
     }
 
     pub async fn update(&self, set_map: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {

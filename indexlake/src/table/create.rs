@@ -92,7 +92,11 @@ pub(crate) async fn process_create_index(
         params: creation.params.clone(),
     };
 
-    table.index_kind_manager.supports(&index_def)?;
+    let index = table
+        .index_kinds
+        .get(&creation.kind)
+        .ok_or_else(|| ILError::InvalidInput(format!("Index kind {} not found", creation.kind)))?;
+    index.supports(&index_def)?;
 
     if tx_helper
         .index_name_exists(table.table_id, &creation.name)

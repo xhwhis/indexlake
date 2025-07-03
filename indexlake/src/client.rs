@@ -3,8 +3,8 @@ use arrow::datatypes::Schema;
 use crate::catalog::CatalogHelper;
 use crate::catalog::INTERNAL_ROW_ID_FIELD_REF;
 use crate::catalog::TransactionHelper;
+use crate::index::Index;
 use crate::index::IndexDefination;
-use crate::index::{FilterIndex, IndexKindManager, TopKIndex};
 use crate::table::{Table, TableCreation, process_create_table};
 use crate::{ILError, ILResult, catalog::Catalog, storage::Storage};
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ use std::sync::Arc;
 pub struct LakeClient {
     pub catalog: Arc<dyn Catalog>,
     pub storage: Arc<Storage>,
-    pub index_kind_manager: IndexKindManager,
+    pub index_kinds: HashMap<String, Arc<dyn Index>>,
 }
 
 impl LakeClient {
@@ -22,7 +22,7 @@ impl LakeClient {
         Self {
             catalog,
             storage,
-            index_kind_manager: IndexKindManager::new_empty(),
+            index_kinds: HashMap::new(),
         }
     }
 
@@ -30,12 +30,9 @@ impl LakeClient {
         TransactionHelper::new(&self.catalog).await
     }
 
-    pub fn register_topk_index(&mut self, index: Arc<dyn TopKIndex>) -> ILResult<()> {
-        self.index_kind_manager.register_topk_index(index)
-    }
-
-    pub fn register_filter_index(&mut self, index: Arc<dyn FilterIndex>) -> ILResult<()> {
-        self.index_kind_manager.register_filter_index(index)
+    pub fn register_index(&mut self, index: Arc<dyn Index>) -> ILResult<()> {
+        self.index_kinds.insert(index.kind().to_string(), index);
+        Ok(())
     }
 
     pub async fn create_namespace(&self, namespace_name: &str) -> ILResult<i64> {
@@ -111,7 +108,7 @@ impl LakeClient {
                 &field_map,
                 table_name,
                 &schema,
-                &self.index_kind_manager,
+                &self.index_kinds,
             )?;
             indexes.insert(index_record.index_name.clone(), index);
         }
@@ -127,7 +124,7 @@ impl LakeClient {
             config: Arc::new(table_record.config),
             catalog: self.catalog.clone(),
             storage: self.storage.clone(),
-            index_kind_manager: self.index_kind_manager.clone(),
+            index_kinds: self.index_kinds.clone(),
         })
     }
 }

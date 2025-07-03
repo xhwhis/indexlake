@@ -2,15 +2,18 @@ use std::sync::Arc;
 
 use arrow::array::RecordBatch;
 use indexlake::{
-    ILResult,
+    ILError, ILResult,
     expr::Expr,
-    index::{BytesStream, FilterIndex, FilterIndexEntries, IndexDefination, IndexParams},
+    index::{
+        BytesStream, FilterIndexEntries, Index, IndexDefination, IndexParams, SearchQuery,
+        TopKIndexEntries,
+    },
 };
 
 #[derive(Debug)]
 pub struct HashIndex;
 
-impl FilterIndex for HashIndex {
+impl Index for HashIndex {
     fn kind(&self) -> &str {
         "hash"
     }
@@ -25,6 +28,16 @@ impl FilterIndex for HashIndex {
 
     fn build(&self, index_def: &IndexDefination, batches: &[RecordBatch]) -> ILResult<BytesStream> {
         todo!()
+    }
+    fn search(
+        &self,
+        index_def: &IndexDefination,
+        index: BytesStream,
+        query: &dyn SearchQuery,
+    ) -> ILResult<TopKIndexEntries> {
+        Err(ILError::NotSupported(format!(
+            "Hash index does not support search"
+        )))
     }
 
     fn filter(

@@ -7,7 +7,6 @@ use indexlake_integration_tests::{
 use indexlake_integration_tests::{data::prepare_testing_table, utils::table_scan};
 use std::sync::Arc;
 
-// TODO fix tests
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
 #[case(async { catalog_postgres().await }, storage_s3())]
