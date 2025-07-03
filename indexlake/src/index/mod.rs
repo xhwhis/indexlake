@@ -12,7 +12,10 @@ use arrow::{
 use futures::Stream;
 
 use crate::{
-    catalog::{IndexRecord, Scalar}, expr::Expr, ILError, ILResult, RecordBatchStream
+    ILError, ILResult, RecordBatchStream,
+    catalog::{IndexRecord, Scalar},
+    expr::Expr,
+    storage::InputFile,
 };
 
 pub type BytesStream = Box<dyn Stream<Item = Vec<u8>> + Send>;
@@ -27,25 +30,29 @@ pub trait Index: Debug + Send + Sync {
     fn supports(&self, index_def: &IndexDefination) -> ILResult<()>;
 
     // Build the index from the given batches.
-    async fn build(&self, index_def: &IndexDefination, batch_stream: RecordBatchStream) -> ILResult<BytesStream>;
+    async fn build(
+        &self,
+        index_def: &IndexDefination,
+        batch_stream: RecordBatchStream,
+    ) -> ILResult<BytesStream>;
 
     async fn search(
         &self,
         index_def: &IndexDefination,
-        index: BytesStream,
+        index_file: InputFile,
         query: &dyn SearchQuery,
-    ) -> ILResult<TopKIndexEntries>;
+    ) -> ILResult<SearchIndexEntries>;
 
     async fn filter(
         &self,
         index_def: &IndexDefination,
-        index: BytesStream,
+        index_file: InputFile,
         filter: &Expr,
     ) -> ILResult<FilterIndexEntries>;
 }
 
 #[derive(Debug, Clone)]
-pub struct TopKIndexEntries {
+pub struct SearchIndexEntries {
     pub row_ids: Int64Array,
     pub scores: Float64Array,
     pub score_higher_is_better: bool,
@@ -83,7 +90,7 @@ pub struct IndexDefination {
 }
 
 impl IndexDefination {
-    pub fn from_index_record(
+    pub(crate) fn from_index_record(
         index_record: &IndexRecord,
         field_map: &BTreeMap<i64, FieldRef>,
         table_name: &str,

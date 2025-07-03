@@ -1,10 +1,13 @@
 use std::sync::Arc;
 
 use indexlake::{
-    expr::Expr, index::{
-        BytesStream, FilterIndexEntries, Index, IndexDefination, IndexParams, SearchQuery,
-        TopKIndexEntries,
-    }, ILError, ILResult, RecordBatchStream
+    ILError, ILResult, RecordBatchStream,
+    expr::Expr,
+    index::{
+        BytesStream, FilterIndexEntries, Index, IndexDefination, IndexParams, SearchIndexEntries,
+        SearchQuery,
+    },
+    storage::InputFile,
 };
 
 #[derive(Debug, Clone)]
@@ -24,16 +27,20 @@ impl Index for RStarIndex {
         Ok(())
     }
 
-    async fn build(&self, index_def: &IndexDefination, batch_stream: RecordBatchStream) -> ILResult<BytesStream> {
+    async fn build(
+        &self,
+        index_def: &IndexDefination,
+        batch_stream: RecordBatchStream,
+    ) -> ILResult<BytesStream> {
         todo!()
     }
 
     async fn search(
         &self,
         index_def: &IndexDefination,
-        index: BytesStream,
+        index_file: InputFile,
         query: &dyn SearchQuery,
-    ) -> ILResult<TopKIndexEntries> {
+    ) -> ILResult<SearchIndexEntries> {
         Err(ILError::NotSupported(format!(
             "RStar index does not support search"
         )))
@@ -42,7 +49,7 @@ impl Index for RStarIndex {
     async fn filter(
         &self,
         index_def: &IndexDefination,
-        index: BytesStream,
+        index_file: InputFile,
         filter: &Expr,
     ) -> ILResult<FilterIndexEntries> {
         todo!()

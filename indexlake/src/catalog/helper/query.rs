@@ -199,26 +199,27 @@ impl TransactionHelper {
         table_id: i64,
         table_schema: &CatalogSchemaRef,
         row_ids: &[i64],
-    ) -> ILResult<Vec<Row>> {
+    ) -> ILResult<RowStream> {
         let select_items = table_schema
             .fields
             .iter()
             .map(|f| self.database.sql_identifier(&f.name))
             .collect::<Vec<_>>();
-        self.query_rows(
-            &format!(
-                "SELECT {} FROM indexlake_inline_row_{table_id} WHERE {} IN ({})",
-                select_items.join(", "),
-                INTERNAL_ROW_ID_FIELD_NAME,
-                row_ids
-                    .iter()
-                    .map(|id| id.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            Arc::clone(table_schema),
-        )
-        .await
+        self.transaction
+            .query(
+                &format!(
+                    "SELECT {} FROM indexlake_inline_row_{table_id} WHERE {} IN ({})",
+                    select_items.join(", "),
+                    INTERNAL_ROW_ID_FIELD_NAME,
+                    row_ids
+                        .iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                Arc::clone(table_schema),
+            )
+            .await
     }
 
     pub(crate) async fn scan_inline_row_ids(&mut self, table_id: i64) -> ILResult<Vec<i64>> {

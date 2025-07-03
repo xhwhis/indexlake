@@ -8,9 +8,10 @@ use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 use crate::{
     ILError, ILResult,
     catalog::{
-        Catalog, CatalogSchema, DataFileRecord, Row, TransactionHelper, rows_to_record_batch,
+        Catalog, CatalogSchema, DataFileRecord, Row, RowStream, TransactionHelper,
+        rows_to_record_batch,
     },
-    storage::{Storage, write_parquet_file},
+    storage::Storage,
     table::{Table, TableConfig},
 };
 
@@ -70,17 +71,9 @@ impl DumpTask {
         }
 
         let catalog_schema = Arc::new(CatalogSchema::from_arrow(&self.table_schema)?);
-        let rows = tx_helper
+        let row_stream = tx_helper
             .scan_inline_rows_by_row_ids(self.table_id, &catalog_schema, &self.dump_row_ids)
             .await?;
-        let record_count = rows.len() as i64;
-        if record_count != self.dump_row_ids.len() as i64 {
-            return Err(ILError::InternalError(format!(
-                "Read row count mismatch: {} rows read, expected {}",
-                record_count,
-                self.dump_row_ids.len()
-            )));
-        }
 
         let relative_path = format!(
             "{}/{}/{}.parquet",
@@ -88,7 +81,17 @@ impl DumpTask {
             self.table_id,
             uuid::Uuid::new_v4()
         );
-        let (location_map, file_size_bytes) = self.write_dump_file(rows, &relative_path).await?;
+
+        let (location_map, file_size_bytes, record_count) =
+            self.write_dump_file(row_stream, &relative_path).await?;
+
+        if record_count != self.dump_row_ids.len() {
+            return Err(ILError::InternalError(format!(
+                "Read row count mismatch: {} rows read, expected {}",
+                record_count,
+                self.dump_row_ids.len()
+            )));
+        }
 
         let data_file_id = tx_helper.get_max_data_file_id().await? + 1;
         tx_helper
@@ -96,8 +99,8 @@ impl DumpTask {
                 data_file_id,
                 table_id: self.table_id,
                 relative_path,
-                file_size_bytes,
-                record_count,
+                file_size_bytes: file_size_bytes as i64,
+                record_count: record_count as i64,
                 row_ids: self.dump_row_ids.clone(),
             }])
             .await?;
@@ -126,15 +129,29 @@ impl DumpTask {
 
     async fn write_dump_file(
         &self,
-        rows: Vec<Row>,
+        row_stream: RowStream<'_>,
         relative_path: &str,
-    ) -> ILResult<(HashMap<i64, String>, i64)> {
+    ) -> ILResult<(HashMap<i64, String>, usize, usize)> {
         let mut location_map = HashMap::new();
-        for (row_group_idx, row_chunk) in rows
-            .chunks(self.table_config.parquet_row_group_size)
-            .enumerate()
-        {
-            for (row_group_offset, row) in row_chunk.iter().enumerate() {
+
+        let writer_properties = WriterProperties::builder()
+            .set_max_row_group_size(self.table_config.parquet_row_group_size)
+            .build();
+        let output_file = self.storage.create_file(relative_path).await?;
+        let mut arrow_writer = AsyncArrowWriter::try_new(
+            output_file,
+            self.table_schema.clone(),
+            Some(writer_properties),
+        )?;
+
+        let mut chunk_stream = row_stream.chunks(self.table_config.parquet_row_group_size);
+
+        let mut row_group_idx = 0;
+        let mut record_count = 0;
+        while let Some(row_chunk) = chunk_stream.next().await {
+            let mut rows = Vec::with_capacity(row_chunk.len());
+            for (row_group_offset, row) in row_chunk.into_iter().enumerate() {
+                let row = row?;
                 let row_id = row.get_row_id()?.expect("row_id is not null");
                 location_map.insert(
                     row_id,
@@ -143,19 +160,17 @@ impl DumpTask {
                         relative_path, row_group_idx, row_group_offset
                     ),
                 );
+                rows.push(row);
             }
+            let record_batch = rows_to_record_batch(&self.table_schema, &rows)?;
+            arrow_writer.write(&record_batch).await?;
+            record_count += record_batch.num_rows();
+            row_group_idx += 1;
         }
 
-        let record_batch = rows_to_record_batch(&self.table_schema, &rows)?;
+        let file_size_bytes = arrow_writer.bytes_written();
+        arrow_writer.close().await?;
 
-        let file_size_bytes = write_parquet_file(
-            self.storage.clone(),
-            record_batch,
-            relative_path,
-            self.table_config.parquet_row_group_size,
-        )
-        .await?;
-
-        Ok((location_map, file_size_bytes as i64))
+        Ok((location_map, file_size_bytes, record_count))
     }
 }
