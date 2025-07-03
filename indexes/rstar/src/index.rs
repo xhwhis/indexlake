@@ -1,28 +1,26 @@
 use std::{collections::HashMap, sync::Arc};
 
 use arrow::{
-    array::{Array, ArrayRef, AsArray, Float64Array, Int64Array, RecordBatch, UInt64Array},
-    datatypes::{DataType, Field, Float64Type, Int64Type, Schema, SchemaRef},
+    array::{Array, ArrayRef, AsArray, UInt64Array},
+    datatypes::{DataType, Float64Type, Int64Type},
 };
 use futures::StreamExt;
-use geo::BoundingRect;
-use geozero::wkb::{FromWkb, WkbDialect as GeozeroWkbDialect};
+use geozero::wkb::WkbDialect as GeozeroWkbDialect;
 use indexlake::{
-    ILError, ILResult, RecordBatchStream,
+    ILError, ILResult,
     catalog::Scalar,
     expr::Expr,
     index::{
-        FilterIndexEntries, Index, IndexDefination, IndexParams, SearchIndexEntries, SearchQuery,
+        FilterIndexEntries, Index, IndexBuilder, IndexDefination, IndexDefinationRef, IndexParams,
+        SearchIndexEntries, SearchQuery,
     },
-    storage::{InputFile, OutputFile},
-    utils::extract_row_id_array_from_record_batch,
+    storage::InputFile,
 };
-use parquet::{
-    arrow::{AsyncArrowWriter, ParquetRecordBatchStreamBuilder},
-    file::properties::WriterProperties,
-};
+use parquet::arrow::ParquetRecordBatchStreamBuilder;
 use rstar::{AABB, RTree, RTreeObject};
 use serde::{Deserialize, Serialize};
+
+use crate::{RStarIndexBuilder, compute_aabb};
 
 #[derive(Debug, Clone)]
 pub struct RStarIndex;
@@ -58,48 +56,8 @@ impl Index for RStarIndex {
         Ok(())
     }
 
-    async fn build(
-        &self,
-        index_def: &IndexDefination,
-        mut batch_stream: RecordBatchStream,
-        output_file: OutputFile,
-    ) -> ILResult<()> {
-        let params = index_def.downcast_params::<RStarIndexParams>()?;
-
-        let include_fields = index_def.include_fields()?;
-        let index_schema = index_schema(include_fields);
-
-        let writer_properties = WriterProperties::builder()
-            .set_max_row_group_size(4096)
-            .build();
-        let mut arrow_writer =
-            AsyncArrowWriter::try_new(output_file, index_schema.clone(), Some(writer_properties))?;
-
-        while let Some(batch) = batch_stream.next().await {
-            let batch = batch?;
-
-            let row_id_array = extract_row_id_array_from_record_batch(&batch)?;
-
-            let key_column_name = &index_def.key_columns[0];
-            let key_column_index = index_def.table_schema.index_of(&key_column_name)?;
-            let key_column = batch.column(key_column_index);
-            let aabbs = compute_aabbs(key_column, params.wkb_dialect)?;
-
-            let include_arrays = index_def.include_arrays(&batch)?;
-
-            let index_batch = build_index_record_batch(
-                index_schema.clone(),
-                row_id_array,
-                aabbs,
-                include_arrays,
-            )?;
-
-            arrow_writer.write(&index_batch).await?;
-        }
-
-        arrow_writer.close().await?;
-
-        Ok(())
+    fn builder(&self, index_def: &IndexDefinationRef) -> ILResult<Arc<dyn IndexBuilder>> {
+        Ok(Arc::new(RStarIndexBuilder::try_new(index_def.clone())?))
     }
 
     async fn search(
@@ -219,7 +177,7 @@ pub enum WkbDialect {
 }
 
 impl WkbDialect {
-    fn to_geozero(&self) -> GeozeroWkbDialect {
+    pub fn to_geozero(&self) -> GeozeroWkbDialect {
         match self {
             WkbDialect::Wkb => GeozeroWkbDialect::Wkb,
             WkbDialect::Ewkb => GeozeroWkbDialect::Ewkb,
@@ -239,133 +197,6 @@ impl IndexParams for RStarIndexParams {
         serde_json::to_string(self)
             .map_err(|e| ILError::IndexError(format!("Failed to serialize RStarIndexParams: {e}")))
     }
-}
-
-fn compute_aabbs(
-    array: &ArrayRef,
-    wkb_dialect: WkbDialect,
-) -> ILResult<Vec<Option<AABB<geo::Coord<f64>>>>> {
-    let data_type = array.data_type();
-    let mut aabbs = Vec::new();
-    match data_type {
-        DataType::Binary => {
-            let binary_array = array.as_binary::<i32>();
-            for wkb_opt in binary_array.iter() {
-                match wkb_opt {
-                    Some(wkb) => {
-                        let aabb = compute_aabb(wkb, wkb_dialect)?;
-                        aabbs.push(Some(aabb));
-                    }
-                    None => {
-                        aabbs.push(None);
-                    }
-                }
-            }
-        }
-        DataType::LargeBinary => {
-            let large_binary_array = array.as_binary::<i64>();
-            for wkb_opt in large_binary_array.iter() {
-                match wkb_opt {
-                    Some(wkb) => {
-                        let aabb = compute_aabb(wkb, wkb_dialect)?;
-                        aabbs.push(Some(aabb));
-                    }
-                    None => {
-                        aabbs.push(None);
-                    }
-                }
-            }
-        }
-        DataType::BinaryView => {
-            let binary_view_array = array.as_binary_view();
-            for wkb_opt in binary_view_array.iter() {
-                match wkb_opt {
-                    Some(wkb) => {
-                        let aabb = compute_aabb(wkb, wkb_dialect)?;
-                        aabbs.push(Some(aabb));
-                    }
-                    None => {
-                        aabbs.push(None);
-                    }
-                }
-            }
-        }
-        _ => {
-            return Err(ILError::IndexError(format!(
-                "Unsupported data type to compute AABB: {data_type}"
-            )));
-        }
-    }
-    Ok(aabbs)
-}
-
-fn compute_aabb(wkb: &[u8], wkb_dialect: WkbDialect) -> ILResult<AABB<geo::Coord<f64>>> {
-    let mut rdr = std::io::Cursor::new(wkb);
-    let geom = geo::Geometry::from_wkb(&mut rdr, wkb_dialect.to_geozero())
-        .map_err(|e| ILError::IndexError(format!("Failed to parse ewkb: {:?}", e)))?;
-    if let Some(rect) = geom.bounding_rect() {
-        Ok(AABB::from_corners(rect.min(), rect.max()))
-    } else {
-        Err(ILError::IndexError(format!(
-            "Failed to compute AABB of geometry"
-        )))
-    }
-}
-
-fn index_schema(include_fields: Vec<&Field>) -> SchemaRef {
-    let mut fields = vec![
-        Field::new("row_id", DataType::Int64, false),
-        Field::new("xmin", DataType::Float64, true),
-        Field::new("ymin", DataType::Float64, true),
-        Field::new("xmax", DataType::Float64, true),
-        Field::new("ymax", DataType::Float64, true),
-    ];
-    fields.extend(include_fields.into_iter().map(|field| field.clone()));
-    Arc::new(Schema::new(fields))
-}
-
-fn build_index_record_batch(
-    index_schema: SchemaRef,
-    row_id_array: Int64Array,
-    aabbs: Vec<Option<AABB<geo::Coord<f64>>>>,
-    include_arrays: Vec<ArrayRef>,
-) -> ILResult<RecordBatch> {
-    let xmin_array = Float64Array::from(
-        aabbs
-            .iter()
-            .map(|aabb| aabb.map(|aabb| aabb.lower().x))
-            .collect::<Vec<_>>(),
-    );
-    let ymin_array = Float64Array::from(
-        aabbs
-            .iter()
-            .map(|aabb| aabb.map(|aabb| aabb.lower().y))
-            .collect::<Vec<_>>(),
-    );
-    let xmax_array = Float64Array::from(
-        aabbs
-            .iter()
-            .map(|aabb| aabb.map(|aabb| aabb.upper().x))
-            .collect::<Vec<_>>(),
-    );
-    let ymax_array = Float64Array::from(
-        aabbs
-            .iter()
-            .map(|aabb| aabb.map(|aabb| aabb.upper().y))
-            .collect::<Vec<_>>(),
-    );
-    let mut arrays = vec![
-        Arc::new(row_id_array) as ArrayRef,
-        Arc::new(xmin_array) as ArrayRef,
-        Arc::new(ymin_array) as ArrayRef,
-        Arc::new(xmax_array) as ArrayRef,
-        Arc::new(ymax_array) as ArrayRef,
-    ];
-    arrays.extend(include_arrays);
-
-    let record_batch = RecordBatch::try_new(index_schema, arrays)?;
-
-    Ok(record_batch)
 }
 
 struct IndexTreeObject {

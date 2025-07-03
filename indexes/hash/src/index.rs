@@ -4,8 +4,8 @@ use indexlake::{
     ILError, ILResult, RecordBatchStream,
     expr::Expr,
     index::{
-        BytesStream, FilterIndexEntries, Index, IndexDefination, IndexParams, SearchIndexEntries,
-        SearchQuery,
+        FilterIndexEntries, Index, IndexBuilder, IndexDefination, IndexDefinationRef, IndexParams,
+        SearchIndexEntries, SearchQuery,
     },
     storage::{InputFile, OutputFile},
 };
@@ -27,14 +27,10 @@ impl Index for HashIndex {
         Ok(())
     }
 
-    async fn build(
-        &self,
-        index_def: &IndexDefination,
-        batch_stream: RecordBatchStream,
-        output_file: OutputFile,
-    ) -> ILResult<()> {
+    fn builder(&self, index_def: &IndexDefinationRef) -> ILResult<Arc<dyn IndexBuilder>> {
         todo!()
     }
+
     async fn search(
         &self,
         index_def: &IndexDefination,

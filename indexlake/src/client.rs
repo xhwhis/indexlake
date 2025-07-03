@@ -110,7 +110,7 @@ impl LakeClient {
                 &schema,
                 &self.index_kinds,
             )?;
-            indexes.insert(index_record.index_name.clone(), index);
+            indexes.insert(index_record.index_name.clone(), Arc::new(index));
         }
 
         Ok(Table {
