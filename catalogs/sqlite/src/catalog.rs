@@ -161,7 +161,7 @@ impl Drop for SqliteTransaction {
 
 fn sqlite_row_to_row(sqlite_row: &rusqlite::Row, schema: &CatalogSchemaRef) -> ILResult<Row> {
     let mut row_values = Vec::new();
-    for (idx, field) in schema.fields.iter().enumerate() {
+    for (idx, field) in schema.columns.iter().enumerate() {
         let scalar = match field.data_type {
             CatalogDataType::Int16 => {
                 let v: Option<i16> = sqlite_row

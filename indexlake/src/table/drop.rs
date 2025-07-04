@@ -12,5 +12,7 @@ pub(crate) async fn process_table_drop(
     tx_helper.delete_fields(table_id).await?;
     tx_helper.delete_table(table_id).await?;
 
+    // TODO clean up index data
+
     Ok(())
 }

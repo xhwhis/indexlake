@@ -1,4 +1,7 @@
-use crate::expr::{BinaryExpr, BinaryOp, Expr};
+use crate::{
+    ILError, ILResult,
+    expr::{BinaryExpr, BinaryOp, Expr, lit},
+};
 
 pub fn split_binary_expr(expr: Expr, operator: BinaryOp) -> Vec<Expr> {
     split_binary_expr_impl(expr, operator, Vec::new())
@@ -15,6 +18,22 @@ fn split_binary_expr_impl(expr: Expr, operator: BinaryOp, mut exprs: Vec<Expr>) 
             exprs
         }
     }
+}
+
+pub fn merge_filters(mut filters: Vec<Expr>) -> Option<Expr> {
+    if filters.is_empty() {
+        return None;
+    }
+
+    let first_filter = filters.remove(0);
+    let expr = filters.into_iter().fold(first_filter, |acc, expr| {
+        Expr::BinaryExpr(BinaryExpr {
+            left: Box::new(acc),
+            right: Box::new(expr),
+            op: BinaryOp::And,
+        })
+    });
+    Some(expr)
 }
 
 #[cfg(test)]

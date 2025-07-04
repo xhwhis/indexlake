@@ -126,15 +126,6 @@ impl TransactionHelper {
         }
     }
 
-    pub(crate) async fn scan_all_undeleted_row_metadata(
-        &mut self,
-        table_id: i64,
-    ) -> ILResult<Vec<RowMetadataRecord>> {
-        let condition =
-            Expr::Column("deleted".to_string()).eq(Expr::Literal(Scalar::Boolean(Some(false))));
-        self.scan_row_metadata(table_id, &condition).await
-    }
-
     pub(crate) async fn scan_row_metadata(
         &mut self,
         table_id: i64,
@@ -179,15 +170,10 @@ impl TransactionHelper {
         table_id: i64,
         schema: &CatalogSchemaRef,
     ) -> ILResult<Vec<Row>> {
-        let select_items = schema
-            .fields
-            .iter()
-            .map(|f| self.database.sql_identifier(&f.name))
-            .collect::<Vec<_>>();
         self.query_rows(
             &format!(
                 "SELECT {}  FROM indexlake_inline_row_{table_id}",
-                select_items.join(", ")
+                schema.select_items(self.database).join(", ")
             ),
             Arc::clone(schema),
         )
@@ -200,16 +186,11 @@ impl TransactionHelper {
         table_schema: &CatalogSchemaRef,
         row_ids: &[i64],
     ) -> ILResult<RowStream> {
-        let select_items = table_schema
-            .fields
-            .iter()
-            .map(|f| self.database.sql_identifier(&f.name))
-            .collect::<Vec<_>>();
         self.transaction
             .query(
                 &format!(
                     "SELECT {} FROM indexlake_inline_row_{table_id} WHERE {} IN ({})",
-                    select_items.join(", "),
+                    table_schema.select_items(self.database).join(", "),
                     INTERNAL_ROW_ID_FIELD_NAME,
                     row_ids
                         .iter()
@@ -460,7 +441,7 @@ impl CatalogHelper {
         ]));
         let rows = self
             .query_rows(
-                &format!("SELECT field_id, field_name, data_type, nullable, metadata FROM indexlake_field WHERE table_id = {table_id} order by field_id asc"),
+                &format!("SELECT {} FROM indexlake_field WHERE table_id = {table_id} order by field_id asc", catalog_schema.select_items(self.catalog.database()).join(", ")),
                 catalog_schema,
             )
             .await?;
@@ -553,16 +534,22 @@ impl CatalogHelper {
         &self,
         table_id: i64,
         schema: &CatalogSchemaRef,
+        filters: &[Expr],
     ) -> ILResult<Vec<Row>> {
-        let select_items = schema
-            .fields
-            .iter()
-            .map(|f| self.catalog.database().sql_identifier(&f.name))
-            .collect::<Vec<_>>();
+        let where_clause = if filters.is_empty() {
+            "".to_string()
+        } else {
+            let filters_str = filters
+                .iter()
+                .map(|f| f.to_sql(self.catalog.database()))
+                .collect::<Result<Vec<_>, _>>()?
+                .join(" AND ");
+            format!(" WHERE {filters_str}")
+        };
         self.query_rows(
             &format!(
-                "SELECT {}  FROM indexlake_inline_row_{table_id}",
-                select_items.join(", ")
+                "SELECT {}  FROM indexlake_inline_row_{table_id}{where_clause}",
+                schema.select_items(self.catalog.database()).join(", ")
             ),
             Arc::clone(schema),
         )

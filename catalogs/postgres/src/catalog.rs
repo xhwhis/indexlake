@@ -181,7 +181,7 @@ fn pg_row_to_row(
     schema: &CatalogSchemaRef,
 ) -> ILResult<Row> {
     let mut values = Vec::new();
-    for (idx, field) in schema.fields.iter().enumerate() {
+    for (idx, field) in schema.columns.iter().enumerate() {
         let scalar = match field.data_type {
             CatalogDataType::Int16 => {
                 let v: Option<i16> = pg_row

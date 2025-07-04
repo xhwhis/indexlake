@@ -5,7 +5,7 @@ use arrow::datatypes::{Schema, SchemaRef};
 use crate::{
     ILError, ILResult, RecordBatchStream,
     catalog::{CatalogHelper, CatalogSchema, RowLocation, rows_to_record_batch},
-    expr::Expr,
+    expr::{Expr, merge_filters},
     storage::{Storage, read_parquet_files_by_locations},
 };
 
@@ -49,7 +49,7 @@ pub(crate) async fn process_table_scan(
 
     // Inline rows are not deleted, so we can scan them directly
     let rows = catalog_helper
-        .scan_inline_rows(table_id, &catalog_schema)
+        .scan_inline_rows(table_id, &catalog_schema, &scan.filters)
         .await?;
     let batch = rows_to_record_batch(&projected_schema, &rows)?;
     let batch_stream =
@@ -69,7 +69,7 @@ pub(crate) async fn process_table_scan(
         table_schema.clone(),
         scan.projection.clone(),
         data_file_locations,
-        None,
+        merge_filters(scan.filters.clone()),
     )
     .await?;
 

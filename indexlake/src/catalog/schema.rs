@@ -92,32 +92,39 @@ pub type CatalogSchemaRef = Arc<CatalogSchema>;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CatalogSchema {
-    pub fields: Vec<Column>,
+    pub columns: Vec<Column>,
 }
 
 impl CatalogSchema {
-    pub fn new(fields: Vec<Column>) -> Self {
-        Self { fields }
+    pub fn new(columns: Vec<Column>) -> Self {
+        Self { columns }
     }
 
     pub fn from_arrow(schema: &Schema) -> ILResult<Self> {
-        let mut fields = Vec::with_capacity(schema.fields.len());
+        let mut columns = Vec::with_capacity(schema.fields.len());
         for field in schema.fields.iter() {
             let catalog_datatype = CatalogDataType::from_arrow(&field.data_type())?;
-            fields.push(Column::new(
+            columns.push(Column::new(
                 field.name().clone(),
                 catalog_datatype,
                 field.is_nullable(),
             ));
         }
-        Ok(CatalogSchema::new(fields))
+        Ok(CatalogSchema::new(columns))
     }
 
     pub fn index_of(&self, field_name: &str) -> Option<usize> {
-        self.fields.iter().position(|f| f.name == field_name)
+        self.columns.iter().position(|f| f.name == field_name)
     }
 
     pub fn get_field_by_name(&self, field_name: &str) -> Option<&Column> {
-        self.fields.iter().find(|f| f.name == field_name)
+        self.columns.iter().find(|f| f.name == field_name)
+    }
+
+    pub fn select_items(&self, database: CatalogDatabase) -> Vec<String> {
+        self.columns
+            .iter()
+            .map(|f| database.sql_identifier(&f.name))
+            .collect::<Vec<_>>()
     }
 }

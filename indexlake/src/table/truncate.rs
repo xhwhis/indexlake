@@ -10,5 +10,7 @@ pub(crate) async fn process_truncate(
 
     tx_helper.delete_all_data_files(table_id).await?;
 
+    // TODO clean up index data
+
     Ok(())
 }

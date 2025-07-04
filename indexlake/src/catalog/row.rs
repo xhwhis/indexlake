@@ -19,7 +19,7 @@ pub struct Row {
 
 impl Row {
     pub fn new(schema: CatalogSchemaRef, values: Vec<Scalar>) -> Self {
-        assert_eq!(schema.fields.len(), values.len());
+        assert_eq!(schema.columns.len(), values.len());
         Self { schema, values }
     }
 
@@ -115,7 +115,7 @@ pub fn pretty_print_rows(schema_opt: Option<CatalogSchemaRef>, rows: &[Row]) -> 
     });
     if let Some(schema) = schema_opt {
         let mut header = Vec::new();
-        for field in schema.fields.iter() {
+        for field in schema.columns.iter() {
             header.push(field.name.clone());
         }
         table.set_header(header);
