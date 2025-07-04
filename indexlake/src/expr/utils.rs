@@ -20,6 +20,14 @@ fn split_binary_expr_impl(expr: Expr, operator: BinaryOp, mut exprs: Vec<Expr>) 
     }
 }
 
+pub fn split_conjunction_filters(filters: Vec<Expr>) -> Vec<Expr> {
+    let mut result = Vec::new();
+    for filter in filters {
+        result.extend(split_binary_expr(filter, BinaryOp::And));
+    }
+    result
+}
+
 pub fn merge_filters(mut filters: Vec<Expr>) -> Option<Expr> {
     if filters.is_empty() {
         return None;

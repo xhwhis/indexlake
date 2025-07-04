@@ -1,7 +1,7 @@
 use indexlake::expr::Expr;
 use indexlake::{LakeClient, catalog::Catalog, catalog::Scalar, storage::Storage};
 use indexlake_integration_tests::data::prepare_testing_table;
-use indexlake_integration_tests::utils::table_scan;
+use indexlake_integration_tests::utils::full_table_scan;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
@@ -28,7 +28,7 @@ async fn update_table(
         Expr::Column("name".to_string()).eq(Expr::Literal(Scalar::Utf8(Some("Alice".to_string()))));
     table.update(set_map, &condition).await?;
 
-    let table_str = table_scan(&table).await?;
+    let table_str = full_table_scan(&table).await?;
     println!("{}", table_str);
     assert_eq!(
         table_str,

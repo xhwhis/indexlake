@@ -14,6 +14,7 @@ use crate::{
     utils::record_batch_with_row_id,
 };
 
+// TODO bypass insert: save to parquet file
 pub(crate) async fn process_insert(
     tx_helper: &mut TransactionHelper,
     table_id: i64,
@@ -31,7 +32,7 @@ pub(crate) async fn process_insert(
     let row_id_array = Int64Array::from(row_ids);
     let record = record_batch_with_row_id(record, row_id_array)?;
 
-    process_insert_batch_with_row_id(tx_helper, table_id, &record).await?;
+    process_insert_into_inline_rows(tx_helper, table_id, &record).await?;
 
     tx_helper
         .insert_row_metadatas(table_id, &row_metadatas)
@@ -39,7 +40,7 @@ pub(crate) async fn process_insert(
     Ok(())
 }
 
-pub(crate) async fn process_insert_batch_with_row_id(
+pub(crate) async fn process_insert_into_inline_rows(
     tx_helper: &mut TransactionHelper,
     table_id: i64,
     record: &RecordBatch,

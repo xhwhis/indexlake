@@ -11,7 +11,7 @@ use crate::{
     catalog::{INTERNAL_ROW_ID_FIELD_NAME, RowLocation, Scalar, TransactionHelper},
     expr::{Expr, visited_columns},
     storage::{Storage, read_parquet_files_by_locations},
-    table::process_insert_batch_with_row_id,
+    table::process_insert_into_inline_rows,
 };
 
 pub(crate) async fn process_update(
@@ -82,7 +82,7 @@ pub(crate) async fn process_update(
             continue;
         }
         let updated_batch = update_record_batch(&selected_batch, &set_map)?;
-        process_insert_batch_with_row_id(tx_helper, table_id, &updated_batch).await?;
+        process_insert_into_inline_rows(tx_helper, table_id, &updated_batch).await?;
     }
 
     tx_helper

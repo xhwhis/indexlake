@@ -100,19 +100,7 @@ impl RowMetadataRecord {
         format!(
             "({}, '{}', {})",
             self.row_id,
-            match &self.location {
-                RowLocation::Inline => "inline".to_string(),
-                RowLocation::Parquet {
-                    relative_path,
-                    row_group_index,
-                    row_group_offset,
-                } => {
-                    format!(
-                        "parquet:{}:{}:{}",
-                        relative_path, row_group_index, row_group_offset
-                    )
-                }
-            },
+            self.location.to_string(),
             self.deleted
         )
     }
@@ -130,6 +118,23 @@ pub(crate) enum RowLocation {
         row_group_index: usize,
         row_group_offset: usize,
     },
+}
+
+impl std::fmt::Display for RowLocation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RowLocation::Inline => write!(f, "inline"),
+            RowLocation::Parquet {
+                relative_path,
+                row_group_index,
+                row_group_offset,
+            } => write!(
+                f,
+                "parquet:{}:{}:{}",
+                relative_path, row_group_index, row_group_offset
+            ),
+        }
+    }
 }
 
 impl FromStr for RowLocation {

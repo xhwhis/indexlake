@@ -12,6 +12,14 @@ impl Expr {
         })
     }
 
+    pub fn neq(self, other: Expr) -> Expr {
+        Expr::BinaryExpr(BinaryExpr {
+            left: Box::new(self),
+            op: BinaryOp::NotEq,
+            right: Box::new(other),
+        })
+    }
+
     pub fn gt(self, other: Expr) -> Expr {
         Expr::BinaryExpr(BinaryExpr {
             left: Box::new(self),

@@ -8,7 +8,7 @@ use indexlake::{
     storage::Storage,
     table::{TableConfig, TableCreation},
 };
-use indexlake_integration_tests::utils::table_scan;
+use indexlake_integration_tests::utils::full_table_scan;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
@@ -122,7 +122,7 @@ async fn table_data_types(
     )?;
     table.insert(&record_batch).await?;
 
-    let table_str = table_scan(&table).await?;
+    let table_str = full_table_scan(&table).await?;
     println!("{}", table_str);
     assert_eq!(
         table_str,

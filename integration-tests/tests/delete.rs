@@ -4,7 +4,7 @@ use indexlake::{LakeClient, catalog::Catalog, catalog::Scalar, storage::Storage}
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
-use indexlake_integration_tests::{data::prepare_testing_table, utils::table_scan};
+use indexlake_integration_tests::{data::prepare_testing_table, utils::full_table_scan};
 use std::sync::Arc;
 
 #[rstest::rstest]
@@ -25,7 +25,7 @@ async fn delete_table_by_condition(
     let condition = Expr::Column("age".to_string()).gt(Expr::Literal(Scalar::Int32(Some(21))));
     table.delete(&condition).await?;
 
-    let table_str = table_scan(&table).await?;
+    let table_str = full_table_scan(&table).await?;
     println!("{}", table_str);
     assert_eq!(
         table_str,
@@ -59,7 +59,7 @@ async fn delete_table_by_row_id(
         .eq(Expr::Literal(Scalar::Int64(Some(1))));
     table.delete(&condition).await?;
 
-    let table_str = table_scan(&table).await?;
+    let table_str = full_table_scan(&table).await?;
     println!("{}", table_str);
     assert_eq!(
         table_str,

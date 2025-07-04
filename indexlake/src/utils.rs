@@ -52,6 +52,15 @@ pub fn extract_row_id_array_from_record_batch(record_batch: &RecordBatch) -> ILR
     Ok(row_id_array.clone())
 }
 
+pub fn project_schema(schema: &Schema, projection: Option<&Vec<usize>>) -> ILResult<Schema> {
+    if let Some(projection) = projection {
+        let schema = schema.project(projection)?;
+        Ok(schema)
+    } else {
+        Ok(schema.clone())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::utils::has_duplicated_items;

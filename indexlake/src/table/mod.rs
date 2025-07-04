@@ -83,12 +83,13 @@ impl Table {
 
     pub async fn scan(&self, scan: TableScan) -> ILResult<RecordBatchStream> {
         let catalog_helper = CatalogHelper::new(self.catalog.clone());
-        let record_batch_stream = process_table_scan(
+        let record_batch_stream = process_scan(
             &catalog_helper,
             self.table_id,
             &self.schema,
             scan,
             self.storage.clone(),
+            self,
         )
         .await?;
         Ok(record_batch_stream)

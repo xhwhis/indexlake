@@ -42,11 +42,7 @@ impl Index for HashIndex {
         )))
     }
 
-    fn supports_filters(
-        &self,
-        index_def: &IndexDefination,
-        filters: &[Expr],
-    ) -> ILResult<Vec<bool>> {
+    fn supports_filter(&self, index_def: &IndexDefination, filter: &Expr) -> ILResult<bool> {
         todo!()
     }
 

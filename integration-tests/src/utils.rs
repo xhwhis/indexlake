@@ -34,8 +34,12 @@ pub fn sort_record_batches(batches: &[RecordBatch], sort_col: &str) -> ILResult<
     )?)
 }
 
-pub async fn table_scan(table: &Table) -> ILResult<String> {
-    let stream = table.scan(TableScan::default()).await?;
+pub async fn full_table_scan(table: &Table) -> ILResult<String> {
+    table_scan(table, TableScan::default()).await
+}
+
+pub async fn table_scan(table: &Table, scan: TableScan) -> ILResult<String> {
+    let stream = table.scan(scan).await?;
     let batches = stream.try_collect::<Vec<_>>().await?;
     let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME)?;
     let table_str = pretty_format_batches(&[sorted_batch])?.to_string();

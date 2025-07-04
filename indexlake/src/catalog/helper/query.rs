@@ -2,11 +2,12 @@ use std::collections::BTreeMap;
 use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::{DataType, Field, FieldRef};
+use tokio::time::error::Elapsed;
 
 use crate::catalog::{
     CatalogHelper, DataFileRecord, IndexRecord, RowLocation, RowMetadataRecord, Scalar,
 };
-use crate::expr::Expr;
+use crate::expr::{Expr, col, lit};
 use crate::{
     ILError, ILResult,
     catalog::{
@@ -535,6 +536,7 @@ impl CatalogHelper {
         table_id: i64,
         schema: &CatalogSchemaRef,
         filters: &[Expr],
+        limit: Option<usize>,
     ) -> ILResult<Vec<Row>> {
         let where_clause = if filters.is_empty() {
             "".to_string()
@@ -546,9 +548,14 @@ impl CatalogHelper {
                 .join(" AND ");
             format!(" WHERE {filters_str}")
         };
+        let limit_clause = if let Some(limit) = limit {
+            format!(" LIMIT {limit}")
+        } else {
+            "".to_string()
+        };
         self.query_rows(
             &format!(
-                "SELECT {}  FROM indexlake_inline_row_{table_id}{where_clause}",
+                "SELECT {}  FROM indexlake_inline_row_{table_id}{where_clause}{limit_clause}",
                 schema.select_items(self.catalog.database()).join(", ")
             ),
             Arc::clone(schema),
@@ -556,19 +563,22 @@ impl CatalogHelper {
         .await
     }
 
-    pub(crate) async fn scan_all_undeleted_row_metadata(
+    pub(crate) async fn scan_undeleted_non_inline_row_metadata(
         &self,
         table_id: i64,
+        limit: Option<usize>,
     ) -> ILResult<Vec<RowMetadataRecord>> {
-        let condition =
-            Expr::Column("deleted".to_string()).eq(Expr::Literal(Scalar::Boolean(Some(false))));
-        self.scan_row_metadata(table_id, &condition).await
+        let non_inline = col("location").neq(lit(RowLocation::Inline.to_string()));
+        let undeleted = col("deleted").eq(lit(false));
+        let condition = non_inline.and(undeleted);
+        self.scan_row_metadata(table_id, &condition, limit).await
     }
 
     pub(crate) async fn scan_row_metadata(
         &self,
         table_id: i64,
         condition: &Expr,
+        limit: Option<usize>,
     ) -> ILResult<Vec<RowMetadataRecord>> {
         let schema = Arc::new(CatalogSchema::new(vec![
             Column::new(
@@ -579,10 +589,15 @@ impl CatalogHelper {
             Column::new("location", CatalogDataType::Utf8, false),
             Column::new("deleted", CatalogDataType::Boolean, false),
         ]));
+        let limit_clause = if let Some(limit) = limit {
+            format!(" LIMIT {limit}")
+        } else {
+            "".to_string()
+        };
         let rows = self
             .query_rows(
                 &format!(
-                    "SELECT {} FROM indexlake_row_metadata_{table_id} WHERE {}",
+                    "SELECT {} FROM indexlake_row_metadata_{table_id} WHERE {}{limit_clause}",
                     RowMetadataRecord::select_items().join(", "),
                     condition.to_sql(self.catalog.database())?
                 ),

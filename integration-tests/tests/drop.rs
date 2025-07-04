@@ -7,7 +7,7 @@ use indexlake::{
     storage::Storage,
     table::{TableConfig, TableCreation},
 };
-use indexlake_integration_tests::utils::table_scan;
+use indexlake_integration_tests::utils::full_table_scan;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
@@ -61,7 +61,7 @@ async fn drop_table(
     client.create_table(table_creation).await?;
     let table = client.load_table(namespace_name, table_name).await?;
     table.insert(&record_batch).await?;
-    let table_str = table_scan(&table).await?;
+    let table_str = full_table_scan(&table).await?;
     println!("{}", table_str);
     assert_eq!(
         table_str,
