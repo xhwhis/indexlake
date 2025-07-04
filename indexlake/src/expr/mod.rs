@@ -199,17 +199,7 @@ pub(crate) struct ExprPredicate {
 }
 
 impl ExprPredicate {
-    pub(crate) fn try_new(expr: Expr, table_schema: &Schema) -> ILResult<Self> {
-        let visited_cols = visited_columns(&expr);
-        let mut indices = Vec::new();
-        for visited_col in visited_cols {
-            let index = table_schema.index_of(&visited_col)?;
-            indices.push(index);
-        }
-
-        let parquet_schema = ArrowSchemaConverter::new().convert(table_schema)?;
-        let projection = ProjectionMask::roots(&parquet_schema, indices);
-
+    pub(crate) fn try_new(expr: Expr, projection: ProjectionMask) -> ILResult<Self> {
         Ok(Self { expr, projection })
     }
 }

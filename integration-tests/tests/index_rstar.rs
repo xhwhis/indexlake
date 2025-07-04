@@ -75,25 +75,20 @@ async fn create_rstar_index(
             Arc::new(Int32Array::from(vec![1, 2, 3, 4])),
             Arc::new(BinaryArray::from(vec![
                 Geometry::from(Point::new(10.0, 10.0))
-                    .to_wkb(CoordDimensions::xy())
-                    .unwrap()
+                    .to_wkb(CoordDimensions::xy())?
                     .as_slice(),
                 Geometry::from(Point::new(11.0, 11.0))
-                    .to_wkb(CoordDimensions::xy())
-                    .unwrap()
+                    .to_wkb(CoordDimensions::xy())?
                     .as_slice(),
                 Geometry::from(Point::new(12.0, 12.0))
-                    .to_wkb(CoordDimensions::xy())
-                    .unwrap()
+                    .to_wkb(CoordDimensions::xy())?
                     .as_slice(),
                 Geometry::from(Point::new(13.0, 13.0))
-                    .to_wkb(CoordDimensions::xy())
-                    .unwrap()
+                    .to_wkb(CoordDimensions::xy())?
                     .as_slice(),
             ])),
         ],
-    )
-    .unwrap();
+    )?;
     table.insert(&record_batch).await?;
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 

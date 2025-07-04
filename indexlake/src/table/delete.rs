@@ -102,6 +102,7 @@ pub(crate) async fn find_matched_data_file_row_ids(
     let mut stream = read_parquet_files_by_locations(
         storage,
         table_schema.clone(),
+        None,
         data_file_locations,
         Some(condition.clone()),
     )

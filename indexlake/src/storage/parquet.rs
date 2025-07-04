@@ -8,7 +8,7 @@ use arrow::{array::RecordBatch, datatypes::SchemaRef};
 use futures::{StreamExt, TryStreamExt, future::BoxFuture};
 use parquet::{
     arrow::{
-        AsyncArrowWriter, ParquetRecordBatchStreamBuilder,
+        ArrowSchemaConverter, AsyncArrowWriter, ParquetRecordBatchStreamBuilder, ProjectionMask,
         arrow_reader::{ArrowReaderOptions, RowFilter, RowSelection},
         async_reader::AsyncFileReader,
         async_writer::AsyncFileWriter,
@@ -85,15 +85,23 @@ impl AsyncFileWriter for OutputFile {
     }
 }
 
-// TODO support projection
 pub(crate) async fn read_parquet_files_by_locations(
     storage: Arc<Storage>,
     table_schema: SchemaRef,
+    projection: Option<Vec<usize>>,
     data_file_locations: Vec<RowLocation>,
     predicate: Option<Expr>,
 ) -> ILResult<RecordBatchStream> {
+    let projection_mask = match projection {
+        Some(projection) => {
+            let parquet_schema = ArrowSchemaConverter::new().convert(&table_schema)?;
+            ProjectionMask::roots(&parquet_schema, projection)
+        }
+        None => ProjectionMask::all(),
+    };
+
     let arrow_predicate_opt = match predicate {
-        Some(expr) => Some(ExprPredicate::try_new(expr, &table_schema)?),
+        Some(expr) => Some(ExprPredicate::try_new(expr, projection_mask.clone())?),
         None => None,
     };
 
@@ -145,6 +153,7 @@ pub(crate) async fn read_parquet_files_by_locations(
         let stream = arrow_reader_builder
             .with_row_groups(row_groups)
             .with_row_selection(row_selection)
+            .with_projection(projection_mask.clone())
             .build()?
             .map_err(ILError::from);
 

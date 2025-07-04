@@ -132,6 +132,9 @@ impl TransactionHelper {
         &mut self,
         index_files: &[IndexFileRecord],
     ) -> ILResult<usize> {
+        if index_files.is_empty() {
+            return Ok(0);
+        }
         let values = index_files.iter().map(|r| r.to_sql()).collect::<Vec<_>>();
         self.transaction
             .execute(&format!(

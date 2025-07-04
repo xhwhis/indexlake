@@ -1434,6 +1434,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive-with"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b843bde9187ed083594f7dad609760678601bf0eba95046f6222eb92f4e8d8c8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.101",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2195,6 +2206,7 @@ dependencies = [
  "bytes",
  "comfy-table",
  "derive-visitor",
+ "derive-with",
  "futures",
  "hex",
  "log",

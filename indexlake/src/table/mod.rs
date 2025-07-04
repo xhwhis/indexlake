@@ -14,7 +14,7 @@ pub(crate) use delete::*;
 pub(crate) use drop::*;
 pub(crate) use dump::*;
 pub(crate) use insert::*;
-pub(crate) use scan::*;
+pub use scan::*;
 pub(crate) use truncate::*;
 pub(crate) use update::*;
 
@@ -81,12 +81,13 @@ impl Table {
         Ok(())
     }
 
-    pub async fn scan(&self) -> ILResult<RecordBatchStream> {
+    pub async fn scan(&self, scan: TableScan) -> ILResult<RecordBatchStream> {
         let catalog_helper = CatalogHelper::new(self.catalog.clone());
         let record_batch_stream = process_table_scan(
             &catalog_helper,
             self.table_id,
             &self.schema,
+            scan,
             self.storage.clone(),
         )
         .await?;

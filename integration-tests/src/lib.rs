@@ -18,7 +18,10 @@ static ENV_LOGGER: OnceLock<()> = OnceLock::new();
 
 pub fn init_env_logger() {
     unsafe {
-        std::env::set_var("RUST_LOG", "info;indexlake=debug");
+        std::env::set_var(
+            "RUST_LOG",
+            "info,indexlake=debug,indexlake_catalog_postgres=debug,indexlake_catalog_sqlite=debug,indexlake_index_rstar=debug",
+        );
     }
     ENV_LOGGER.get_or_init(|| {
         env_logger::init();
