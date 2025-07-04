@@ -101,6 +101,10 @@ impl OutputFile {
         writer.close().await?;
         Ok(())
     }
+
+    pub fn writer(&self) -> &opendal::Writer {
+        &self.writer
+    }
 }
 
 pub struct InputFile {
@@ -121,5 +125,9 @@ impl InputFile {
 
     pub async fn read(&self) -> ILResult<bytes::Bytes> {
         Ok(self.op.read(&self.relative_path).await?.to_bytes())
+    }
+
+    pub fn reader(&self) -> &opendal::Reader {
+        &self.reader
     }
 }

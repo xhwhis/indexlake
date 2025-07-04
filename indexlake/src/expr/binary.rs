@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use arrow::{
     array::{ArrayRef, AsArray, BooleanArray, Datum, RecordBatch},
+    datatypes::{DataType, Schema},
     error::ArrowError,
 };
 use derive_visitor::{Drive, DriveMut};
@@ -12,7 +13,7 @@ use crate::{
     expr::{ColumnarValue, Expr},
 };
 
-#[derive(Debug, Clone, Drive, DriveMut)]
+#[derive(Debug, Clone, Copy, Drive, DriveMut, PartialEq, Eq)]
 pub enum BinaryOp {
     /// Expressions are equal
     Eq,
@@ -63,7 +64,7 @@ impl std::fmt::Display for BinaryOp {
 }
 
 /// Binary expression
-#[derive(Debug, Clone, Drive, DriveMut)]
+#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
 pub struct BinaryExpr {
     /// Left-hand side of the expression
     pub left: Box<Expr>,
@@ -106,6 +107,35 @@ impl BinaryExpr {
                 return apply_boolean(&lhs, &rhs, arrow::compute::kernels::boolean::and);
             }
             BinaryOp::Or => return apply_boolean(&lhs, &rhs, arrow::compute::kernels::boolean::or),
+        }
+    }
+
+    pub fn data_type(&self, schema: &Schema) -> ILResult<DataType> {
+        let left_type = self.left.data_type(schema)?;
+        let right_type = self.right.data_type(schema)?;
+        match self.op {
+            BinaryOp::Eq
+            | BinaryOp::NotEq
+            | BinaryOp::Lt
+            | BinaryOp::LtEq
+            | BinaryOp::Gt
+            | BinaryOp::GtEq
+            | BinaryOp::And
+            | BinaryOp::Or => Ok(DataType::Boolean),
+            BinaryOp::Plus
+            | BinaryOp::Minus
+            | BinaryOp::Multiply
+            | BinaryOp::Divide
+            | BinaryOp::Modulo => {
+                if left_type == right_type {
+                    Ok(left_type)
+                } else {
+                    Err(ILError::InternalError(format!(
+                        "Cannot get data type of {} {} {}",
+                        left_type, self.op, right_type
+                    )))
+                }
+            }
         }
     }
 }

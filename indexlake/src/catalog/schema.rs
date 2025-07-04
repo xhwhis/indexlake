@@ -50,7 +50,7 @@ impl CatalogDataType {
             DataType::Utf8 => Ok(CatalogDataType::Utf8),
             DataType::Binary => Ok(CatalogDataType::Binary),
             _ => Err(ILError::NotSupported(format!(
-                "Unsupported datatype: {datatype:?}"
+                "Unsupported datatype: {datatype}"
             ))),
         }
     }

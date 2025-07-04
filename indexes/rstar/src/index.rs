@@ -75,14 +75,14 @@ impl Index for RStarIndex {
         &self,
         index_def: &IndexDefination,
         index_file: InputFile,
-        filter: &Expr,
+        filters: &[Expr],
     ) -> ILResult<FilterIndexEntries> {
         let params = index_def.downcast_params::<RStarIndexParams>()?;
 
         let arrow_reader_builder = ParquetRecordBatchStreamBuilder::new(index_file).await?;
         let mut batch_stream = arrow_reader_builder.build()?;
 
-        let aabb = match filter {
+        let aabb = match &filters[0] {
             Expr::Literal(Scalar::Binary(Some(wkb))) => {
                 let aabb = compute_aabb(wkb, params.wkb_dialect)?;
                 AABB::from_corners(

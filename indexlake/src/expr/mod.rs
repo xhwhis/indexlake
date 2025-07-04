@@ -1,10 +1,13 @@
 mod binary;
 mod builder;
 mod compute;
+mod utils;
 mod visitor;
 
 pub use binary::*;
+pub use builder::*;
 pub use compute::*;
+pub use utils::*;
 pub use visitor::*;
 
 use std::sync::Arc;
@@ -12,7 +15,7 @@ use std::sync::Arc;
 use arrow::{
     array::{ArrayRef, AsArray, BooleanArray, RecordBatch},
     buffer::BooleanBuffer,
-    datatypes::Schema,
+    datatypes::{DataType, Schema},
     error::ArrowError,
 };
 use parquet::arrow::{ArrowSchemaConverter, ProjectionMask, arrow_reader::ArrowPredicate};
@@ -26,7 +29,7 @@ use crate::{
 };
 
 /// Represents logical expressions such as `A + 1`
-#[derive(Debug, Clone, Drive, DriveMut)]
+#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
 pub enum Expr {
     /// A named reference
     Column(String),
@@ -107,6 +110,21 @@ impl Expr {
 
                 Ok(ColumnarValue::Array(Arc::new(r)))
             }
+        }
+    }
+
+    pub fn data_type(&self, schema: &Schema) -> ILResult<DataType> {
+        match self {
+            Expr::Column(name) => {
+                let index = schema.index_of(name)?;
+                Ok(schema.field(index).data_type().clone())
+            }
+            Expr::Literal(scalar) => Ok(scalar.data_type()),
+            Expr::BinaryExpr(binary_expr) => binary_expr.data_type(schema),
+            Expr::Not(_) => Ok(DataType::Boolean),
+            Expr::IsNull(_) => Ok(DataType::Boolean),
+            Expr::IsNotNull(_) => Ok(DataType::Boolean),
+            Expr::InList(_) => Ok(DataType::Boolean),
         }
     }
 
@@ -202,7 +220,7 @@ impl ArrowPredicate for ExprPredicate {
 }
 
 /// InList expression
-#[derive(Debug, Clone, Drive, DriveMut)]
+#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
 pub struct InList {
     /// The expression to compare
     pub expr: Box<Expr>,

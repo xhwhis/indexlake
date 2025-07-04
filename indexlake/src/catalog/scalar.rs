@@ -177,6 +177,19 @@ impl Scalar {
             _ => todo!(),
         })
     }
+
+    pub fn data_type(&self) -> DataType {
+        match self {
+            Scalar::Boolean(_) => DataType::Boolean,
+            Scalar::Int16(_) => DataType::Int16,
+            Scalar::Int32(_) => DataType::Int32,
+            Scalar::Int64(_) => DataType::Int64,
+            Scalar::Float32(_) => DataType::Float32,
+            Scalar::Float64(_) => DataType::Float64,
+            Scalar::Utf8(_) => DataType::Utf8,
+            Scalar::Binary(_) => DataType::Binary,
+        }
+    }
 }
 
 impl PartialEq for Scalar {
@@ -261,3 +274,28 @@ impl Display for Scalar {
         }
     }
 }
+
+macro_rules! impl_scalar_from {
+    ($ty:ty, $scalar:tt) => {
+        impl From<$ty> for Scalar {
+            fn from(value: $ty) -> Self {
+                Scalar::$scalar(Some(value))
+            }
+        }
+
+        impl From<Option<$ty>> for Scalar {
+            fn from(value: Option<$ty>) -> Self {
+                Scalar::$scalar(value)
+            }
+        }
+    };
+}
+
+impl_scalar_from!(bool, Boolean);
+impl_scalar_from!(i16, Int16);
+impl_scalar_from!(i32, Int32);
+impl_scalar_from!(i64, Int64);
+impl_scalar_from!(f32, Float32);
+impl_scalar_from!(f64, Float64);
+impl_scalar_from!(String, Utf8);
+impl_scalar_from!(Vec<u8>, Binary);

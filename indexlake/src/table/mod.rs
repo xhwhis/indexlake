@@ -29,7 +29,7 @@ use crate::{
     storage::Storage,
 };
 use arrow::array::RecordBatch;
-use arrow::datatypes::{FieldRef, SchemaRef};
+use arrow::datatypes::{DataType, FieldRef, SchemaRef};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -98,6 +98,12 @@ impl Table {
     }
 
     pub async fn update(&self, set_map: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {
+        let data_type = condition.data_type(&self.schema)?;
+        if data_type != DataType::Boolean {
+            return Err(ILError::InvalidInput(format!(
+                "Condition must be a boolean expression, but got {data_type}"
+            )));
+        }
         let mut tx_helper = self.transaction_helper().await?;
         process_update(
             &mut tx_helper,
@@ -113,6 +119,12 @@ impl Table {
     }
 
     pub async fn delete(&self, condition: &Expr) -> ILResult<()> {
+        let data_type = condition.data_type(&self.schema)?;
+        if data_type != DataType::Boolean {
+            return Err(ILError::InvalidInput(format!(
+                "Condition must be a boolean expression, but got {data_type}"
+            )));
+        }
         let mut tx_helper = self.transaction_helper().await?;
         process_delete(
             &mut tx_helper,

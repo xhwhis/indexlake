@@ -46,7 +46,7 @@ impl Index for HashIndex {
         &self,
         index_def: &IndexDefination,
         index_file: InputFile,
-        filter: &Expr,
+        filters: &[Expr],
     ) -> ILResult<FilterIndexEntries> {
         todo!()
     }
