@@ -28,6 +28,12 @@ pub trait Index: Debug + Send + Sync {
         query: &dyn SearchQuery,
     ) -> ILResult<SearchIndexEntries>;
 
+    fn supports_filters(
+        &self,
+        index_def: &IndexDefination,
+        filters: &[Expr],
+    ) -> ILResult<Vec<bool>>;
+
     // TODO return a stream of entries
     async fn filter(
         &self,

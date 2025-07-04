@@ -53,7 +53,7 @@ impl Table {
         TransactionHelper::new(&self.catalog).await
     }
 
-    pub async fn create_index(&self, index_creation: IndexCreation) -> ILResult<()> {
+    pub async fn create_index(&mut self, index_creation: IndexCreation) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
         process_create_index(&mut tx_helper, self, index_creation).await?;
         tx_helper.commit().await?;
@@ -98,12 +98,7 @@ impl Table {
     }
 
     pub async fn update(&self, set_map: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {
-        let data_type = condition.data_type(&self.schema)?;
-        if data_type != DataType::Boolean {
-            return Err(ILError::InvalidInput(format!(
-                "Condition must be a boolean expression, but got {data_type}"
-            )));
-        }
+        check_condition_data_type(condition, &self.schema)?;
         let mut tx_helper = self.transaction_helper().await?;
         process_update(
             &mut tx_helper,
@@ -119,12 +114,7 @@ impl Table {
     }
 
     pub async fn delete(&self, condition: &Expr) -> ILResult<()> {
-        let data_type = condition.data_type(&self.schema)?;
-        if data_type != DataType::Boolean {
-            return Err(ILError::InvalidInput(format!(
-                "Condition must be a boolean expression, but got {data_type}"
-            )));
-        }
+        check_condition_data_type(condition, &self.schema)?;
         let mut tx_helper = self.transaction_helper().await?;
         process_delete(
             &mut tx_helper,
@@ -153,4 +143,14 @@ impl Table {
         tx_helper.commit().await?;
         Ok(())
     }
+}
+
+fn check_condition_data_type(condition: &Expr, schema: &SchemaRef) -> ILResult<()> {
+    let data_type = condition.data_type(schema)?;
+    if data_type != DataType::Boolean {
+        return Err(ILError::InvalidInput(format!(
+            "Condition must be a boolean expression, but got {data_type}"
+        )));
+    }
+    Ok(())
 }

@@ -1,13 +1,12 @@
 use arrow::array::{Int64Array, RecordBatch, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
-use arrow::util::pretty::pretty_format_batches;
-use futures::TryStreamExt;
 use indexlake::{
     LakeClient,
     catalog::Catalog,
     storage::Storage,
     table::{TableConfig, TableCreation},
 };
+use indexlake_integration_tests::utils::table_scan;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
@@ -22,13 +21,13 @@ async fn truncate_table(
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
 
     let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name).await.unwrap();
+    client.create_namespace(namespace_name).await?;
 
     let table_schema = Arc::new(Schema::new(vec![
         Field::new("id", DataType::Int64, false),
@@ -41,9 +40,9 @@ async fn truncate_table(
         schema: table_schema.clone(),
         config: TableConfig::default(),
     };
-    client.create_table(table_creation).await.unwrap();
+    client.create_table(table_creation).await?;
 
-    let table = client.load_table(namespace_name, table_name).await.unwrap();
+    let table = client.load_table(namespace_name, table_name).await?;
 
     let record_batch = RecordBatch::try_new(
         table_schema.clone(),
@@ -51,16 +50,13 @@ async fn truncate_table(
             Arc::new(Int64Array::from(vec![1, 2])),
             Arc::new(StringArray::from(vec!["Alice", "Bob"])),
         ],
-    )
-    .unwrap();
+    )?;
 
-    table.insert(&record_batch).await.unwrap();
+    table.insert(&record_batch).await?;
 
-    table.truncate().await.unwrap();
+    table.truncate().await?;
 
-    let batch_stream = table.scan().await.unwrap();
-    let batches = batch_stream.try_collect::<Vec<_>>().await.unwrap();
-    let table_str = pretty_format_batches(&batches).unwrap().to_string();
+    let table_str = table_scan(&table).await?;
     println!("{}", table_str);
     assert_eq!(
         table_str,
@@ -69,4 +65,6 @@ async fn truncate_table(
 +-------------------+----+------+
 +-------------------+----+------+"#,
     );
+
+    Ok(())
 }

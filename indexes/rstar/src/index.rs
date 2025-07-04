@@ -71,6 +71,30 @@ impl Index for RStarIndex {
         )))
     }
 
+    fn supports_filters(
+        &self,
+        index_def: &IndexDefination,
+        filters: &[Expr],
+    ) -> ILResult<Vec<bool>> {
+        let mut supports = Vec::new();
+        for filter in filters {
+            match filter {
+                // TODO: support more functions, check args
+                Expr::Function(function) => {
+                    if function.name == "intersects" {
+                        supports.push(true);
+                    } else {
+                        supports.push(false);
+                    }
+                }
+                _ => {
+                    supports.push(false);
+                }
+            }
+        }
+        Ok(supports)
+    }
+
     async fn filter(
         &self,
         index_def: &IndexDefination,

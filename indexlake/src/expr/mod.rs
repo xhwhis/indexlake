@@ -45,6 +45,7 @@ pub enum Expr {
     IsNotNull(Box<Expr>),
     /// Returns whether the list contains the expr value
     InList(InList),
+    Function(Function),
 }
 
 impl Expr {
@@ -110,6 +111,9 @@ impl Expr {
 
                 Ok(ColumnarValue::Array(Arc::new(r)))
             }
+            Expr::Function(_) => Err(ILError::InvalidInput(
+                "Function can only be used for index".to_string(),
+            )),
         }
     }
 
@@ -125,26 +129,30 @@ impl Expr {
             Expr::IsNull(_) => Ok(DataType::Boolean),
             Expr::IsNotNull(_) => Ok(DataType::Boolean),
             Expr::InList(_) => Ok(DataType::Boolean),
+            Expr::Function(function) => Ok(function.return_type.clone()),
         }
     }
 
-    pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
+    pub(crate) fn to_sql(&self, database: CatalogDatabase) -> ILResult<String> {
         match self {
-            Expr::Column(name) => database.sql_identifier(name),
-            Expr::Literal(scalar) => scalar.to_sql(database),
+            Expr::Column(name) => Ok(database.sql_identifier(name)),
+            Expr::Literal(scalar) => Ok(scalar.to_sql(database)),
             Expr::BinaryExpr(binary_expr) => binary_expr.to_sql(database),
-            Expr::Not(expr) => format!("NOT {}", expr.to_sql(database)),
-            Expr::IsNull(expr) => format!("{} IS NULL", expr.to_sql(database)),
-            Expr::IsNotNull(expr) => format!("{} IS NOT NULL", expr.to_sql(database)),
+            Expr::Not(expr) => Ok(format!("NOT {}", expr.to_sql(database)?)),
+            Expr::IsNull(expr) => Ok(format!("{} IS NULL", expr.to_sql(database)?)),
+            Expr::IsNotNull(expr) => Ok(format!("{} IS NOT NULL", expr.to_sql(database)?)),
             Expr::InList(in_list) => {
                 let list = in_list
                     .list
                     .iter()
                     .map(|expr| expr.to_sql(database))
-                    .collect::<Vec<_>>()
+                    .collect::<ILResult<Vec<_>>>()?
                     .join(", ");
-                format!("{} IN ({})", in_list.expr.to_sql(database), list)
+                Ok(format!("{} IN ({})", in_list.expr.to_sql(database)?, list))
             }
+            Expr::Function(_) => Err(ILError::InvalidInput(
+                "Function can only be used for index".to_string(),
+            )),
         }
     }
 }
@@ -164,6 +172,17 @@ impl std::fmt::Display for Expr {
                 in_list.expr,
                 in_list
                     .list
+                    .iter()
+                    .map(|expr| expr.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Expr::Function(function) => write!(
+                f,
+                "{}({})",
+                function.name,
+                function
+                    .args
                     .iter()
                     .map(|expr| expr.to_string())
                     .collect::<Vec<_>>()
@@ -228,6 +247,14 @@ pub struct InList {
     pub list: Vec<Expr>,
     /// Whether the expression is negated
     pub negated: bool,
+}
+
+#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
+pub struct Function {
+    pub name: String,
+    pub args: Vec<Expr>,
+    #[drive(skip)]
+    pub return_type: DataType,
 }
 
 #[derive(Clone, Debug)]

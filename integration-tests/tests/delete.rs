@@ -16,18 +16,16 @@ async fn delete_table_by_condition(
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-    let table = prepare_testing_table(&client, "delete_table_by_condition")
-        .await
-        .unwrap();
+    let table = prepare_testing_table(&client, "delete_table_by_condition").await?;
 
     let condition = Expr::Column("age".to_string()).gt(Expr::Literal(Scalar::Int32(Some(21))));
-    table.delete(&condition).await.unwrap();
+    table.delete(&condition).await?;
 
-    let table_str = table_scan(&table).await.unwrap();
+    let table_str = table_scan(&table).await?;
     println!("{}", table_str);
     assert_eq!(
         table_str,
@@ -38,6 +36,8 @@ async fn delete_table_by_condition(
 | 2                 | Bob   | 21  |
 +-------------------+-------+-----+"#,
     );
+
+    Ok(())
 }
 
 #[rstest::rstest]
@@ -49,19 +49,17 @@ async fn delete_table_by_row_id(
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-    let table = prepare_testing_table(&client, "delete_table_by_row_id")
-        .await
-        .unwrap();
+    let table = prepare_testing_table(&client, "delete_table_by_row_id").await?;
 
     let condition = Expr::Column(INTERNAL_ROW_ID_FIELD_NAME.to_string())
         .eq(Expr::Literal(Scalar::Int64(Some(1))));
-    table.delete(&condition).await.unwrap();
+    table.delete(&condition).await?;
 
-    let table_str = table_scan(&table).await.unwrap();
+    let table_str = table_scan(&table).await?;
     println!("{}", table_str);
     assert_eq!(
         table_str,
@@ -73,4 +71,6 @@ async fn delete_table_by_row_id(
 | 4                 | David   | 23  |
 +-------------------+---------+-----+"#,
     );
+
+    Ok(())
 }

@@ -30,7 +30,7 @@ impl TransactionHelper {
     ) -> ILResult<usize> {
         let sql = format!(
             "UPDATE indexlake_row_metadata_{table_id} SET deleted = TRUE WHERE {}",
-            condition.to_sql(self.database)
+            condition.to_sql(self.database)?
         );
         self.transaction.execute(&sql).await
     }
@@ -54,7 +54,7 @@ impl TransactionHelper {
             .execute(&format!(
                 "UPDATE indexlake_inline_row_{table_id} SET {} WHERE {}",
                 set_strs.join(", "),
-                condition.to_sql(self.database)
+                condition.to_sql(self.database)?
             ))
             .await?;
 

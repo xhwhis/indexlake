@@ -93,6 +93,8 @@ impl DumpTask {
             let index_builder = index_kind.builder(index_def)?;
             index_builders.insert(index_name.clone(), index_builder);
         }
+        println!("LWZTEST index builders len: {}", index_builders.len());
+        println!("LWZTEST indexes: {:?}", self.table_indexes);
 
         let (location_map, file_size_bytes, record_count) = self
             .write_dump_file(row_stream, &relative_path, &mut index_builders)

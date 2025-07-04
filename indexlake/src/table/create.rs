@@ -78,7 +78,7 @@ pub struct IndexCreation {
 
 pub(crate) async fn process_create_index(
     tx_helper: &mut TransactionHelper,
-    table: &Table,
+    table: &mut Table,
     creation: IndexCreation,
 ) -> ILResult<i64> {
     let index_id = tx_helper.get_max_index_id().await? + 1;
@@ -125,6 +125,11 @@ pub(crate) async fn process_create_index(
             params: creation.params.encode()?,
         })
         .await?;
+
+    // TODO create index file
+    table
+        .indexes
+        .insert(creation.name.clone(), Arc::new(index_def));
 
     Ok(index_id)
 }

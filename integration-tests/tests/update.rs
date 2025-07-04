@@ -17,20 +17,18 @@ async fn update_table(
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-    let table = prepare_testing_table(&client, "update_table")
-        .await
-        .unwrap();
+    let table = prepare_testing_table(&client, "update_table").await?;
 
     let set_map = HashMap::from([("age".to_string(), Scalar::Int32(Some(30)))]);
     let condition =
         Expr::Column("name".to_string()).eq(Expr::Literal(Scalar::Utf8(Some("Alice".to_string()))));
-    table.update(set_map, &condition).await.unwrap();
+    table.update(set_map, &condition).await?;
 
-    let table_str = table_scan(&table).await.unwrap();
+    let table_str = table_scan(&table).await?;
     println!("{}", table_str);
     assert_eq!(
         table_str,
@@ -43,4 +41,6 @@ async fn update_table(
 | 4                 | David   | 23  |
 +-------------------+---------+-----+"#,
     );
+
+    Ok(())
 }

@@ -1,11 +1,4 @@
-use arrow::datatypes::{DataType, Field, Schema};
-use indexlake::{
-    LakeClient,
-    catalog::Catalog,
-    index::Index,
-    storage::Storage,
-    table::{TableConfig, TableCreation},
-};
+use indexlake::{LakeClient, catalog::Catalog, index::Index, storage::Storage};
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, data::prepare_testing_table, init_env_logger, storage_fs,
     storage_s3,
@@ -27,15 +20,13 @@ async fn duplicated_index_name(
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
     let mut client = LakeClient::new(catalog, storage);
-    client.register_index(Arc::new(HashIndex)).unwrap();
+    client.register_index(Arc::new(HashIndex))?;
 
-    let table = prepare_testing_table(&mut client, "duplicated_index_name")
-        .await
-        .unwrap();
+    let mut table = prepare_testing_table(&client, "duplicated_index_name").await?;
 
     let index_creation = IndexCreation {
         name: "test_index".to_string(),
@@ -45,10 +36,12 @@ async fn duplicated_index_name(
         params: Arc::new(HashIndexParams),
     };
 
-    table.create_index(index_creation.clone()).await.unwrap();
+    table.create_index(index_creation.clone()).await?;
 
     let result = table.create_index(index_creation).await;
     assert!(result.is_err());
+
+    Ok(())
 }
 
 #[rstest::rstest]
@@ -60,15 +53,13 @@ async fn unsupported_index_kind(
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
     let mut client = LakeClient::new(catalog, storage);
-    client.register_index(Arc::new(HashIndex)).unwrap();
+    client.register_index(Arc::new(HashIndex))?;
 
-    let table = prepare_testing_table(&mut client, "duplicated_index_name")
-        .await
-        .unwrap();
+    let mut table = prepare_testing_table(&client, "unsupported_index_kind").await?;
 
     let index_creation = IndexCreation {
         name: "test_index".to_string(),
@@ -80,4 +71,6 @@ async fn unsupported_index_kind(
 
     let result = table.create_index(index_creation).await;
     assert!(result.is_err());
+
+    Ok(())
 }

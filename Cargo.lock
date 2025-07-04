@@ -2287,6 +2287,8 @@ dependencies = [
  "bytes",
  "env_logger",
  "futures",
+ "geo",
+ "geozero",
  "indexlake",
  "indexlake-catalog-postgres",
  "indexlake-catalog-sqlite",

@@ -154,7 +154,7 @@ impl TransactionHelper {
                 &format!(
                     "SELECT {} FROM indexlake_row_metadata_{table_id} WHERE {}",
                     RowMetadataRecord::select_items().join(", "),
-                    condition.to_sql(self.database)
+                    condition.to_sql(self.database)?
                 ),
                 schema,
             )
@@ -597,7 +597,7 @@ impl CatalogHelper {
                 &format!(
                     "SELECT {} FROM indexlake_row_metadata_{table_id} WHERE {}",
                     RowMetadataRecord::select_items().join(", "),
-                    condition.to_sql(self.catalog.database())
+                    condition.to_sql(self.catalog.database())?
                 ),
                 schema,
             )

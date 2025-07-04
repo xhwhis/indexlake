@@ -75,10 +75,10 @@ pub struct BinaryExpr {
 }
 
 impl BinaryExpr {
-    pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
-        let left_sql = self.left.to_sql(database);
-        let right_sql = self.right.to_sql(database);
-        format!("({} {} {})", left_sql, self.op, right_sql)
+    pub(crate) fn to_sql(&self, database: CatalogDatabase) -> ILResult<String> {
+        let left_sql = self.left.to_sql(database)?;
+        let right_sql = self.right.to_sql(database)?;
+        Ok(format!("({} {} {})", left_sql, self.op, right_sql))
     }
 
     pub(crate) fn eval(&self, batch: &RecordBatch) -> ILResult<ColumnarValue> {

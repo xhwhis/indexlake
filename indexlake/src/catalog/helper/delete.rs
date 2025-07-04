@@ -31,7 +31,7 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "DELETE FROM indexlake_inline_row_{table_id} WHERE {}",
-                condition.to_sql(self.database)
+                condition.to_sql(self.database)?
             ))
             .await
     }
