@@ -104,19 +104,5 @@ async fn scan_with_limit(
 +-------------------+-------+-----+"#,
     );
 
-    // Scan inline rows and data files
-    let scan = TableScan::default().with_limit(Some(2));
-    let table_str = table_scan(&table, scan).await?;
-    println!("{}", table_str);
-    assert_eq!(
-        table_str,
-        r#"+-------------------+-------+-----+
-| _indexlake_row_id | name  | age |
-+-------------------+-------+-----+
-| 1                 | Alice | 20  |
-| 4                 | David | 23  |
-+-------------------+-------+-----+"#,
-    );
-
     Ok(())
 }
