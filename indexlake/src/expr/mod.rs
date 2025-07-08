@@ -26,7 +26,7 @@ use derive_visitor::{Drive, DriveMut};
 use crate::{
     ILError, ILResult,
     catalog::{CatalogDatabase, Row, Scalar},
-    expr::like::LikeExpr,
+    expr::like::Like,
 };
 
 /// Represents logical expressions such as `A + 1`
@@ -47,7 +47,7 @@ pub enum Expr {
     /// Returns whether the list contains the expr value
     InList(InList),
     Function(Function),
-    LikeExpr(LikeExpr),
+    Like(Like),
 }
 
 impl Expr {
@@ -116,7 +116,7 @@ impl Expr {
             Expr::Function(_) => Err(ILError::InvalidInput(
                 "Function can only be used for index".to_string(),
             )),
-            Expr::LikeExpr(like_expr) => like_expr.eval(batch),
+            Expr::Like(like_expr) => like_expr.eval(batch),
         }
     }
 
@@ -133,7 +133,7 @@ impl Expr {
             Expr::IsNotNull(_) => Ok(DataType::Boolean),
             Expr::InList(_) => Ok(DataType::Boolean),
             Expr::Function(function) => Ok(function.return_type.clone()),
-            Expr::LikeExpr(like_expr) => like_expr.data_type(),
+            Expr::Like(like_expr) => like_expr.data_type(),
         }
     }
 
@@ -157,7 +157,7 @@ impl Expr {
             Expr::Function(_) => Err(ILError::InvalidInput(
                 "Function can only be used for index".to_string(),
             )),
-            Expr::LikeExpr(like_expr) => like_expr.to_sql(database),
+            Expr::Like(like_expr) => like_expr.to_sql(database),
         }
     }
 }
@@ -193,7 +193,7 @@ impl std::fmt::Display for Expr {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Expr::LikeExpr(like_expr) => write!(f, "{}", like_expr),
+            Expr::Like(like_expr) => write!(f, "{}", like_expr),
         }
     }
 }

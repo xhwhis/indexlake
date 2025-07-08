@@ -8,14 +8,14 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
-pub struct LikeExpr {
+pub struct Like {
     negated: bool,
     case_insensitive: bool,
     expr: Box<Expr>,
     pattern: Box<Expr>,
 }
 
-impl LikeExpr {
+impl Like {
     pub fn new(negated: bool, expr: Box<Expr>, pattern: Box<Expr>, case_insensitive: bool) -> Self {
         Self {
             negated,
@@ -78,7 +78,7 @@ impl LikeExpr {
     }
 }
 
-impl std::fmt::Display for LikeExpr {
+impl std::fmt::Display for Like {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{} {} {}", self.expr, self.op_name(), self.pattern)
     }
@@ -106,7 +106,7 @@ mod tests {
         let expr_pg = col("c1");
         let pattern_pg = lit("a%".to_string());
 
-        let like_expr_pg = LikeExpr::new(
+        let like_expr_pg = Like::new(
             false,
             Box::new(expr_pg.clone()),
             Box::new(pattern_pg.clone()),
@@ -117,7 +117,7 @@ mod tests {
             "\"c1\" LIKE 'a%'"
         );
 
-        let not_like_expr_pg = LikeExpr::new(
+        let not_like_expr_pg = Like::new(
             true,
             Box::new(expr_pg.clone()),
             Box::new(pattern_pg.clone()),
@@ -128,7 +128,7 @@ mod tests {
             "\"c1\" NOT LIKE 'a%'"
         );
 
-        let ilike_expr_pg = LikeExpr::new(
+        let ilike_expr_pg = Like::new(
             false,
             Box::new(expr_pg.clone()),
             Box::new(pattern_pg.clone()),
@@ -139,7 +139,7 @@ mod tests {
             "\"c1\" ILIKE 'a%'"
         );
 
-        let not_ilike_expr_pg = LikeExpr::new(
+        let not_ilike_expr_pg = Like::new(
             true,
             Box::new(expr_pg.clone()),
             Box::new(pattern_pg.clone()),
@@ -156,7 +156,7 @@ mod tests {
         let pattern_sqlite = lit("a%".to_string());
 
         // LIKE (case-sensitive, requires PRAGMA)
-        let like_expr_sqlite = LikeExpr::new(
+        let like_expr_sqlite = Like::new(
             false,
             Box::new(expr_sqlite.clone()),
             Box::new(pattern_sqlite.clone()),
@@ -168,7 +168,7 @@ mod tests {
         );
 
         // NOT LIKE (case-sensitive, requires PRAGMA)
-        let not_like_expr_sqlite = LikeExpr::new(
+        let not_like_expr_sqlite = Like::new(
             true,
             Box::new(expr_sqlite.clone()),
             Box::new(pattern_sqlite.clone()),
@@ -180,7 +180,7 @@ mod tests {
         );
 
         // ILIKE -> UPPER(expr) LIKE UPPER(pattern)
-        let ilike_expr_sqlite = LikeExpr::new(
+        let ilike_expr_sqlite = Like::new(
             false,
             Box::new(expr_sqlite.clone()),
             Box::new(pattern_sqlite.clone()),
@@ -192,7 +192,7 @@ mod tests {
         );
 
         // NOT ILIKE -> UPPER(expr) NOT LIKE UPPER(pattern)
-        let not_ilike_expr_sqlite = LikeExpr::new(
+        let not_ilike_expr_sqlite = Like::new(
             true,
             Box::new(expr_sqlite.clone()),
             Box::new(pattern_sqlite.clone()),
@@ -213,7 +213,7 @@ mod tests {
         // === LIKE (case-sensitive) ===
         // Test LIKE: c1 LIKE 'h%' -> ['hello'] -> [true, false, false, false]
         let pattern_h = lit("h%".to_string());
-        let like_expr_h = LikeExpr::new(
+        let like_expr_h = Like::new(
             false,
             Box::new(expr.clone()),
             Box::new(pattern_h.clone()),
@@ -231,7 +231,7 @@ mod tests {
         );
 
         // Test NOT LIKE: c1 NOT LIKE 'h%' -> ['world', 'HELLO', 'WORLD'] -> [false, true, true, true]
-        let not_like_expr_h = LikeExpr::new(
+        let not_like_expr_h = Like::new(
             true,
             Box::new(expr.clone()),
             Box::new(pattern_h.clone()),
@@ -250,7 +250,7 @@ mod tests {
 
         // === ILIKE (case-insensitive) ===
         // Test ILIKE: c1 ILIKE 'h%' -> ['hello', 'HELLO'] -> [true, false, true, false]
-        let ilike_expr_h = LikeExpr::new(
+        let ilike_expr_h = Like::new(
             false,
             Box::new(expr.clone()),
             Box::new(pattern_h.clone()),
@@ -268,7 +268,7 @@ mod tests {
         );
 
         // Test NOT ILIKE: c1 NOT ILIKE 'h%' -> ['world', 'WORLD'] -> [false, true, false, true]
-        let not_ilike_expr_h = LikeExpr::new(
+        let not_ilike_expr_h = Like::new(
             true,
             Box::new(expr.clone()),
             Box::new(pattern_h.clone()),
@@ -288,7 +288,7 @@ mod tests {
         // === More wildcards ===
         // Test with wildcard '%' at the start: c1 LIKE '%d' -> ['world'] -> [false, true, false, false]
         let pattern_d = lit("%d".to_string());
-        let like_expr_d = LikeExpr::new(
+        let like_expr_d = Like::new(
             false,
             Box::new(expr.clone()),
             Box::new(pattern_d.clone()),
@@ -306,7 +306,7 @@ mod tests {
         );
 
         // Test with wildcard '%' at the start (case-insensitive): c1 ILIKE '%d' -> ['world', 'WORLD'] -> [false, true, false, true]
-        let ilike_expr_d = LikeExpr::new(
+        let ilike_expr_d = Like::new(
             false,
             Box::new(expr.clone()),
             Box::new(pattern_d.clone()),
@@ -325,7 +325,7 @@ mod tests {
 
         // Test with wildcard '_': c1 LIKE 'w_rld' -> ['world'] -> [false, true, false, false]
         let pattern_w = lit("w_rld".to_string());
-        let like_expr_w = LikeExpr::new(
+        let like_expr_w = Like::new(
             false,
             Box::new(expr.clone()),
             Box::new(pattern_w.clone()),
@@ -344,7 +344,7 @@ mod tests {
 
         // Test with wildcard '_' (case-insensitive): c1 ILIKE 'W_RLD' -> ['world', 'WORLD'] -> [false, true, false, true]
         let pattern_w = lit("W_RLD".to_string());
-        let ilike_expr_w = LikeExpr::new(
+        let ilike_expr_w = Like::new(
             false,
             Box::new(expr.clone()),
             Box::new(pattern_w.clone()),
