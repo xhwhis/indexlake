@@ -1,21 +1,15 @@
-mod config;
 mod create;
 mod delete;
-mod drop;
 mod dump;
 mod insert;
 mod scan;
-mod truncate;
 mod update;
 
-pub use config::*;
 pub use create::*;
 pub(crate) use delete::*;
-pub(crate) use drop::*;
 pub(crate) use dump::*;
 pub(crate) use insert::*;
 pub use scan::*;
-pub(crate) use truncate::*;
 pub(crate) use update::*;
 
 use crate::RecordBatchStream;
@@ -30,6 +24,7 @@ use crate::{
 };
 use arrow::array::RecordBatch;
 use arrow::datatypes::{DataType, FieldRef, SchemaRef};
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -141,7 +136,7 @@ impl Table {
     // Drop the table
     pub async fn drop(self) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
-        process_table_drop(&mut tx_helper, self.table_id).await?;
+        process_drop(&mut tx_helper, self.table_id).await?;
         tx_helper.commit().await?;
         Ok(())
     }
@@ -155,4 +150,41 @@ fn check_condition_data_type(condition: &Expr, schema: &SchemaRef) -> ILResult<(
         )));
     }
     Ok(())
+}
+
+async fn process_truncate(tx_helper: &mut TransactionHelper, table_id: i64) -> ILResult<()> {
+    tx_helper.truncate_inline_row_table(table_id).await?;
+
+    tx_helper.delete_all_data_files(table_id).await?;
+    tx_helper.delete_all_index_files(table_id).await?;
+
+    Ok(())
+}
+
+async fn process_drop(tx_helper: &mut TransactionHelper, table_id: i64) -> ILResult<()> {
+    tx_helper.drop_inline_row_table(table_id).await?;
+
+    tx_helper.delete_all_data_files(table_id).await?;
+    tx_helper.delete_all_index_files(table_id).await?;
+
+    tx_helper.delete_indexes(table_id).await?;
+    tx_helper.delete_fields(table_id).await?;
+    tx_helper.delete_table(table_id).await?;
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TableConfig {
+    pub inline_row_count_limit: usize,
+    pub parquet_row_group_size: usize,
+}
+
+impl Default for TableConfig {
+    fn default() -> Self {
+        Self {
+            inline_row_count_limit: 10000,
+            parquet_row_group_size: 1000,
+        }
+    }
 }

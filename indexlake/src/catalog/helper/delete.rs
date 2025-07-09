@@ -52,6 +52,14 @@ impl TransactionHelper {
             .await
     }
 
+    pub(crate) async fn delete_all_index_files(&mut self, table_id: i64) -> ILResult<usize> {
+        self.transaction
+            .execute(&format!(
+                "DELETE FROM indexlake_index_file WHERE table_id = {table_id}"
+            ))
+            .await
+    }
+
     pub(crate) async fn delete_table(&mut self, table_id: i64) -> ILResult<usize> {
         self.transaction
             .execute(&format!(
@@ -64,6 +72,14 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "DELETE FROM indexlake_field WHERE table_id = {table_id}"
+            ))
+            .await
+    }
+
+    pub(crate) async fn delete_indexes(&mut self, table_id: i64) -> ILResult<usize> {
+        self.transaction
+            .execute(&format!(
+                "DELETE FROM indexlake_index WHERE table_id = {table_id}"
             ))
             .await
     }
