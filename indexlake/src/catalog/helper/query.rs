@@ -2,11 +2,8 @@ use std::collections::BTreeMap;
 use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::{DataType, Field, FieldRef};
-use tokio::time::error::Elapsed;
 
-use crate::catalog::{
-    CatalogHelper, DataFileRecord, IndexRecord, RowIdMeta, RowLocation, RowMetadataRecord, Scalar,
-};
+use crate::catalog::{CatalogHelper, DataFileRecord, IndexRecord, RowIdMeta, Scalar};
 use crate::expr::{Expr, col, lit};
 use crate::{
     ILError, ILResult,
@@ -115,7 +112,9 @@ impl TransactionHelper {
         )]));
         let rows = self
             .query_rows(
-                &format!("SELECT MAX({INTERNAL_ROW_ID_FIELD_NAME}) FROM indexlake_row_metadata_{table_id}"),
+                &format!(
+                    "SELECT MAX({INTERNAL_ROW_ID_FIELD_NAME}) FROM indexlake_inline_row_{table_id}"
+                ),
                 schema,
             )
             .await?;
@@ -125,45 +124,6 @@ impl TransactionHelper {
             let max_row_id = rows[0].int64(0)?;
             Ok(max_row_id.unwrap_or(0))
         }
-    }
-
-    pub(crate) async fn scan_row_metadata(
-        &mut self,
-        table_id: i64,
-        condition: &Expr,
-    ) -> ILResult<Vec<RowMetadataRecord>> {
-        let schema = Arc::new(CatalogSchema::new(vec![
-            Column::new(
-                INTERNAL_ROW_ID_FIELD_NAME.to_string(),
-                CatalogDataType::Int64,
-                false,
-            ),
-            Column::new("location", CatalogDataType::Utf8, false),
-            Column::new("deleted", CatalogDataType::Boolean, false),
-        ]));
-        let rows = self
-            .query_rows(
-                &format!(
-                    "SELECT {} FROM indexlake_row_metadata_{table_id} WHERE {}",
-                    RowMetadataRecord::select_items().join(", "),
-                    condition.to_sql(self.database)?
-                ),
-                schema,
-            )
-            .await?;
-        let mut records = Vec::with_capacity(rows.len());
-        for row in rows {
-            let row_id = row.int64(0)?.expect("row_id is not null");
-            let location_str = row.utf8(1)?.expect("location is not null");
-            let location = location_str.parse::<RowLocation>()?;
-            let deleted = row.boolean(2)?.expect("deleted is not null");
-            records.push(RowMetadataRecord {
-                row_id,
-                location,
-                deleted,
-            });
-        }
-        Ok(records)
     }
 
     pub(crate) async fn scan_inline_rows(
@@ -564,59 +524,52 @@ impl CatalogHelper {
         .await
     }
 
-    pub(crate) async fn scan_undeleted_non_inline_row_metadata(
-        &self,
-        table_id: i64,
-        limit: Option<usize>,
-    ) -> ILResult<Vec<RowMetadataRecord>> {
-        let non_inline = col("location").neq(lit(RowLocation::Inline.to_string()));
-        let undeleted = col("deleted").eq(lit(false));
-        let condition = non_inline.and(undeleted);
-        self.scan_row_metadata(table_id, &condition, limit).await
-    }
-
-    pub(crate) async fn scan_row_metadata(
-        &self,
-        table_id: i64,
-        condition: &Expr,
-        limit: Option<usize>,
-    ) -> ILResult<Vec<RowMetadataRecord>> {
+    pub(crate) async fn get_data_files(&self, table_id: i64) -> ILResult<Vec<DataFileRecord>> {
         let schema = Arc::new(CatalogSchema::new(vec![
-            Column::new(
-                INTERNAL_ROW_ID_FIELD_NAME.to_string(),
-                CatalogDataType::Int64,
-                false,
-            ),
-            Column::new("location", CatalogDataType::Utf8, false),
-            Column::new("deleted", CatalogDataType::Boolean, false),
+            Column::new("data_file_id", CatalogDataType::Int64, false),
+            Column::new("table_id", CatalogDataType::Int64, false),
+            Column::new("relative_path", CatalogDataType::Utf8, false),
+            Column::new("file_size_bytes", CatalogDataType::Int64, false),
+            Column::new("record_count", CatalogDataType::Int64, false),
+            Column::new("row_id_metas", CatalogDataType::Binary, false),
         ]));
-        let limit_clause = if let Some(limit) = limit {
-            format!(" LIMIT {limit}")
-        } else {
-            "".to_string()
-        };
         let rows = self
             .query_rows(
                 &format!(
-                    "SELECT {} FROM indexlake_row_metadata_{table_id} WHERE {}{limit_clause}",
-                    RowMetadataRecord::select_items().join(", "),
-                    condition.to_sql(self.catalog.database())?
+                    "SELECT {} FROM indexlake_data_file WHERE table_id = {table_id}",
+                    DataFileRecord::select_items().join(", ")
                 ),
                 schema,
             )
             .await?;
-        let mut records = Vec::with_capacity(rows.len());
+        let mut data_files = Vec::with_capacity(rows.len());
         for row in rows {
-            let row_id = row.int64(0)?.expect("row_id is not null");
-            let location_str = row.utf8(1)?.expect("location is not null");
-            let location = location_str.parse::<RowLocation>()?;
-            let deleted = row.boolean(2)?.expect("deleted is not null");
-            records.push(RowMetadataRecord {
-                row_id,
-                location,
-                deleted,
+            let data_file_id = row.int64(0)?.expect("data_file_id is not null");
+            let table_id = row.int64(1)?.expect("table_id is not null");
+            let relative_path = row.utf8(2)?.expect("relative_path is not null").to_string();
+            let file_size_bytes = row.int64(3)?.expect("file_size_bytes is not null");
+            let record_count = row.int64(4)?.expect("record_count is not null");
+            let row_id_metas_bytes = row.binary(5)?.expect("row_id_metas is not null");
+            if row_id_metas_bytes.len() % RowIdMeta::byte_length() != 0 {
+                return Err(ILError::InternalError(format!(
+                    "row_ids is not a multiple of {}: {}",
+                    RowIdMeta::byte_length(),
+                    row_id_metas_bytes.len()
+                )));
+            }
+            let row_id_metas = row_id_metas_bytes
+                .chunks_exact(RowIdMeta::byte_length())
+                .map(|bytes| RowIdMeta::from_bytes(bytes))
+                .collect::<ILResult<Vec<_>>>()?;
+            data_files.push(DataFileRecord {
+                data_file_id,
+                table_id,
+                relative_path,
+                file_size_bytes,
+                record_count,
+                row_id_metas,
             });
         }
-        Ok(records)
+        Ok(data_files)
     }
 }

@@ -94,14 +94,14 @@ impl DumpTask {
             index_builders.insert(index_name.clone(), index_builder);
         }
 
-        let (location_map, file_size_bytes, record_count) = self
+        let (row_ids, file_size_bytes) = self
             .write_dump_file(row_stream, &relative_path, &mut index_builders)
             .await?;
 
-        if record_count != self.dump_row_ids.len() {
+        if row_ids.len() != self.dump_row_ids.len() {
             return Err(ILError::InternalError(format!(
                 "Read row count mismatch: {} rows read, expected {}",
-                record_count,
+                row_ids.len(),
                 self.dump_row_ids.len()
             )));
         }
@@ -112,9 +112,8 @@ impl DumpTask {
                 table_id: self.table_id,
                 relative_path,
                 file_size_bytes: file_size_bytes as i64,
-                record_count: record_count as i64,
-                row_id_metas: self
-                    .dump_row_ids
+                record_count: row_ids.len() as i64,
+                row_id_metas: row_ids
                     .iter()
                     .map(|id| RowIdMeta {
                         row_id: *id,
@@ -151,10 +150,6 @@ impl DumpTask {
 
         tx_helper.insert_index_files(&index_file_records).await?;
 
-        tx_helper
-            .update_row_locations(self.table_id, &location_map)
-            .await?;
-
         let deleted_count = tx_helper
             .delete_inline_rows_by_row_ids(self.table_id, &self.dump_row_ids)
             .await?;
@@ -178,8 +173,8 @@ impl DumpTask {
         row_stream: RowStream<'_>,
         relative_path: &str,
         index_builders: &mut HashMap<String, Box<dyn IndexBuilder>>,
-    ) -> ILResult<(HashMap<i64, String>, usize, usize)> {
-        let mut location_map = HashMap::new();
+    ) -> ILResult<(Vec<i64>, usize)> {
+        let mut row_ids = Vec::new();
 
         let writer_properties = WriterProperties::builder()
             .set_max_row_group_size(self.table_config.parquet_row_group_size)
@@ -193,20 +188,12 @@ impl DumpTask {
 
         let mut chunk_stream = row_stream.chunks(self.table_config.parquet_row_group_size);
 
-        let mut row_group_idx = 0;
-        let mut record_count = 0;
         while let Some(row_chunk) = chunk_stream.next().await {
             let mut rows = Vec::with_capacity(row_chunk.len());
-            for (row_group_offset, row) in row_chunk.into_iter().enumerate() {
+            for row in row_chunk.into_iter() {
                 let row = row?;
                 let row_id = row.get_row_id()?.expect("row_id is not null");
-                location_map.insert(
-                    row_id,
-                    format!(
-                        "parquet:{}:{}:{}",
-                        relative_path, row_group_idx, row_group_offset
-                    ),
-                );
+                row_ids.push(row_id);
                 rows.push(row);
             }
             let record_batch = rows_to_record_batch(&self.table_schema, &rows)?;
@@ -216,14 +203,11 @@ impl DumpTask {
             }
 
             arrow_writer.write(&record_batch).await?;
-
-            record_count += record_batch.num_rows();
-            row_group_idx += 1;
         }
 
         let file_size_bytes = arrow_writer.bytes_written();
         arrow_writer.close().await?;
 
-        Ok((location_map, file_size_bytes, record_count))
+        Ok((row_ids, file_size_bytes))
     }
 }

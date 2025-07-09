@@ -6,20 +6,6 @@ use crate::{
 };
 
 impl TransactionHelper {
-    pub(crate) async fn create_row_metadata_table(&mut self, table_id: i64) -> ILResult<()> {
-        self.transaction
-            .execute(&format!(
-                "
-            CREATE TABLE indexlake_row_metadata_{table_id} (
-                {INTERNAL_ROW_ID_FIELD_NAME} BIGINT PRIMARY KEY,
-                location VARCHAR,
-                deleted BOOLEAN
-            )"
-            ))
-            .await?;
-        Ok(())
-    }
-
     pub(crate) async fn create_inline_row_table(
         &mut self,
         table_id: i64,

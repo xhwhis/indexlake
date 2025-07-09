@@ -1,5 +1,7 @@
 use std::{collections::HashMap, str::FromStr};
 
+use parquet::arrow::arrow_reader::RowSelection;
+
 use crate::{
     ILError, ILResult,
     catalog::{CatalogDatabase, INTERNAL_ROW_ID_FIELD_NAME},
@@ -78,6 +80,38 @@ impl DataFileRecord {
     ) -> String {
         format!("{}/{}/{}.parquet", namespace_id, table_id, data_file_id)
     }
+
+    pub(crate) fn valid_row_count(&self) -> usize {
+        self.row_id_metas.iter().filter(|meta| meta.valid).count()
+    }
+
+    pub(crate) fn row_selection(&self) -> ILResult<RowSelection> {
+        let offsets = self
+            .row_id_metas
+            .iter()
+            .enumerate()
+            .filter(|(_, meta)| meta.valid)
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+
+        let mut ranges = Vec::new();
+        let mut offset_idx = 0;
+        while offset_idx < offsets.len() {
+            let current_offset = offsets[offset_idx];
+            let mut next_offset_idx = offset_idx + 1;
+            while next_offset_idx < offsets.len()
+                && offsets[next_offset_idx] == current_offset + (next_offset_idx - offset_idx)
+            {
+                next_offset_idx += 1;
+            }
+            ranges.push(current_offset..offsets[next_offset_idx - 1] + 1);
+            offset_idx = next_offset_idx;
+        }
+        Ok(RowSelection::from_consecutive_ranges(
+            ranges.into_iter(),
+            self.row_id_metas.len(),
+        ))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -119,94 +153,6 @@ impl RowIdMeta {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct RowMetadataRecord {
-    pub(crate) row_id: i64,
-    pub(crate) location: RowLocation,
-    pub(crate) deleted: bool,
-}
-
-impl RowMetadataRecord {
-    pub(crate) fn new(row_id: i64, location: RowLocation) -> Self {
-        Self {
-            row_id,
-            location,
-            deleted: false,
-        }
-    }
-
-    pub(crate) fn to_sql(&self) -> String {
-        format!(
-            "({}, '{}', {})",
-            self.row_id,
-            self.location.to_string(),
-            self.deleted
-        )
-    }
-
-    pub(crate) fn select_items() -> Vec<&'static str> {
-        vec![INTERNAL_ROW_ID_FIELD_NAME, "location", "deleted"]
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) enum RowLocation {
-    Inline,
-    Parquet {
-        relative_path: String,
-        row_group_index: usize,
-        row_group_offset: usize,
-    },
-}
-
-impl std::fmt::Display for RowLocation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RowLocation::Inline => write!(f, "inline"),
-            RowLocation::Parquet {
-                relative_path,
-                row_group_index,
-                row_group_offset,
-            } => write!(
-                f,
-                "parquet:{}:{}:{}",
-                relative_path, row_group_index, row_group_offset
-            ),
-        }
-    }
-}
-
-impl FromStr for RowLocation {
-    type Err = ILError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s == "inline" {
-            Ok(RowLocation::Inline)
-        } else if s.starts_with("parquet") {
-            let parts = s.split(':').collect::<Vec<_>>();
-            if parts.len() != 4 {
-                return Err(ILError::InvalidInput(format!("Invalid row location: {s}")));
-            }
-            let relative_path = parts[1].to_string();
-            let row_group_index = parts[2]
-                .parse::<usize>()
-                .map_err(|e| ILError::InvalidInput(format!("Invalid row group index: {}", e)))?;
-            let row_group_offset = parts[3]
-                .parse::<usize>()
-                .map_err(|e| ILError::InvalidInput(format!("Invalid row group offset: {}", e)))?;
-            Ok(RowLocation::Parquet {
-                relative_path,
-                row_group_index,
-                row_group_offset,
-            })
-        } else {
-            Err(ILError::InvalidInput(format!(
-                "Invalid row location: {}",
-                s
-            )))
-        }
-    }
-}
-
 pub(crate) struct IndexRecord {
     pub(crate) index_id: i64,
     pub(crate) index_name: String,

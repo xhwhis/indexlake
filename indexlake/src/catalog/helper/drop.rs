@@ -8,11 +8,4 @@ impl TransactionHelper {
             .await?;
         Ok(())
     }
-
-    pub(crate) async fn drop_row_metadata_table(&mut self, table_id: i64) -> ILResult<()> {
-        self.transaction
-            .execute_batch(&[format!("DROP TABLE indexlake_row_metadata_{table_id}")])
-            .await?;
-        Ok(())
-    }
 }

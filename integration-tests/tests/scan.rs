@@ -54,7 +54,6 @@ async fn scan_with_filters(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-
     let table = prepare_testing_table(&client, "scan_with_filters").await?;
 
     let scan = TableScan::default()

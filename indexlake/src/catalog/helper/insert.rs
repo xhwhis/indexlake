@@ -1,8 +1,8 @@
 use crate::{
     ILError, ILResult,
     catalog::{
-        DataFileRecord, INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, IndexRecord,
-        RowMetadataRecord, TableRecord, TransactionHelper,
+        DataFileRecord, INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, IndexRecord, TableRecord,
+        TransactionHelper,
     },
 };
 use arrow::datatypes::Fields;
@@ -80,16 +80,6 @@ impl TransactionHelper {
                 values.join(", ")
             ))
             .await?;
-        Ok(())
-    }
-
-    pub(crate) async fn insert_row_metadatas(
-        &mut self,
-        table_id: i64,
-        metadatas: &[RowMetadataRecord],
-    ) -> ILResult<()> {
-        let values = metadatas.iter().map(|m| m.to_sql()).collect::<Vec<_>>();
-        self.transaction.execute(&format!("INSERT INTO indexlake_row_metadata_{table_id} ({INTERNAL_ROW_ID_FIELD_NAME}, location, deleted) VALUES {}", values.join(", "))).await?;
         Ok(())
     }
 

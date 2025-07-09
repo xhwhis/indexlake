@@ -4,10 +4,10 @@ use arrow::datatypes::{Schema, SchemaRef};
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
-    catalog::{CatalogHelper, CatalogSchema, RowLocation, rows_to_record_batch},
+    catalog::{CatalogHelper, CatalogSchema, rows_to_record_batch},
     expr::{Expr, merge_filters, split_conjunction_filters},
     index::{Index, IndexDefinationRef},
-    storage::{Storage, read_parquet_files_by_locations},
+    storage::{Storage, read_parquet_files_by_records},
     table::Table,
     utils::project_schema,
 };
@@ -107,19 +107,13 @@ async fn process_table_scan(
     let left_limit = limit.map(|l| l - inline_row_count);
 
     // Scan data files
-    let row_metadatas = catalog_helper
-        .scan_undeleted_non_inline_row_metadata(table_id, left_limit)
-        .await?;
-    let data_file_locations = row_metadatas
-        .into_iter()
-        .filter(|meta| matches!(meta.location, RowLocation::Parquet { .. }))
-        .map(|meta| meta.location)
-        .collect::<Vec<_>>();
-    let stream = read_parquet_files_by_locations(
+    // TODO handle left_limit
+    let data_file_records = catalog_helper.get_data_files(table_id).await?;
+    let stream = read_parquet_files_by_records(
         storage.clone(),
         table_schema.clone(),
+        data_file_records,
         projection.clone(),
-        data_file_locations,
         merge_filters(filters),
     )
     .await?;

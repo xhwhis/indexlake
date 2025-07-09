@@ -8,9 +8,9 @@ use futures::StreamExt;
 
 use crate::{
     ILError, ILResult,
-    catalog::{INTERNAL_ROW_ID_FIELD_NAME, RowLocation, Scalar, TransactionHelper},
+    catalog::{INTERNAL_ROW_ID_FIELD_NAME, Scalar, TransactionHelper},
     expr::{Expr, visited_columns},
-    storage::{Storage, read_parquet_files_by_locations},
+    storage::{Storage, read_parquet_file_by_record},
     table::process_insert_into_inline_rows,
 };
 
@@ -22,72 +22,70 @@ pub(crate) async fn process_update(
     set_map: HashMap<String, Scalar>,
     condition: &Expr,
 ) -> ILResult<()> {
-    let mut row_metadata_condition =
-        Expr::Column("deleted".to_string()).eq(Expr::Literal(Scalar::Boolean(Some(false))));
-    if visited_columns(condition) == vec![INTERNAL_ROW_ID_FIELD_NAME] {
-        row_metadata_condition = row_metadata_condition.and(condition.clone());
-    }
+    let data_file_records = tx_helper.get_data_files(table_id).await?;
 
-    let row_metadatas = tx_helper
-        .scan_row_metadata(table_id, &row_metadata_condition)
+    for data_file_record in data_file_records {
+        let mut stream = read_parquet_file_by_record(
+            &storage,
+            table_schema.clone(),
+            &data_file_record,
+            None,
+            Some(condition.clone()),
+        )
         .await?;
-    let data_file_locations = row_metadatas
-        .into_iter()
-        .filter(|meta| matches!(meta.location, RowLocation::Parquet { .. }))
-        .map(|meta| meta.location)
-        .collect::<Vec<_>>();
 
-    let mut updated_row_ids = Vec::new();
-    let mut stream = read_parquet_files_by_locations(
-        storage,
-        table_schema.clone(),
-        None,
-        data_file_locations,
-        Some(condition.clone()),
-    )
-    .await?;
-    while let Some(batch) = stream.next().await {
-        let batch = batch?;
-        let array = condition.eval(&batch)?.into_array(batch.num_rows())?;
-        let bool_array = array.as_boolean_opt().ok_or_else(|| {
-            ILError::InternalError(format!(
-                "condition should return BooleanArray, but got {:?}",
-                array.data_type()
-            ))
-        })?;
-
-        let row_id_array = batch
-            .column(0)
-            .as_primitive_opt::<Int64Type>()
-            .ok_or_else(|| {
+        let mut updated_row_ids = Vec::new();
+        while let Some(batch) = stream.next().await {
+            let batch = batch?;
+            let array = condition.eval(&batch)?.into_array(batch.num_rows())?;
+            let bool_array = array.as_boolean_opt().ok_or_else(|| {
                 ILError::InternalError(format!(
-                    "row id array should be Int64Array, but got {:?}",
-                    batch.column(0).data_type()
+                    "condition should return BooleanArray, but got {:?}",
+                    array.data_type()
                 ))
             })?;
 
-        let mut selected_indices = Vec::new();
-        for (i, v) in bool_array.iter().enumerate() {
-            if let Some(v) = v
-                && v
-            {
-                selected_indices.push(i as i64);
-                updated_row_ids.push(row_id_array.value(i));
+            let row_id_array =
+                batch
+                    .column(0)
+                    .as_primitive_opt::<Int64Type>()
+                    .ok_or_else(|| {
+                        ILError::InternalError(format!(
+                            "row id array should be Int64Array, but got {:?}",
+                            batch.column(0).data_type()
+                        ))
+                    })?;
+
+            let mut selected_indices = Vec::new();
+            for (i, v) in bool_array.iter().enumerate() {
+                if let Some(v) = v
+                    && v
+                {
+                    selected_indices.push(i as i64);
+                    updated_row_ids.push(row_id_array.value(i));
+                }
+            }
+
+            let indices = Arc::new(Int64Array::from(selected_indices));
+            let selected_batch = arrow::compute::take_record_batch(&batch, indices.as_ref())?;
+            if selected_batch.num_rows() == 0 {
+                continue;
+            }
+            let updated_batch = update_record_batch(&selected_batch, &set_map)?;
+            process_insert_into_inline_rows(tx_helper, table_id, &updated_batch).await?;
+        }
+
+        let mut row_id_metas = data_file_record.row_id_metas;
+        for row_id_meta in row_id_metas.iter_mut() {
+            if updated_row_ids.contains(&row_id_meta.row_id) {
+                row_id_meta.valid = false;
             }
         }
 
-        let indices = Arc::new(Int64Array::from(selected_indices));
-        let selected_batch = arrow::compute::take_record_batch(&batch, indices.as_ref())?;
-        if selected_batch.num_rows() == 0 {
-            continue;
-        }
-        let updated_batch = update_record_batch(&selected_batch, &set_map)?;
-        process_insert_into_inline_rows(tx_helper, table_id, &updated_batch).await?;
+        tx_helper
+            .update_data_file_row_id_metas(data_file_record.data_file_id, &row_id_metas)
+            .await?;
     }
-
-    tx_helper
-        .update_row_location_as_inline(table_id, &updated_row_ids)
-        .await?;
 
     tx_helper
         .update_inline_rows(table_id, &set_map, condition)

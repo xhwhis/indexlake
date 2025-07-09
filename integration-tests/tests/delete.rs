@@ -1,6 +1,6 @@
 use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
-use indexlake::expr::{Expr, col, lit};
-use indexlake::{LakeClient, catalog::Catalog, catalog::Scalar, storage::Storage};
+use indexlake::expr::{col, lit};
+use indexlake::{LakeClient, catalog::Catalog, storage::Storage};
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };

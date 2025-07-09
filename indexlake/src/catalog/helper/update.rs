@@ -2,39 +2,11 @@ use std::collections::HashMap;
 
 use crate::{
     ILResult,
-    catalog::{INTERNAL_ROW_ID_FIELD_NAME, Scalar, TransactionHelper},
+    catalog::{RowIdMeta, Scalar, TransactionHelper},
     expr::Expr,
 };
 
 impl TransactionHelper {
-    pub(crate) async fn mark_rows_deleted_by_row_ids(
-        &mut self,
-        table_id: i64,
-        row_ids: &[i64],
-    ) -> ILResult<usize> {
-        if row_ids.is_empty() {
-            return Ok(0);
-        }
-        let row_ids_str = row_ids
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        self.transaction.execute(&format!("UPDATE indexlake_row_metadata_{table_id} SET deleted = TRUE WHERE {INTERNAL_ROW_ID_FIELD_NAME} IN ({row_ids_str})")).await
-    }
-
-    pub(crate) async fn mark_rows_deleted_by_condition(
-        &mut self,
-        table_id: i64,
-        condition: &Expr,
-    ) -> ILResult<usize> {
-        let sql = format!(
-            "UPDATE indexlake_row_metadata_{table_id} SET deleted = TRUE WHERE {}",
-            condition.to_sql(self.database)?
-        );
-        self.transaction.execute(&sql).await
-    }
-
     pub(crate) async fn update_inline_rows(
         &mut self,
         table_id: i64,
@@ -61,29 +33,17 @@ impl TransactionHelper {
         Ok(())
     }
 
-    pub(crate) async fn update_row_locations(
+    pub(crate) async fn update_data_file_row_id_metas(
         &mut self,
-        table_id: i64,
-        row_id_to_location_map: &HashMap<i64, String>,
-    ) -> ILResult<()> {
-        let mut update_sqls = Vec::new();
-        for (row_id, location) in row_id_to_location_map {
-            update_sqls.push(format!("UPDATE indexlake_row_metadata_{table_id} SET location = '{location}' WHERE {INTERNAL_ROW_ID_FIELD_NAME} = {row_id}"));
-        }
-        self.transaction.execute_batch(&update_sqls).await
-    }
-
-    pub(crate) async fn update_row_location_as_inline(
-        &mut self,
-        table_id: i64,
-        row_ids: &[i64],
+        data_file_id: i64,
+        row_id_metas: &[RowIdMeta],
     ) -> ILResult<usize> {
-        if row_ids.is_empty() {
-            return Ok(0);
-        }
-        self.transaction.execute(&format!(
-            "UPDATE indexlake_row_metadata_{table_id} SET location = 'inline' WHERE {INTERNAL_ROW_ID_FIELD_NAME} IN ({})",
-            row_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(", "))
-        ).await
+        let row_id_metas_bytes = row_id_metas
+            .iter()
+            .map(|meta| meta.to_bytes())
+            .flatten()
+            .collect::<Vec<_>>();
+        let row_id_metas_sql = self.database.sql_binary_value(&row_id_metas_bytes);
+        self.transaction.execute(&format!("UPDATE indexlake_data_file SET row_id_metas = {row_id_metas_sql} WHERE data_file_id = {data_file_id}")).await
     }
 }
