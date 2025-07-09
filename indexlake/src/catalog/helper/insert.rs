@@ -1,8 +1,8 @@
 use crate::{
     ILError, ILResult,
     catalog::{
-        DataFileRecord, INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, IndexRecord, TableRecord,
-        TransactionHelper,
+        DataFileRecord, FieldRecord, INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, IndexRecord,
+        TableRecord, TransactionHelper,
     },
 };
 use arrow::datatypes::Fields;
@@ -25,38 +25,26 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "INSERT INTO indexlake_table ({}) VALUES {}",
-                TableRecord::select_items().join(", "),
+                TableRecord::catalog_schema()
+                    .select_items(self.database)
+                    .join(", "),
                 table_record.to_sql()?
             ))
             .await?;
         Ok(())
     }
 
-    pub(crate) async fn insert_fields(
-        &mut self,
-        table_id: i64,
-        field_ids: &[i64],
-        fields: &Fields,
-    ) -> ILResult<()> {
+    pub(crate) async fn insert_fields(&mut self, fields: &[FieldRecord]) -> ILResult<()> {
         let mut values = Vec::new();
-        // TODO save dict_is_ordered
-        for (field_id, field) in field_ids.iter().zip(fields.iter()) {
-            values.push(format!(
-                "({field_id}, {table_id}, '{}', '{}', {}, '{}')",
-                field.name(),
-                field.data_type().to_string(),
-                field.is_nullable(),
-                serde_json::to_string(&field.metadata()).map_err(|e| ILError::InternalError(
-                    format!("Failed to serialize field metadata: {e:?}")
-                ))?,
-            ));
+        for record in fields {
+            values.push(record.to_sql(self.database)?);
         }
         self.transaction
             .execute(&format!(
-                "
-            INSERT INTO indexlake_field 
-            (field_id, table_id, field_name, data_type, nullable, metadata) 
-            VALUES {}",
+                "INSERT INTO indexlake_field ({}) VALUES {}",
+                FieldRecord::catalog_schema()
+                    .select_items(self.database)
+                    .join(", "),
                 values.join(", ")
             ))
             .await?;
@@ -102,7 +90,9 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "INSERT INTO indexlake_data_file ({}) VALUES {}",
-                DataFileRecord::select_items().join(", "),
+                DataFileRecord::catalog_schema()
+                    .select_items(self.database)
+                    .join(", "),
                 values.join(", ")
             ))
             .await
@@ -112,7 +102,9 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "INSERT INTO indexlake_index ({}) VALUES {}",
-                IndexRecord::select_items().join(", "),
+                IndexRecord::catalog_schema()
+                    .select_items(self.database)
+                    .join(", "),
                 index_record.to_sql()
             ))
             .await
@@ -129,7 +121,9 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "INSERT INTO indexlake_index_file ({}) VALUES {}",
-                IndexFileRecord::select_items().join(", "),
+                IndexFileRecord::catalog_schema()
+                    .select_items(self.database)
+                    .join(", "),
                 values.join(", ")
             ))
             .await

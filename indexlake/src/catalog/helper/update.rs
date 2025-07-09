@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     ILResult,
-    catalog::{RowIdMeta, RowsValidity, Scalar, TransactionHelper},
+    catalog::{RowsValidity, Scalar, TransactionHelper},
     expr::Expr,
 };
 

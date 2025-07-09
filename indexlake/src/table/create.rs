@@ -7,7 +7,7 @@ use arrow::datatypes::{FieldRef, SchemaRef};
 
 use crate::{
     ILError, ILResult,
-    catalog::{IndexRecord, TableRecord, TransactionHelper},
+    catalog::{FieldRecord, IndexRecord, TableRecord, TransactionHelper},
     index::{IndexDefination, IndexParams},
     table::{Table, TableConfig},
 };
@@ -55,9 +55,11 @@ pub(crate) async fn process_create_table(
     let max_field_id = tx_helper.get_max_field_id().await?;
     let field_ids = (max_field_id + 1..max_field_id + 1 + creation.schema.fields.len() as i64)
         .collect::<Vec<_>>();
-    tx_helper
-        .insert_fields(table_id, &field_ids, creation.schema.fields())
-        .await?;
+    let mut field_records = Vec::new();
+    for (field_id, field) in field_ids.iter().zip(creation.schema.fields()) {
+        field_records.push(FieldRecord::new(*field_id, table_id, field));
+    }
+    tx_helper.insert_fields(&field_records).await?;
 
     tx_helper
         .create_inline_row_table(table_id, creation.schema.fields())

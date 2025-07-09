@@ -1,10 +1,13 @@
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
+use arrow::datatypes::{DataType, Field};
 use parquet::arrow::arrow_reader::RowSelection;
 
 use crate::{
     ILError, ILResult,
-    catalog::{CatalogDatabase, INTERNAL_ROW_ID_FIELD_NAME},
+    catalog::{
+        CatalogDataType, CatalogDatabase, CatalogSchema, Column, INTERNAL_ROW_ID_FIELD_NAME,
+    },
     table::TableConfig,
 };
 
@@ -27,8 +30,62 @@ impl TableRecord {
         ))
     }
 
-    pub(crate) fn select_items() -> Vec<&'static str> {
-        vec!["table_id", "table_name", "namespace_id", "config"]
+    pub(crate) fn catalog_schema() -> CatalogSchema {
+        CatalogSchema::new(vec![
+            Column::new("table_id", CatalogDataType::Int64, false),
+            Column::new("table_name", CatalogDataType::Utf8, false),
+            Column::new("namespace_id", CatalogDataType::Int64, false),
+            Column::new("config", CatalogDataType::Utf8, false),
+        ])
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct FieldRecord {
+    pub(crate) field_id: i64,
+    pub(crate) table_id: i64,
+    pub(crate) field_name: String,
+    pub(crate) data_type: DataType,
+    pub(crate) nullable: bool,
+    pub(crate) metadata: HashMap<String, String>,
+}
+
+impl FieldRecord {
+    pub(crate) fn new(field_id: i64, table_id: i64, field: &Field) -> Self {
+        Self {
+            field_id,
+            table_id,
+            field_name: field.name().to_string(),
+            data_type: field.data_type().clone(),
+            nullable: field.is_nullable(),
+            metadata: field.metadata().clone(),
+        }
+    }
+
+    pub(crate) fn to_sql(&self, database: CatalogDatabase) -> ILResult<String> {
+        let metadata_str = serde_json::to_string(&self.metadata).map_err(|e| {
+            ILError::InternalError(format!("Failed to serialize field metadata: {e:?}"))
+        })?;
+        Ok(format!(
+            "({}, {}, '{}', '{}', {}, '{}')",
+            self.field_id,
+            self.table_id,
+            self.field_name,
+            self.data_type.to_string(),
+            self.nullable,
+            metadata_str
+        ))
+    }
+
+    pub(crate) fn catalog_schema() -> CatalogSchema {
+        CatalogSchema::new(vec![
+            Column::new("field_id", CatalogDataType::Int64, false),
+            Column::new("table_id", CatalogDataType::Int64, false),
+            Column::new("field_name", CatalogDataType::Utf8, false),
+            Column::new("data_type", CatalogDataType::Utf8, false),
+            Column::new("nullable", CatalogDataType::Boolean, false),
+            Column::new("metadata", CatalogDataType::Utf8, false),
+        ])
     }
 }
 
@@ -56,15 +113,15 @@ impl DataFileRecord {
         )
     }
 
-    pub(crate) fn select_items() -> Vec<&'static str> {
-        vec![
-            "data_file_id",
-            "table_id",
-            "relative_path",
-            "file_size_bytes",
-            "record_count",
-            "validity",
-        ]
+    pub(crate) fn catalog_schema() -> CatalogSchema {
+        CatalogSchema::new(vec![
+            Column::new("data_file_id", CatalogDataType::Int64, false),
+            Column::new("table_id", CatalogDataType::Int64, false),
+            Column::new("relative_path", CatalogDataType::Utf8, false),
+            Column::new("file_size_bytes", CatalogDataType::Int64, false),
+            Column::new("record_count", CatalogDataType::Int64, false),
+            Column::new("validity", CatalogDataType::Binary, false),
+        ])
     }
 
     pub(crate) fn build_relative_path(
@@ -149,44 +206,6 @@ impl RowsValidity {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct RowIdMeta {
-    pub(crate) row_id: i64,
-    pub(crate) valid: bool,
-}
-
-impl RowIdMeta {
-    pub(crate) fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.row_id.to_le_bytes());
-        if self.valid {
-            bytes.extend_from_slice(&[1]);
-        } else {
-            bytes.extend_from_slice(&[0]);
-        }
-        bytes
-    }
-
-    pub(crate) fn from_bytes(bytes: &[u8]) -> ILResult<Self> {
-        if bytes.len() != Self::byte_length() {
-            return Err(ILError::InternalError(format!(
-                "Invalid row id meta bytes length: {}",
-                bytes.len()
-            )));
-        }
-        let row_id =
-            i64::from_le_bytes(bytes[..8].try_into().map_err(|e| {
-                ILError::InternalError(format!("Invalid row id meta bytes: {e:?}"))
-            })?);
-        let valid = bytes[8] == 1;
-        Ok(Self { row_id, valid })
-    }
-
-    pub(crate) fn byte_length() -> usize {
-        8 + 1
-    }
-}
-
-#[derive(Debug, Clone)]
 pub(crate) struct IndexRecord {
     pub(crate) index_id: i64,
     pub(crate) index_name: String,
@@ -223,16 +242,16 @@ impl IndexRecord {
         )
     }
 
-    pub(crate) fn select_items() -> Vec<&'static str> {
-        vec![
-            "index_id",
-            "index_name",
-            "index_kind",
-            "table_id",
-            "key_field_ids",
-            "include_field_ids",
-            "params",
-        ]
+    pub(crate) fn catalog_schema() -> CatalogSchema {
+        CatalogSchema::new(vec![
+            Column::new("index_id", CatalogDataType::Int64, false),
+            Column::new("index_name", CatalogDataType::Utf8, false),
+            Column::new("index_kind", CatalogDataType::Utf8, false),
+            Column::new("table_id", CatalogDataType::Int64, false),
+            Column::new("key_field_ids", CatalogDataType::Utf8, false),
+            Column::new("include_field_ids", CatalogDataType::Utf8, false),
+            Column::new("params", CatalogDataType::Utf8, false),
+        ])
     }
 }
 
@@ -251,8 +270,13 @@ impl IndexFileRecord {
         )
     }
 
-    pub(crate) fn select_items() -> Vec<&'static str> {
-        vec!["index_file_id", "index_id", "data_file_id", "relative_path"]
+    pub(crate) fn catalog_schema() -> CatalogSchema {
+        CatalogSchema::new(vec![
+            Column::new("index_file_id", CatalogDataType::Int64, false),
+            Column::new("index_id", CatalogDataType::Int64, false),
+            Column::new("data_file_id", CatalogDataType::Int64, false),
+            Column::new("relative_path", CatalogDataType::Utf8, false),
+        ])
     }
 
     pub(crate) fn build_relative_path(

@@ -8,10 +8,10 @@ use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 use crate::{
     ILError, ILResult,
     catalog::{
-        Catalog, CatalogSchema, DataFileRecord, IndexFileRecord, Row, RowIdMeta, RowStream,
-        RowsValidity, TransactionHelper, rows_to_record_batch,
+        Catalog, CatalogSchema, DataFileRecord, IndexFileRecord, RowStream, RowsValidity,
+        TransactionHelper, rows_to_record_batch,
     },
-    index::{Index, IndexBuilder, IndexDefination, IndexDefinationRef},
+    index::{Index, IndexBuilder, IndexDefinationRef},
     storage::Storage,
     table::{Table, TableConfig},
 };

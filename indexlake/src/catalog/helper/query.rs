@@ -3,8 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::{DataType, Field, FieldRef};
 
-use crate::catalog::{CatalogHelper, DataFileRecord, IndexRecord, RowIdMeta, RowsValidity, Scalar};
-use crate::expr::{Expr, col, lit};
+use crate::catalog::{CatalogHelper, DataFileRecord, FieldRecord, IndexRecord, RowsValidity};
+use crate::expr::Expr;
 use crate::{
     ILError, ILResult,
     catalog::{
@@ -126,21 +126,6 @@ impl TransactionHelper {
         }
     }
 
-    pub(crate) async fn scan_inline_rows(
-        &mut self,
-        table_id: i64,
-        schema: &CatalogSchemaRef,
-    ) -> ILResult<Vec<Row>> {
-        self.query_rows(
-            &format!(
-                "SELECT {}  FROM indexlake_inline_row_{table_id}",
-                schema.select_items(self.database).join(", ")
-            ),
-            Arc::clone(schema),
-        )
-        .await
-    }
-
     pub(crate) async fn scan_inline_rows_by_row_ids(
         &mut self,
         table_id: i64,
@@ -162,28 +147,6 @@ impl TransactionHelper {
                 Arc::clone(table_schema),
             )
             .await
-    }
-
-    pub(crate) async fn scan_inline_row_ids(&mut self, table_id: i64) -> ILResult<Vec<i64>> {
-        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
-            INTERNAL_ROW_ID_FIELD_NAME.to_string(),
-            CatalogDataType::Int64,
-            false,
-        )]));
-        let rows = self
-            .query_rows(
-                &format!(
-                    "SELECT {} FROM indexlake_inline_row_{table_id}",
-                    INTERNAL_ROW_ID_FIELD_NAME
-                ),
-                schema,
-            )
-            .await?;
-        let mut row_ids = Vec::with_capacity(rows.len());
-        for row in rows {
-            row_ids.push(row.int64(0)?.expect("row_id is not null"));
-        }
-        Ok(row_ids)
     }
 
     pub(crate) async fn scan_inline_row_ids_with_limit(
@@ -230,19 +193,12 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn get_data_files(&mut self, table_id: i64) -> ILResult<Vec<DataFileRecord>> {
-        let schema = Arc::new(CatalogSchema::new(vec![
-            Column::new("data_file_id", CatalogDataType::Int64, false),
-            Column::new("table_id", CatalogDataType::Int64, false),
-            Column::new("relative_path", CatalogDataType::Utf8, false),
-            Column::new("file_size_bytes", CatalogDataType::Int64, false),
-            Column::new("record_count", CatalogDataType::Int64, false),
-            Column::new("validity", CatalogDataType::Binary, false),
-        ]));
+        let schema = Arc::new(DataFileRecord::catalog_schema());
         let rows = self
             .query_rows(
                 &format!(
                     "SELECT {} FROM indexlake_data_file WHERE table_id = {table_id}",
-                    DataFileRecord::select_items().join(", ")
+                    schema.select_items(self.database).join(", ")
                 ),
                 schema,
             )
@@ -349,15 +305,10 @@ impl CatalogHelper {
         namespace_id: i64,
         table_name: &str,
     ) -> ILResult<Option<TableRecord>> {
-        let schema = Arc::new(CatalogSchema::new(vec![
-            Column::new("table_id", CatalogDataType::Int64, false),
-            Column::new("table_name", CatalogDataType::Utf8, false),
-            Column::new("namespace_id", CatalogDataType::Int64, false),
-            Column::new("config", CatalogDataType::Utf8, false),
-        ]));
+        let schema = Arc::new(TableRecord::catalog_schema());
         let rows = self
             .query_rows(
-                &format!("SELECT {} FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'", TableRecord::select_items().join(", ")),
+                &format!("SELECT {} FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'", schema.select_items(self.catalog.database()).join(", ")),
                 schema,
             )
             .await?;
@@ -384,13 +335,7 @@ impl CatalogHelper {
         &self,
         table_id: i64,
     ) -> ILResult<BTreeMap<i64, FieldRef>> {
-        let catalog_schema = Arc::new(CatalogSchema::new(vec![
-            Column::new("field_id", CatalogDataType::Int64, false),
-            Column::new("field_name", CatalogDataType::Utf8, false),
-            Column::new("data_type", CatalogDataType::Utf8, false),
-            Column::new("nullable", CatalogDataType::Boolean, false),
-            Column::new("metadata", CatalogDataType::Utf8, false),
-        ]));
+        let catalog_schema = Arc::new(FieldRecord::catalog_schema());
         let rows = self
             .query_rows(
                 &format!("SELECT {} FROM indexlake_field WHERE table_id = {table_id} order by field_id asc", catalog_schema.select_items(self.catalog.database()).join(", ")),
@@ -400,11 +345,11 @@ impl CatalogHelper {
         let mut field_map = BTreeMap::new();
         for row in rows {
             let field_id = row.int64(0)?.expect("field_id is not null");
-            let field_name = row.utf8(1)?.expect("field_name is not null");
-            let data_type_str = row.utf8(2)?.expect("data_type is not null");
+            let field_name = row.utf8(2)?.expect("field_name is not null");
+            let data_type_str = row.utf8(3)?.expect("data_type is not null");
             let data_type = data_type_str.parse::<DataType>()?;
-            let nullable = row.boolean(3)?.expect("nullable is not null");
-            let metadata_str = row.utf8(4)?.expect("metadata is not null");
+            let nullable = row.boolean(4)?.expect("nullable is not null");
+            let metadata_str = row.utf8(5)?.expect("metadata is not null");
             let metadata: HashMap<String, String> =
                 serde_json::from_str(&metadata_str).map_err(|e| {
                     ILError::InternalError(format!("Failed to deserialize field metadata: {e:?}"))
@@ -418,20 +363,14 @@ impl CatalogHelper {
     }
 
     pub(crate) async fn get_table_indexes(&self, table_id: i64) -> ILResult<Vec<IndexRecord>> {
-        let catalog_schema = Arc::new(CatalogSchema::new(vec![
-            Column::new("index_id", CatalogDataType::Int64, false),
-            Column::new("index_name", CatalogDataType::Utf8, false),
-            Column::new("table_id", CatalogDataType::Int64, false),
-            Column::new("kind", CatalogDataType::Utf8, false),
-            Column::new("key_field_ids", CatalogDataType::Utf8, false),
-            Column::new("include_field_ids", CatalogDataType::Utf8, false),
-            Column::new("params", CatalogDataType::Utf8, false),
-        ]));
+        let catalog_schema = Arc::new(IndexRecord::catalog_schema());
         let rows = self
             .query_rows(
                 &format!(
                     "SELECT {} FROM indexlake_index WHERE table_id = {table_id}",
-                    IndexRecord::select_items().join(", ")
+                    catalog_schema
+                        .select_items(self.catalog.database())
+                        .join(", ")
                 ),
                 catalog_schema,
             )
@@ -515,19 +454,12 @@ impl CatalogHelper {
     }
 
     pub(crate) async fn get_data_files(&self, table_id: i64) -> ILResult<Vec<DataFileRecord>> {
-        let schema = Arc::new(CatalogSchema::new(vec![
-            Column::new("data_file_id", CatalogDataType::Int64, false),
-            Column::new("table_id", CatalogDataType::Int64, false),
-            Column::new("relative_path", CatalogDataType::Utf8, false),
-            Column::new("file_size_bytes", CatalogDataType::Int64, false),
-            Column::new("record_count", CatalogDataType::Int64, false),
-            Column::new("validity", CatalogDataType::Binary, false),
-        ]));
+        let schema = Arc::new(DataFileRecord::catalog_schema());
         let rows = self
             .query_rows(
                 &format!(
                     "SELECT {} FROM indexlake_data_file WHERE table_id = {table_id}",
-                    DataFileRecord::select_items().join(", ")
+                    schema.select_items(self.catalog.database()).join(", ")
                 ),
                 schema,
             )
