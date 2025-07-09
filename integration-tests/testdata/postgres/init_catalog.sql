@@ -29,7 +29,7 @@ CREATE TABLE indexlake_data_file (
     relative_path VARCHAR NOT NULL,
     file_size_bytes BIGINT NOT NULL,
     record_count BIGINT NOT NULL,
-    row_ids BYTEA NOT NULL
+    row_id_metas BYTEA NOT NULL
 );
 
 CREATE TABLE indexlake_index (

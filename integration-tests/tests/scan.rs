@@ -57,10 +57,8 @@ async fn scan_with_filters(
 
     let table = prepare_testing_table(&client, "scan_with_filters").await?;
 
-    let scan = TableScan::default().with_filters(vec![
-        col("age").gt(lit(21)),
-        col("name").eq(lit("Charlie".to_string())),
-    ]);
+    let scan = TableScan::default()
+        .with_filters(vec![col("age").gt(lit(21)), col("name").eq(lit("Charlie"))]);
     let table_str = table_scan(&table, scan).await?;
     println!("{}", table_str);
     assert_eq!(

@@ -5,7 +5,7 @@ use arrow::datatypes::{DataType, Field, FieldRef};
 use tokio::time::error::Elapsed;
 
 use crate::catalog::{
-    CatalogHelper, DataFileRecord, IndexRecord, RowLocation, RowMetadataRecord, Scalar,
+    CatalogHelper, DataFileRecord, IndexRecord, RowIdMeta, RowLocation, RowMetadataRecord, Scalar,
 };
 use crate::expr::{Expr, col, lit};
 use crate::{
@@ -276,7 +276,7 @@ impl TransactionHelper {
             Column::new("relative_path", CatalogDataType::Utf8, false),
             Column::new("file_size_bytes", CatalogDataType::Int64, false),
             Column::new("record_count", CatalogDataType::Int64, false),
-            Column::new("row_ids", CatalogDataType::Binary, false),
+            Column::new("row_id_metas", CatalogDataType::Binary, false),
         ]));
         let rows = self
             .query_rows(
@@ -294,24 +294,25 @@ impl TransactionHelper {
             let relative_path = row.utf8(2)?.expect("relative_path is not null").to_string();
             let file_size_bytes = row.int64(3)?.expect("file_size_bytes is not null");
             let record_count = row.int64(4)?.expect("record_count is not null");
-            let row_ids_bytes = row.binary(5)?.expect("row_ids is not null");
-            if row_ids_bytes.len() % 8 != 0 {
+            let row_id_metas_bytes = row.binary(5)?.expect("row_id_metas is not null");
+            if row_id_metas_bytes.len() % RowIdMeta::byte_length() != 0 {
                 return Err(ILError::InternalError(format!(
-                    "row_ids is not a multiple of 8: {}",
-                    row_ids_bytes.len()
+                    "row_ids is not a multiple of {}: {}",
+                    RowIdMeta::byte_length(),
+                    row_id_metas_bytes.len()
                 )));
             }
-            let row_ids = row_ids_bytes
-                .chunks_exact(8)
-                .map(|bytes| i64::from_le_bytes(bytes.try_into().unwrap()))
-                .collect::<Vec<_>>();
+            let row_id_metas = row_id_metas_bytes
+                .chunks_exact(RowIdMeta::byte_length())
+                .map(|bytes| RowIdMeta::from_bytes(bytes))
+                .collect::<ILResult<Vec<_>>>()?;
             data_files.push(DataFileRecord {
                 data_file_id,
                 table_id,
                 relative_path,
                 file_size_bytes,
                 record_count,
-                row_ids,
+                row_id_metas,
             });
         }
         Ok(data_files)

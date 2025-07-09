@@ -104,7 +104,7 @@ mod tests {
         // Test Postgres
         let db_pg = CatalogDatabase::Postgres;
         let expr_pg = col("c1");
-        let pattern_pg = lit("a%".to_string());
+        let pattern_pg = lit("a%");
 
         let like_expr_pg = Like::new(
             false,
@@ -153,7 +153,7 @@ mod tests {
         // Test Sqlite
         let db_sqlite = CatalogDatabase::Sqlite;
         let expr_sqlite = col("c1");
-        let pattern_sqlite = lit("a%".to_string());
+        let pattern_sqlite = lit("a%");
 
         // LIKE (case-sensitive, requires PRAGMA)
         let like_expr_sqlite = Like::new(
@@ -212,7 +212,7 @@ mod tests {
 
         // === LIKE (case-sensitive) ===
         // Test LIKE: c1 LIKE 'h%' -> ['hello'] -> [true, false, false, false]
-        let pattern_h = lit("h%".to_string());
+        let pattern_h = lit("h%");
         let like_expr_h = Like::new(
             false,
             Box::new(expr.clone()),
@@ -287,7 +287,7 @@ mod tests {
 
         // === More wildcards ===
         // Test with wildcard '%' at the start: c1 LIKE '%d' -> ['world'] -> [false, true, false, false]
-        let pattern_d = lit("%d".to_string());
+        let pattern_d = lit("%d");
         let like_expr_d = Like::new(
             false,
             Box::new(expr.clone()),
@@ -324,7 +324,7 @@ mod tests {
         );
 
         // Test with wildcard '_': c1 LIKE 'w_rld' -> ['world'] -> [false, true, false, false]
-        let pattern_w = lit("w_rld".to_string());
+        let pattern_w = lit("w_rld");
         let like_expr_w = Like::new(
             false,
             Box::new(expr.clone()),
@@ -343,7 +343,7 @@ mod tests {
         );
 
         // Test with wildcard '_' (case-insensitive): c1 ILIKE 'W_RLD' -> ['world', 'WORLD'] -> [false, true, false, true]
-        let pattern_w = lit("W_RLD".to_string());
+        let pattern_w = lit("W_RLD");
         let ilike_expr_w = Like::new(
             false,
             Box::new(expr.clone()),

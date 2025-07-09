@@ -8,8 +8,8 @@ use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 use crate::{
     ILError, ILResult,
     catalog::{
-        Catalog, CatalogSchema, DataFileRecord, IndexFileRecord, Row, RowStream, TransactionHelper,
-        rows_to_record_batch,
+        Catalog, CatalogSchema, DataFileRecord, IndexFileRecord, Row, RowIdMeta, RowStream,
+        TransactionHelper, rows_to_record_batch,
     },
     index::{Index, IndexBuilder, IndexDefination, IndexDefinationRef},
     storage::Storage,
@@ -113,7 +113,14 @@ impl DumpTask {
                 relative_path,
                 file_size_bytes: file_size_bytes as i64,
                 record_count: record_count as i64,
-                row_ids: self.dump_row_ids.clone(),
+                row_id_metas: self
+                    .dump_row_ids
+                    .iter()
+                    .map(|id| RowIdMeta {
+                        row_id: *id,
+                        valid: true,
+                    })
+                    .collect(),
             }])
             .await?;
 

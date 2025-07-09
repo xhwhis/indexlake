@@ -299,3 +299,14 @@ impl_scalar_from!(f32, Float32);
 impl_scalar_from!(f64, Float64);
 impl_scalar_from!(String, Utf8);
 impl_scalar_from!(Vec<u8>, Binary);
+
+impl From<&str> for Scalar {
+    fn from(value: &str) -> Self {
+        Scalar::Utf8(Some(value.to_string()))
+    }
+}
+impl From<Option<&str>> for Scalar {
+    fn from(value: Option<&str>) -> Self {
+        Scalar::Utf8(value.map(|s| s.to_string()))
+    }
+}

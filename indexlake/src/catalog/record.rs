@@ -37,18 +37,18 @@ pub(crate) struct DataFileRecord {
     pub(crate) relative_path: String,
     pub(crate) file_size_bytes: i64,
     pub(crate) record_count: i64,
-    pub(crate) row_ids: Vec<i64>,
+    pub(crate) row_id_metas: Vec<RowIdMeta>,
 }
 
 impl DataFileRecord {
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
-        let row_ids_bytes = self
-            .row_ids
+        let row_id_metas_bytes = self
+            .row_id_metas
             .iter()
-            .map(|id| id.to_le_bytes())
+            .map(|meta| meta.to_bytes())
             .flatten()
             .collect::<Vec<_>>();
-        let row_ids_sql = database.sql_binary_value(&row_ids_bytes);
+        let row_id_metas_sql = database.sql_binary_value(&row_id_metas_bytes);
         format!(
             "({}, {}, '{}', {}, {}, {})",
             self.data_file_id,
@@ -56,7 +56,7 @@ impl DataFileRecord {
             self.relative_path,
             self.file_size_bytes,
             self.record_count,
-            row_ids_sql
+            row_id_metas_sql
         )
     }
 
@@ -67,7 +67,7 @@ impl DataFileRecord {
             "relative_path",
             "file_size_bytes",
             "record_count",
-            "row_ids",
+            "row_id_metas",
         ]
     }
 
@@ -77,6 +77,44 @@ impl DataFileRecord {
         data_file_id: i64,
     ) -> String {
         format!("{}/{}/{}.parquet", namespace_id, table_id, data_file_id)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct RowIdMeta {
+    pub(crate) row_id: i64,
+    pub(crate) valid: bool,
+}
+
+impl RowIdMeta {
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&self.row_id.to_le_bytes());
+        if self.valid {
+            bytes.extend_from_slice(&[1]);
+        } else {
+            bytes.extend_from_slice(&[0]);
+        }
+        bytes
+    }
+
+    pub(crate) fn from_bytes(bytes: &[u8]) -> ILResult<Self> {
+        if bytes.len() != Self::byte_length() {
+            return Err(ILError::InternalError(format!(
+                "Invalid row id meta bytes length: {}",
+                bytes.len()
+            )));
+        }
+        let row_id =
+            i64::from_le_bytes(bytes[..8].try_into().map_err(|e| {
+                ILError::InternalError(format!("Invalid row id meta bytes: {e:?}"))
+            })?);
+        let valid = bytes[8] == 1;
+        Ok(Self { row_id, valid })
+    }
+
+    pub(crate) fn byte_length() -> usize {
+        8 + 1
     }
 }
 

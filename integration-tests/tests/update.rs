@@ -1,4 +1,4 @@
-use indexlake::expr::Expr;
+use indexlake::expr::{col, lit};
 use indexlake::{LakeClient, catalog::Catalog, catalog::Scalar, storage::Storage};
 use indexlake_integration_tests::data::prepare_testing_table;
 use indexlake_integration_tests::utils::full_table_scan;
@@ -24,8 +24,7 @@ async fn update_table(
     let table = prepare_testing_table(&client, "update_table").await?;
 
     let set_map = HashMap::from([("age".to_string(), Scalar::Int32(Some(30)))]);
-    let condition =
-        Expr::Column("name".to_string()).eq(Expr::Literal(Scalar::Utf8(Some("Alice".to_string()))));
+    let condition = col("name").eq(lit("Alice"));
     table.update(set_map, &condition).await?;
 
     let table_str = full_table_scan(&table).await?;
