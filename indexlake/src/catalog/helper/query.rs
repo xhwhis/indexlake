@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::{DataType, Field, FieldRef};
 
-use crate::catalog::{CatalogHelper, DataFileRecord, IndexRecord, RowIdMeta, Scalar};
+use crate::catalog::{CatalogHelper, DataFileRecord, IndexRecord, RowIdMeta, RowsValidity, Scalar};
 use crate::expr::{Expr, col, lit};
 use crate::{
     ILError, ILResult,
@@ -236,7 +236,7 @@ impl TransactionHelper {
             Column::new("relative_path", CatalogDataType::Utf8, false),
             Column::new("file_size_bytes", CatalogDataType::Int64, false),
             Column::new("record_count", CatalogDataType::Int64, false),
-            Column::new("row_id_metas", CatalogDataType::Binary, false),
+            Column::new("validity", CatalogDataType::Binary, false),
         ]));
         let rows = self
             .query_rows(
@@ -254,25 +254,15 @@ impl TransactionHelper {
             let relative_path = row.utf8(2)?.expect("relative_path is not null").to_string();
             let file_size_bytes = row.int64(3)?.expect("file_size_bytes is not null");
             let record_count = row.int64(4)?.expect("record_count is not null");
-            let row_id_metas_bytes = row.binary(5)?.expect("row_id_metas is not null");
-            if row_id_metas_bytes.len() % RowIdMeta::byte_length() != 0 {
-                return Err(ILError::InternalError(format!(
-                    "row_ids is not a multiple of {}: {}",
-                    RowIdMeta::byte_length(),
-                    row_id_metas_bytes.len()
-                )));
-            }
-            let row_id_metas = row_id_metas_bytes
-                .chunks_exact(RowIdMeta::byte_length())
-                .map(|bytes| RowIdMeta::from_bytes(bytes))
-                .collect::<ILResult<Vec<_>>>()?;
+            let validity_bytes = row.binary(5)?.expect("validity is not null");
+            let validity = RowsValidity::from_bytes(&validity_bytes)?;
             data_files.push(DataFileRecord {
                 data_file_id,
                 table_id,
                 relative_path,
                 file_size_bytes,
                 record_count,
-                row_id_metas,
+                validity,
             });
         }
         Ok(data_files)
@@ -531,7 +521,7 @@ impl CatalogHelper {
             Column::new("relative_path", CatalogDataType::Utf8, false),
             Column::new("file_size_bytes", CatalogDataType::Int64, false),
             Column::new("record_count", CatalogDataType::Int64, false),
-            Column::new("row_id_metas", CatalogDataType::Binary, false),
+            Column::new("validity", CatalogDataType::Binary, false),
         ]));
         let rows = self
             .query_rows(
@@ -549,25 +539,15 @@ impl CatalogHelper {
             let relative_path = row.utf8(2)?.expect("relative_path is not null").to_string();
             let file_size_bytes = row.int64(3)?.expect("file_size_bytes is not null");
             let record_count = row.int64(4)?.expect("record_count is not null");
-            let row_id_metas_bytes = row.binary(5)?.expect("row_id_metas is not null");
-            if row_id_metas_bytes.len() % RowIdMeta::byte_length() != 0 {
-                return Err(ILError::InternalError(format!(
-                    "row_ids is not a multiple of {}: {}",
-                    RowIdMeta::byte_length(),
-                    row_id_metas_bytes.len()
-                )));
-            }
-            let row_id_metas = row_id_metas_bytes
-                .chunks_exact(RowIdMeta::byte_length())
-                .map(|bytes| RowIdMeta::from_bytes(bytes))
-                .collect::<ILResult<Vec<_>>>()?;
+            let validity_bytes = row.binary(5)?.expect("validity is not null");
+            let validity = RowsValidity::from_bytes(&validity_bytes)?;
             data_files.push(DataFileRecord {
                 data_file_id,
                 table_id,
                 relative_path,
                 file_size_bytes,
                 record_count,
-                row_id_metas,
+                validity,
             });
         }
         Ok(data_files)

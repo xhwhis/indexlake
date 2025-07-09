@@ -37,7 +37,7 @@ pub(crate) async fn delete_data_file_rows(
     condition: &Expr,
 ) -> ILResult<()> {
     let data_file_records = tx_helper.get_data_files(table_id).await?;
-    for data_file_record in data_file_records {
+    for mut data_file_record in data_file_records {
         let mut stream = read_parquet_file_by_record(
             &storage,
             table_schema.clone(),
@@ -78,15 +78,14 @@ pub(crate) async fn delete_data_file_rows(
             }
         }
 
-        let mut row_id_metas = data_file_record.row_id_metas;
-        for row_id_meta in row_id_metas.iter_mut() {
-            if deleted_row_ids.contains(&row_id_meta.row_id) {
-                row_id_meta.valid = false;
+        for (row_id, valid) in data_file_record.validity.validity.iter_mut() {
+            if deleted_row_ids.contains(&row_id) {
+                *valid = false;
             }
         }
 
         tx_helper
-            .update_data_file_row_id_metas(data_file_record.data_file_id, &row_id_metas)
+            .update_data_file_validity(data_file_record.data_file_id, &data_file_record.validity)
             .await?;
     }
     Ok(())
@@ -104,9 +103,10 @@ pub(crate) async fn process_delete_by_row_id_condition(
     let data_file_records = tx_helper.get_data_files(table_id).await?;
     for mut data_file_record in data_file_records {
         let row_ids = data_file_record
-            .row_id_metas
+            .validity
+            .validity
             .iter()
-            .map(|meta| meta.row_id)
+            .map(|(row_id, _)| *row_id)
             .collect::<Vec<_>>();
         let row_id_array = Int64Array::from(row_ids);
 
@@ -128,15 +128,12 @@ pub(crate) async fn process_delete_by_row_id_condition(
             if let Some(v) = v
                 && v
             {
-                data_file_record.row_id_metas[i].valid = false;
+                data_file_record.validity.validity[i].1 = false;
             }
         }
 
         tx_helper
-            .update_data_file_row_id_metas(
-                data_file_record.data_file_id,
-                &data_file_record.row_id_metas,
-            )
+            .update_data_file_validity(data_file_record.data_file_id, &data_file_record.validity)
             .await?;
     }
     Ok(())

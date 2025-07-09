@@ -39,18 +39,12 @@ pub(crate) struct DataFileRecord {
     pub(crate) relative_path: String,
     pub(crate) file_size_bytes: i64,
     pub(crate) record_count: i64,
-    pub(crate) row_id_metas: Vec<RowIdMeta>,
+    pub(crate) validity: RowsValidity,
 }
 
 impl DataFileRecord {
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
-        let row_id_metas_bytes = self
-            .row_id_metas
-            .iter()
-            .map(|meta| meta.to_bytes())
-            .flatten()
-            .collect::<Vec<_>>();
-        let row_id_metas_sql = database.sql_binary_value(&row_id_metas_bytes);
+        let validity_sql = database.sql_binary_value(&self.validity.to_bytes());
         format!(
             "({}, {}, '{}', {}, {}, {})",
             self.data_file_id,
@@ -58,7 +52,7 @@ impl DataFileRecord {
             self.relative_path,
             self.file_size_bytes,
             self.record_count,
-            row_id_metas_sql
+            validity_sql
         )
     }
 
@@ -69,7 +63,7 @@ impl DataFileRecord {
             "relative_path",
             "file_size_bytes",
             "record_count",
-            "row_id_metas",
+            "validity",
         ]
     }
 
@@ -80,17 +74,57 @@ impl DataFileRecord {
     ) -> String {
         format!("{}/{}/{}.parquet", namespace_id, table_id, data_file_id)
     }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct RowsValidity {
+    pub(crate) validity: Vec<(i64, bool)>,
+}
+
+impl RowsValidity {
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(self.validity.len() * (8 + 1));
+        for (row_id, valid) in &self.validity {
+            bytes.extend_from_slice(&row_id.to_le_bytes());
+            if *valid {
+                bytes.extend_from_slice(&[1]);
+            } else {
+                bytes.extend_from_slice(&[0]);
+            }
+        }
+        bytes
+    }
+
+    pub(crate) fn from_bytes(bytes: &[u8]) -> ILResult<Self> {
+        if bytes.len() % (8 + 1) != 0 {
+            return Err(ILError::InternalError(format!(
+                "Invalid row validity bytes length: {}",
+                bytes.len()
+            )));
+        }
+        let validity = bytes
+            .chunks_exact(8 + 1)
+            .map(|bytes| {
+                let row_id = i64::from_le_bytes(bytes[..8].try_into().map_err(|e| {
+                    ILError::InternalError(format!("Invalid row validity bytes: {e:?}"))
+                })?);
+                let valid = bytes[8] == 1;
+                Ok((row_id, valid))
+            })
+            .collect::<ILResult<Vec<_>>>()?;
+        Ok(Self { validity })
+    }
 
     pub(crate) fn valid_row_count(&self) -> usize {
-        self.row_id_metas.iter().filter(|meta| meta.valid).count()
+        self.validity.iter().filter(|(_, valid)| *valid).count()
     }
 
     pub(crate) fn row_selection(&self) -> ILResult<RowSelection> {
         let offsets = self
-            .row_id_metas
+            .validity
             .iter()
             .enumerate()
-            .filter(|(_, meta)| meta.valid)
+            .filter(|(_, (_, valid))| *valid)
             .map(|(i, _)| i)
             .collect::<Vec<_>>();
 
@@ -109,7 +143,7 @@ impl DataFileRecord {
         }
         Ok(RowSelection::from_consecutive_ranges(
             ranges.into_iter(),
-            self.row_id_metas.len(),
+            self.validity.len(),
         ))
     }
 }

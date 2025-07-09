@@ -136,7 +136,7 @@ pub(crate) async fn read_parquet_file_by_record(
     }
 
     let stream = arrow_reader_builder
-        .with_row_selection(data_file_record.row_selection()?)
+        .with_row_selection(data_file_record.validity.row_selection()?)
         .with_projection(projection_mask.clone())
         .build()?
         .map_err(ILError::from);

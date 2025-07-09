@@ -24,7 +24,7 @@ pub(crate) async fn process_update(
 ) -> ILResult<()> {
     let data_file_records = tx_helper.get_data_files(table_id).await?;
 
-    for data_file_record in data_file_records {
+    for mut data_file_record in data_file_records {
         let mut stream = read_parquet_file_by_record(
             &storage,
             table_schema.clone(),
@@ -75,15 +75,14 @@ pub(crate) async fn process_update(
             process_insert_into_inline_rows(tx_helper, table_id, &updated_batch).await?;
         }
 
-        let mut row_id_metas = data_file_record.row_id_metas;
-        for row_id_meta in row_id_metas.iter_mut() {
-            if updated_row_ids.contains(&row_id_meta.row_id) {
-                row_id_meta.valid = false;
+        for (row_id, valid) in data_file_record.validity.validity.iter_mut() {
+            if updated_row_ids.contains(&row_id) {
+                *valid = false;
             }
         }
 
         tx_helper
-            .update_data_file_row_id_metas(data_file_record.data_file_id, &row_id_metas)
+            .update_data_file_validity(data_file_record.data_file_id, &data_file_record.validity)
             .await?;
     }
 

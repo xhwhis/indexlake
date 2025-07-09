@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     ILResult,
-    catalog::{RowIdMeta, Scalar, TransactionHelper},
+    catalog::{RowIdMeta, RowsValidity, Scalar, TransactionHelper},
     expr::Expr,
 };
 
@@ -33,17 +33,13 @@ impl TransactionHelper {
         Ok(())
     }
 
-    pub(crate) async fn update_data_file_row_id_metas(
+    pub(crate) async fn update_data_file_validity(
         &mut self,
         data_file_id: i64,
-        row_id_metas: &[RowIdMeta],
+        validity: &RowsValidity,
     ) -> ILResult<usize> {
-        let row_id_metas_bytes = row_id_metas
-            .iter()
-            .map(|meta| meta.to_bytes())
-            .flatten()
-            .collect::<Vec<_>>();
-        let row_id_metas_sql = self.database.sql_binary_value(&row_id_metas_bytes);
-        self.transaction.execute(&format!("UPDATE indexlake_data_file SET row_id_metas = {row_id_metas_sql} WHERE data_file_id = {data_file_id}")).await
+        let validity_bytes = validity.to_bytes();
+        let validity_sql = self.database.sql_binary_value(&validity_bytes);
+        self.transaction.execute(&format!("UPDATE indexlake_data_file SET validity = {validity_sql} WHERE data_file_id = {data_file_id}")).await
     }
 }
