@@ -44,6 +44,7 @@ CREATE TABLE indexlake_index (
 
 CREATE TABLE indexlake_index_file (
     index_file_id BIGINT PRIMARY KEY,
+    table_id BIGINT NOT NULL,
     index_id BIGINT NOT NULL,
     data_file_id BIGINT NOT NULL,
     relative_path VARCHAR NOT NULL

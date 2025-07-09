@@ -257,6 +257,7 @@ impl IndexRecord {
 
 pub(crate) struct IndexFileRecord {
     pub(crate) index_file_id: i64,
+    pub(crate) table_id: i64,
     pub(crate) index_id: i64,
     pub(crate) data_file_id: i64,
     pub(crate) relative_path: String,
@@ -265,14 +266,15 @@ pub(crate) struct IndexFileRecord {
 impl IndexFileRecord {
     pub(crate) fn to_sql(&self) -> String {
         format!(
-            "({}, {}, {}, '{}')",
-            self.index_file_id, self.index_id, self.data_file_id, self.relative_path
+            "({}, {}, {}, {}, '{}')",
+            self.index_file_id, self.table_id, self.index_id, self.data_file_id, self.relative_path
         )
     }
 
     pub(crate) fn catalog_schema() -> CatalogSchema {
         CatalogSchema::new(vec![
             Column::new("index_file_id", CatalogDataType::Int64, false),
+            Column::new("table_id", CatalogDataType::Int64, false),
             Column::new("index_id", CatalogDataType::Int64, false),
             Column::new("data_file_id", CatalogDataType::Int64, false),
             Column::new("relative_path", CatalogDataType::Utf8, false),

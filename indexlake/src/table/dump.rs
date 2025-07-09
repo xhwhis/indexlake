@@ -137,6 +137,7 @@ impl DumpTask {
             index_builder.write(output_file).await?;
             index_file_records.push(IndexFileRecord {
                 index_file_id,
+                table_id: self.table_id,
                 index_id: index_def.index_id,
                 data_file_id,
                 relative_path,
