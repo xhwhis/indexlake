@@ -3,7 +3,7 @@ mod defination;
 pub use defination::*;
 
 use crate::{
-    ILError, ILResult, RecordBatchStream,
+    ILError, ILResult,
     expr::Expr,
     storage::{InputFile, OutputFile},
 };
@@ -30,7 +30,6 @@ pub trait Index: Debug + Send + Sync {
 
     fn supports_filter(&self, index_def: &IndexDefination, filter: &Expr) -> ILResult<bool>;
 
-    // TODO return a stream of entries
     async fn filter(
         &self,
         index_def: &IndexDefination,
@@ -67,7 +66,7 @@ pub trait IndexParams: Debug + Send + Sync {
 
 #[async_trait::async_trait]
 pub trait IndexBuilder: Debug + Send + Sync {
-    fn update(&mut self, batch: &RecordBatch) -> ILResult<()>;
+    fn append(&mut self, batch: &RecordBatch) -> ILResult<()>;
 
     async fn write(&mut self, output_file: OutputFile) -> ILResult<()>;
 }

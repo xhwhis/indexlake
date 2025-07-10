@@ -38,7 +38,7 @@ impl RStarIndexBuilder {
 
 #[async_trait::async_trait]
 impl IndexBuilder for RStarIndexBuilder {
-    fn update(&mut self, batch: &RecordBatch) -> ILResult<()> {
+    fn append(&mut self, batch: &RecordBatch) -> ILResult<()> {
         let params = self.index_def.downcast_params::<RStarIndexParams>()?;
 
         let row_id_array = extract_row_id_array_from_record_batch(&batch)?;

@@ -196,7 +196,7 @@ impl DumpTask {
             let record_batch = rows_to_record_batch(&self.table_schema, &rows)?;
 
             for (_index_name, index_builder) in index_builders.iter_mut() {
-                index_builder.update(&record_batch)?;
+                index_builder.append(&record_batch)?;
             }
 
             arrow_writer.write(&record_batch).await?;

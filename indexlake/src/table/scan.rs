@@ -130,8 +130,30 @@ async fn process_index_scan(
     filters: &[Expr],
     index_filter_assignment: HashMap<String, Vec<usize>>,
 ) -> ILResult<RecordBatchStream> {
+    let non_index_filters = filters
+        .iter()
+        .enumerate()
+        .filter(|(idx, _)| {
+            !index_filter_assignment
+                .values()
+                .any(|indices| indices.contains(idx))
+        })
+        .map(|(_, filter)| filter.clone())
+        .collect::<Vec<_>>();
+
+    // Scan inline rows
+    let inline_rows_stream = index_scan_inline_rows(
+        catalog_helper,
+        table,
+        projection.clone(),
+        filters,
+        &index_filter_assignment,
+        &non_index_filters,
+    )
+    .await?;
+
     let data_file_records = catalog_helper.get_data_files(table.table_id).await?;
-    let mut streams = Vec::new();
+    let mut streams = vec![inline_rows_stream];
     for data_file_record in data_file_records {
         let stream = index_scan_data_file(
             catalog_helper,
@@ -145,6 +167,25 @@ async fn process_index_scan(
         streams.push(stream);
     }
     Ok(Box::pin(futures::stream::select_all(streams)))
+}
+
+async fn index_scan_inline_rows(
+    catalog_helper: &CatalogHelper,
+    table: &Table,
+    projection: Option<Vec<usize>>,
+    filters: &[Expr],
+    index_filter_assignment: &HashMap<String, Vec<usize>>,
+    non_index_filters: &[Expr],
+) -> ILResult<RecordBatchStream> {
+    let projected_schema = Arc::new(project_schema(&table.schema, projection.as_ref())?);
+    let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
+    // TODO change this to stream
+    let rows = catalog_helper
+        .scan_inline_rows(table.table_id, &catalog_schema, &non_index_filters)
+        .await?;
+    let batch = rows_to_record_batch(&projected_schema, &rows)?;
+
+    todo!()
 }
 
 async fn index_scan_data_file(
@@ -162,7 +203,7 @@ async fn index_scan_data_file(
         .iter()
         .map(|record| (record.index_id, record))
         .collect::<HashMap<_, _>>();
-    let row_ids = filter_row_ids_by_indexes(
+    let row_ids = filter_index_files_row_ids(
         table,
         filters,
         &index_file_records_map,
@@ -193,7 +234,7 @@ async fn index_scan_data_file(
     .await
 }
 
-async fn filter_row_ids_by_indexes(
+async fn filter_index_files_row_ids(
     table: &Table,
     filters: &[Expr],
     index_file_records: &HashMap<i64, &IndexFileRecord>,

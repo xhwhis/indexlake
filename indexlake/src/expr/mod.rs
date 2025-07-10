@@ -221,6 +221,7 @@ impl std::fmt::Display for Expr {
     }
 }
 
+// TODO change this to filters
 #[derive(Clone, Debug)]
 pub(crate) struct ExprPredicate {
     expr: Expr,
