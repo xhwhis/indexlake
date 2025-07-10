@@ -1,99 +1,123 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use arrow::array::{AsArray, BooleanArray, Int64Array, RecordBatch};
+use arrow::array::{AsArray, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Int64Type, Schema, SchemaRef};
 use futures::StreamExt;
 use tokio::task::JoinHandle;
 
-use crate::catalog::{
-    CatalogHelper, DataFileRecord, INTERNAL_ROW_ID_FIELD_NAME, INTERNAL_ROW_ID_FIELD_REF,
-    TransactionHelper,
-};
+use crate::catalog::{DataFileRecord, INTERNAL_ROW_ID_FIELD_REF, TransactionHelper};
 use crate::expr::{Expr, visited_columns};
 use crate::storage::{Storage, read_parquet_file_by_record};
 use crate::utils::build_projection_from_columns;
 use crate::{ILError, ILResult};
 
-pub(crate) async fn process_delete(
+pub(crate) async fn process_delete_by_condition(
     tx_helper: &mut TransactionHelper,
     storage: Arc<Storage>,
     table_id: i64,
     table_schema: &SchemaRef,
     condition: &Expr,
+    matched_data_file_row_ids: HashMap<i64, Vec<i64>>,
 ) -> ILResult<()> {
-    if visited_columns(condition) == vec![INTERNAL_ROW_ID_FIELD_NAME] {
-        return process_delete_by_row_id_condition(tx_helper, table_id, condition).await;
-    }
-
     // Directly delete inline rows
     tx_helper
         .delete_inline_rows_by_condition(table_id, condition)
         .await?;
 
-    delete_data_file_rows(tx_helper, storage, table_id, table_schema, condition).await?;
+    let data_file_records = tx_helper.get_data_files(table_id).await?;
+    for data_file_record in data_file_records {
+        if let Some(matched_row_ids) = matched_data_file_row_ids.get(&data_file_record.data_file_id)
+        {
+            delete_data_file_rows_by_matched_row_ids(tx_helper, data_file_record, matched_row_ids)
+                .await?;
+        } else {
+            delete_data_file_rows_by_condition(
+                tx_helper,
+                &storage,
+                table_schema,
+                condition,
+                data_file_record,
+            )
+            .await?;
+        }
+    }
     Ok(())
 }
 
-pub(crate) async fn delete_data_file_rows(
+pub(crate) async fn delete_data_file_rows_by_condition(
     tx_helper: &mut TransactionHelper,
-    storage: Arc<Storage>,
-    table_id: i64,
+    storage: &Arc<Storage>,
     table_schema: &SchemaRef,
     condition: &Expr,
+    mut data_file_record: DataFileRecord,
 ) -> ILResult<()> {
-    let data_file_records = tx_helper.get_data_files(table_id).await?;
-    for mut data_file_record in data_file_records {
-        let mut stream = read_parquet_file_by_record(
-            &storage,
-            table_schema.clone(),
-            &data_file_record,
-            None,
-            Some(condition.clone()),
-        )
-        .await?;
+    let mut stream = read_parquet_file_by_record(
+        &storage,
+        table_schema.clone(),
+        &data_file_record,
+        None,
+        Some(condition.clone()),
+    )
+    .await?;
 
-        let mut deleted_row_ids = Vec::new();
-        while let Some(batch) = stream.next().await {
-            let batch = batch?;
-            let array = condition.eval(&batch)?.into_array(batch.num_rows())?;
-            let bool_array = array.as_boolean_opt().ok_or_else(|| {
+    let mut deleted_row_ids = Vec::new();
+    while let Some(batch) = stream.next().await {
+        let batch = batch?;
+        let bool_array = condition.condition_eval(&batch)?;
+
+        let row_id_array = batch
+            .column(0)
+            .as_primitive_opt::<Int64Type>()
+            .ok_or_else(|| {
                 ILError::InternalError(format!(
-                    "condition should return BooleanArray, but got {:?}",
-                    array.data_type()
+                    "row id array should be Int64Array, but got {:?}",
+                    batch.column(0).data_type()
                 ))
             })?;
 
-            let row_id_array =
-                batch
-                    .column(0)
-                    .as_primitive_opt::<Int64Type>()
-                    .ok_or_else(|| {
-                        ILError::InternalError(format!(
-                            "row id array should be Int64Array, but got {:?}",
-                            batch.column(0).data_type()
-                        ))
-                    })?;
-
-            for (i, v) in bool_array.iter().enumerate() {
-                if let Some(v) = v
-                    && v
-                {
-                    deleted_row_ids.push(row_id_array.value(i));
-                }
+        for (i, v) in bool_array.iter().enumerate() {
+            if let Some(v) = v
+                && v
+            {
+                deleted_row_ids.push(row_id_array.value(i));
             }
         }
-
-        for (row_id, valid) in data_file_record.validity.validity.iter_mut() {
-            if deleted_row_ids.contains(&row_id) {
-                *valid = false;
-            }
-        }
-
-        tx_helper
-            .update_data_file_validity(data_file_record.data_file_id, &data_file_record.validity)
-            .await?;
     }
+
+    let deleted_row_ids_map = deleted_row_ids
+        .iter()
+        .map(|row_id| (*row_id, ()))
+        .collect::<HashMap<_, _>>();
+    for (row_id, valid) in data_file_record.validity.iter_mut_valid_row_ids() {
+        if deleted_row_ids_map.contains_key(row_id) {
+            *valid = false;
+        }
+    }
+
+    tx_helper
+        .update_data_file_validity(data_file_record.data_file_id, &data_file_record.validity)
+        .await?;
+    Ok(())
+}
+
+pub(crate) async fn delete_data_file_rows_by_matched_row_ids(
+    tx_helper: &mut TransactionHelper,
+    mut data_file_record: DataFileRecord,
+    matched_row_ids: &[i64],
+) -> ILResult<()> {
+    let matched_row_ids_map = matched_row_ids
+        .iter()
+        .map(|row_id| (*row_id, ()))
+        .collect::<HashMap<_, _>>();
+    for (row_id, valid) in data_file_record.validity.iter_mut_valid_row_ids() {
+        if matched_row_ids_map.contains_key(row_id) {
+            *valid = false;
+        }
+    }
+    tx_helper
+        .update_data_file_validity(data_file_record.data_file_id, &data_file_record.validity)
+        .await?;
     Ok(())
 }
 
@@ -134,7 +158,6 @@ pub(crate) async fn process_delete_by_row_id_condition(
 
 pub(crate) async fn find_matched_data_file_row_ids(
     storage: Arc<Storage>,
-    table_id: i64,
     table_schema: SchemaRef,
     condition: Expr,
     data_file_records: Vec<DataFileRecord>,
@@ -148,7 +171,12 @@ pub(crate) async fn find_matched_data_file_row_ids(
         ));
     }
 
-    let projection = build_projection_from_columns(&table_schema, &visited_columns)?;
+    let mut projection = build_projection_from_columns(&table_schema, &visited_columns)?;
+    // If the condition does not contain the row id column, add it to the projection
+    if !projection.contains(&0) {
+        projection.push(0);
+    }
+    projection.sort();
 
     let mut handles = Vec::new();
     for data_file_record in data_file_records {

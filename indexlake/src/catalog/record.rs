@@ -218,6 +218,10 @@ impl RowsValidity {
             .map(|(row_id, _)| *row_id)
             .collect::<Vec<_>>()
     }
+
+    pub(crate) fn iter_mut_valid_row_ids(&mut self) -> impl Iterator<Item = &mut (i64, bool)> {
+        self.validity.iter_mut().filter(|(_, valid)| *valid)
+    }
 }
 
 #[derive(Debug, Clone)]

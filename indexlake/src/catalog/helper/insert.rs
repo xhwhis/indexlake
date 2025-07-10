@@ -1,11 +1,9 @@
 use crate::{
     ILError, ILResult,
     catalog::{
-        DataFileRecord, FieldRecord, INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, IndexRecord,
-        TableRecord, TransactionHelper,
+        DataFileRecord, FieldRecord, IndexFileRecord, IndexRecord, TableRecord, TransactionHelper,
     },
 };
-use arrow::datatypes::Fields;
 
 impl TransactionHelper {
     pub(crate) async fn insert_namespace(
@@ -35,6 +33,9 @@ impl TransactionHelper {
     }
 
     pub(crate) async fn insert_fields(&mut self, fields: &[FieldRecord]) -> ILResult<()> {
+        if fields.is_empty() {
+            return Ok(());
+        }
         let mut values = Vec::new();
         for record in fields {
             values.push(record.to_sql(self.database)?);
@@ -83,6 +84,9 @@ impl TransactionHelper {
         &mut self,
         data_files: &[DataFileRecord],
     ) -> ILResult<usize> {
+        if data_files.is_empty() {
+            return Ok(0);
+        }
         let values = data_files
             .iter()
             .map(|r| r.to_sql(self.database))

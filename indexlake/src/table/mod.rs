@@ -13,8 +13,8 @@ pub use scan::*;
 pub(crate) use update::*;
 
 use crate::RecordBatchStream;
-use crate::catalog::{CatalogHelper, CatalogSchemaRef, Scalar};
-use crate::expr::Expr;
+use crate::catalog::{CatalogHelper, CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME, Scalar};
+use crate::expr::{Expr, visited_columns};
 use crate::index::{Index, IndexDefination, IndexDefinationRef, SearchQuery};
 use crate::utils::{has_duplicated_items, schema_with_row_id};
 use crate::{
@@ -95,7 +95,7 @@ impl Table {
     }
 
     pub async fn update(&self, set_map: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {
-        check_condition_data_type(condition, &self.schema)?;
+        condition.check_data_type(&self.schema, &DataType::Boolean)?;
         let mut tx_helper = self.transaction_helper().await?;
         process_update(
             &mut tx_helper,
@@ -111,17 +111,36 @@ impl Table {
     }
 
     pub async fn delete(&self, condition: &Expr) -> ILResult<()> {
-        check_condition_data_type(condition, &self.schema)?;
-        let mut tx_helper = self.transaction_helper().await?;
-        process_delete(
-            &mut tx_helper,
-            self.storage.clone(),
-            self.table_id,
-            &self.schema,
-            condition,
-        )
-        .await?;
-        tx_helper.commit().await?;
+        condition.check_data_type(&self.schema, &DataType::Boolean)?;
+
+        if visited_columns(condition) == vec![INTERNAL_ROW_ID_FIELD_NAME] {
+            let mut tx_helper = self.transaction_helper().await?;
+            process_delete_by_row_id_condition(&mut tx_helper, self.table_id, condition).await?;
+            tx_helper.commit().await?;
+        } else {
+            let catalog_helper = CatalogHelper::new(self.catalog.clone());
+            let data_file_records = catalog_helper.get_data_files(self.table_id).await?;
+            let matched_data_file_row_ids = find_matched_data_file_row_ids(
+                self.storage.clone(),
+                self.schema.clone(),
+                condition.clone(),
+                data_file_records,
+            )
+            .await?;
+
+            let mut tx_helper = self.transaction_helper().await?;
+            process_delete_by_condition(
+                &mut tx_helper,
+                self.storage.clone(),
+                self.table_id,
+                &self.schema,
+                condition,
+                matched_data_file_row_ids,
+            )
+            .await?;
+            tx_helper.commit().await?;
+        }
+
         Ok(())
     }
 
@@ -140,16 +159,6 @@ impl Table {
         tx_helper.commit().await?;
         Ok(())
     }
-}
-
-fn check_condition_data_type(condition: &Expr, schema: &SchemaRef) -> ILResult<()> {
-    let data_type = condition.data_type(schema)?;
-    if data_type != DataType::Boolean {
-        return Err(ILError::InvalidInput(format!(
-            "Condition must be a boolean expression, but got {data_type}"
-        )));
-    }
-    Ok(())
 }
 
 async fn process_truncate(tx_helper: &mut TransactionHelper, table_id: i64) -> ILResult<()> {
