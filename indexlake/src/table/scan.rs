@@ -7,7 +7,7 @@ use crate::{
     catalog::{CatalogHelper, CatalogSchema, rows_to_record_batch},
     expr::{Expr, merge_filters, split_conjunction_filters},
     index::{Index, IndexDefinationRef},
-    storage::{Storage, read_parquet_files_by_records},
+    storage::{Storage, read_parquet_file_by_record},
     table::Table,
     utils::project_schema,
 };
@@ -104,24 +104,59 @@ async fn process_table_scan(
         return Ok(batch_stream);
     }
 
-    let left_limit = limit.map(|l| l - inline_row_count);
+    let mut left_limit_opt = limit.map(|l| l - inline_row_count);
+
+    let merged_filter = merge_filters(filters);
 
     // Scan data files
-    // TODO handle left_limit
+    let mut streams = vec![batch_stream];
     let data_file_records = catalog_helper.get_data_files(table_id).await?;
-    let stream = read_parquet_files_by_records(
-        storage.clone(),
-        table_schema.clone(),
-        data_file_records,
-        projection.clone(),
-        merge_filters(filters),
-    )
-    .await?;
+    for data_file_record in data_file_records {
+        let valid_row_count = data_file_record.validity.valid_row_count();
+        if let Some(left_limit) = left_limit_opt {
+            if valid_row_count <= left_limit {
+                streams.push(
+                    read_parquet_file_by_record(
+                        storage,
+                        &table_schema,
+                        &data_file_record,
+                        projection.clone(),
+                        merged_filter.clone(),
+                        None,
+                    )
+                    .await?,
+                );
+                left_limit_opt = left_limit_opt.map(|l| l - valid_row_count);
+            } else {
+                streams.push(
+                    read_parquet_file_by_record(
+                        storage,
+                        &table_schema,
+                        &data_file_record,
+                        projection.clone(),
+                        merged_filter.clone(),
+                        left_limit_opt,
+                    )
+                    .await?,
+                );
+                break;
+            }
+        } else {
+            streams.push(
+                read_parquet_file_by_record(
+                    storage,
+                    &table_schema,
+                    &data_file_record,
+                    projection.clone(),
+                    merged_filter.clone(),
+                    None,
+                )
+                .await?,
+            );
+        }
+    }
 
-    Ok(Box::pin(futures::stream::select_all(vec![
-        batch_stream,
-        stream,
-    ])))
+    Ok(Box::pin(futures::stream::select_all(streams)))
 }
 
 async fn process_index_scan(

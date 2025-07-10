@@ -54,10 +54,11 @@ pub(crate) async fn delete_data_file_rows_by_condition(
 ) -> ILResult<()> {
     let mut stream = read_parquet_file_by_record(
         &storage,
-        table_schema.clone(),
+        &table_schema,
         &data_file_record,
         None,
         Some(condition.clone()),
+        None,
     )
     .await?;
 
@@ -188,10 +189,11 @@ pub(crate) async fn parallel_find_matched_data_file_row_ids(
         let handle: JoinHandle<ILResult<(i64, Vec<i64>)>> = tokio::spawn(async move {
             let mut stream = read_parquet_file_by_record(
                 &storage,
-                table_schema.clone(),
+                &table_schema,
                 &data_file_record,
                 Some(projection),
                 Some(condition.clone()),
+                None,
             )
             .await?;
 

@@ -100,7 +100,7 @@ pub(crate) async fn update_data_file_rows_by_matched_rows(
 
 pub(crate) async fn update_data_file_rows_by_condition(
     tx_helper: &mut TransactionHelper,
-    storage: &Arc<Storage>,
+    storage: &Storage,
     table_id: i64,
     table_schema: &SchemaRef,
     set_map: &HashMap<String, Scalar>,
@@ -109,10 +109,11 @@ pub(crate) async fn update_data_file_rows_by_condition(
 ) -> ILResult<()> {
     let mut stream = read_parquet_file_by_record(
         storage,
-        table_schema.clone(),
+        &table_schema,
         &data_file_record,
         None,
         Some(condition.clone()),
+        None,
     )
     .await?;
 
@@ -180,10 +181,11 @@ pub(crate) async fn parallel_find_matched_data_file_rows(
         let handle: JoinHandle<ILResult<(i64, RecordBatchStream)>> = tokio::spawn(async move {
             let stream = read_parquet_file_by_record(
                 &storage,
-                table_schema.clone(),
+                &table_schema,
                 &data_file_record,
                 None,
                 Some(condition.clone()),
+                None,
             )
             .await?;
             let mut stream = Box::pin(stream.map(move |batch| {

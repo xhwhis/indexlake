@@ -1,3 +1,4 @@
+use futures::TryStreamExt;
 use indexlake::expr::{col, lit};
 use indexlake::table::TableScan;
 use indexlake::{LakeClient, catalog::Catalog, storage::Storage};
@@ -85,7 +86,6 @@ async fn scan_with_limit(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-
     let table = prepare_testing_table(&client, "scan_with_limit").await?;
 
     // Only scan inline rows
@@ -100,6 +100,12 @@ async fn scan_with_limit(
 | 4                 | David | 23  |
 +-------------------+-------+-----+"#,
     );
+
+    let scan = TableScan::default().with_limit(Some(2));
+    let stream = table.scan(scan).await?;
+    let batches = stream.try_collect::<Vec<_>>().await?;
+    let num_rows = batches.iter().map(|b| b.num_rows()).sum::<usize>();
+    assert_eq!(num_rows, 2);
 
     Ok(())
 }

@@ -4,7 +4,10 @@ use std::{
     sync::Arc,
 };
 
-use arrow::{array::RecordBatch, datatypes::SchemaRef};
+use arrow::{
+    array::RecordBatch,
+    datatypes::{Schema, SchemaRef},
+};
 use futures::{StreamExt, TryStreamExt, future::BoxFuture};
 use parquet::{
     arrow::{
@@ -85,38 +88,17 @@ impl AsyncFileWriter for OutputFile {
     }
 }
 
-pub(crate) async fn read_parquet_files_by_records(
-    storage: Arc<Storage>,
-    table_schema: SchemaRef,
-    data_file_records: Vec<DataFileRecord>,
-    projection: Option<Vec<usize>>,
-    predicate: Option<Expr>,
-) -> ILResult<RecordBatchStream> {
-    let mut streams = Vec::new();
-    for data_file_record in data_file_records.iter() {
-        let stream = read_parquet_file_by_record(
-            &storage,
-            table_schema.clone(),
-            data_file_record,
-            projection.clone(),
-            predicate.clone(),
-        )
-        .await?;
-        streams.push(stream);
-    }
-    Ok(Box::pin(futures::stream::select_all(streams)))
-}
-
 pub(crate) async fn read_parquet_file_by_record(
-    storage: &Arc<Storage>,
-    table_schema: SchemaRef,
+    storage: &Storage,
+    table_schema: &Schema,
     data_file_record: &DataFileRecord,
     projection: Option<Vec<usize>>,
     predicate: Option<Expr>,
+    limit: Option<usize>,
 ) -> ILResult<RecordBatchStream> {
     let projection_mask = match projection {
         Some(projection) => {
-            let parquet_schema = ArrowSchemaConverter::new().convert(&table_schema)?;
+            let parquet_schema = ArrowSchemaConverter::new().convert(table_schema)?;
             ProjectionMask::roots(&parquet_schema, projection)
         }
         None => ProjectionMask::all(),
@@ -136,7 +118,7 @@ pub(crate) async fn read_parquet_file_by_record(
     }
 
     let stream = arrow_reader_builder
-        .with_row_selection(data_file_record.validity.row_selection()?)
+        .with_row_selection(data_file_record.validity.row_selection(limit)?)
         .with_projection(projection_mask.clone())
         .build()?
         .map_err(ILError::from);

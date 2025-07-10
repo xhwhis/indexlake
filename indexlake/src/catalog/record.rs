@@ -176,14 +176,17 @@ impl RowsValidity {
         self.validity.iter().filter(|(_, valid)| *valid).count()
     }
 
-    pub(crate) fn row_selection(&self) -> ILResult<RowSelection> {
-        let offsets = self
+    pub(crate) fn row_selection(&self, limit: Option<usize>) -> ILResult<RowSelection> {
+        let mut offsets = self
             .validity
             .iter()
             .enumerate()
             .filter(|(_, (_, valid))| *valid)
             .map(|(i, _)| i)
             .collect::<Vec<_>>();
+        if let Some(limit) = limit {
+            offsets.truncate(limit);
+        }
 
         let mut ranges = Vec::new();
         let mut offset_idx = 0;
