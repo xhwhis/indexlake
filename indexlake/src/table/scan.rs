@@ -4,7 +4,7 @@ use arrow::datatypes::{Schema, SchemaRef};
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
-    catalog::{CatalogHelper, CatalogSchema, rows_to_record_batch},
+    catalog::{CatalogHelper, CatalogSchema, DataFileRecord, rows_to_record_batch},
     expr::{Expr, merge_filters, split_conjunction_filters},
     index::{Index, IndexDefinationRef},
     storage::{Storage, read_parquet_file_by_record},
@@ -62,6 +62,7 @@ pub(crate) async fn process_scan(
             table,
             scan.projection,
             &filters,
+            scan.limit,
             index_filter_assignment,
         )
         .await
@@ -109,6 +110,7 @@ async fn process_table_scan(
     let merged_filter = merge_filters(filters);
 
     // Scan data files
+    // TODO parallel scan data files
     let mut streams = vec![batch_stream];
     let data_file_records = catalog_helper.get_data_files(table_id).await?;
     for data_file_record in data_file_records {
@@ -164,7 +166,21 @@ async fn process_index_scan(
     table: &Table,
     projection: Option<Vec<usize>>,
     filters: &[Expr],
+    limit: Option<usize>,
     index_filter_assignment: HashMap<String, Vec<usize>>,
+) -> ILResult<RecordBatchStream> {
+    todo!()
+}
+
+async fn index_scan_data_file(
+    catalog_helper: &CatalogHelper,
+    table: &Table,
+    projection: Option<Vec<usize>>,
+    filters: &[Expr],
+    limit: Option<usize>,
+    data_file_record: &DataFileRecord,
+    index_def: &IndexDefinationRef,
+    index_kind: Arc<dyn Index>,
 ) -> ILResult<RecordBatchStream> {
     todo!()
 }

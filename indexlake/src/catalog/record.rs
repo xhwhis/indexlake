@@ -6,7 +6,7 @@ use parquet::arrow::arrow_reader::RowSelection;
 use crate::{
     ILError, ILResult,
     catalog::{
-        CatalogDataType, CatalogDatabase, CatalogSchema, Column, INTERNAL_ROW_ID_FIELD_NAME,
+        CatalogDataType, CatalogDatabase, CatalogSchema, Column, INTERNAL_ROW_ID_FIELD_NAME, Row,
     },
     table::TableConfig,
 };
@@ -37,6 +37,22 @@ impl TableRecord {
             Column::new("namespace_id", CatalogDataType::Int64, false),
             Column::new("config", CatalogDataType::Utf8, false),
         ])
+    }
+
+    pub(crate) fn from_row(row: &Row) -> ILResult<Self> {
+        let table_id = row.int64(0)?.expect("table_id is not null");
+        let table_name = row.utf8(1)?.expect("table_name is not null");
+        let namespace_id = row.int64(2)?.expect("namespace_id is not null");
+        let config_str = row.utf8(3)?.expect("config is not null");
+        let config: TableConfig = serde_json::from_str(&config_str).map_err(|e| {
+            ILError::InternalError(format!("Failed to deserialize table config: {e:?}"))
+        })?;
+        Ok(TableRecord {
+            table_id,
+            table_name: table_name.clone(),
+            namespace_id,
+            config,
+        })
     }
 }
 
@@ -130,6 +146,24 @@ impl DataFileRecord {
         data_file_id: i64,
     ) -> String {
         format!("{}/{}/{}.parquet", namespace_id, table_id, data_file_id)
+    }
+
+    pub(crate) fn from_row(row: &Row) -> ILResult<Self> {
+        let data_file_id = row.int64(0)?.expect("data_file_id is not null");
+        let table_id = row.int64(1)?.expect("table_id is not null");
+        let relative_path = row.utf8(2)?.expect("relative_path is not null").to_string();
+        let file_size_bytes = row.int64(3)?.expect("file_size_bytes is not null");
+        let record_count = row.int64(4)?.expect("record_count is not null");
+        let validity_bytes = row.binary(5)?.expect("validity is not null");
+        let validity = RowsValidity::from_bytes(&validity_bytes)?;
+        Ok(DataFileRecord {
+            data_file_id,
+            table_id,
+            relative_path,
+            file_size_bytes,
+            record_count,
+            validity,
+        })
     }
 }
 
@@ -275,6 +309,33 @@ impl IndexRecord {
             Column::new("params", CatalogDataType::Utf8, false),
         ])
     }
+
+    pub(crate) fn from_row(row: &Row) -> ILResult<Self> {
+        let index_id = row.int64(0)?.expect("index_id is not null");
+        let index_name = row.utf8(1)?.expect("index_name is not null");
+        let table_id = row.int64(2)?.expect("table_id is not null");
+        let kind = row.utf8(3)?.expect("kind is not null");
+        let key_field_ids_str = row.utf8(4)?.expect("key_field_ids is not null");
+        let key_field_ids = key_field_ids_str
+            .split(",")
+            .map(|id| id.parse::<i64>().unwrap())
+            .collect::<Vec<_>>();
+        let include_field_ids_str = row.utf8(5)?.expect("include_field_ids is not null");
+        let include_field_ids = include_field_ids_str
+            .split(",")
+            .map(|id| id.parse::<i64>().unwrap())
+            .collect::<Vec<_>>();
+        let params = row.utf8(6)?.expect("params is not null");
+        Ok(IndexRecord {
+            index_id,
+            index_name: index_name.clone(),
+            index_kind: kind.clone(),
+            table_id,
+            key_field_ids,
+            include_field_ids,
+            params: params.clone(),
+        })
+    }
 }
 
 pub(crate) struct IndexFileRecord {
@@ -314,5 +375,20 @@ impl IndexFileRecord {
             "{}/{}/{}-{}-{}.index",
             namespace_id, table_id, data_file_id, index_id, index_file_id
         )
+    }
+
+    pub(crate) fn from_row(row: &Row) -> ILResult<Self> {
+        let index_file_id = row.int64(0)?.expect("index_file_id is not null");
+        let table_id = row.int64(1)?.expect("table_id is not null");
+        let index_id = row.int64(2)?.expect("index_id is not null");
+        let data_file_id = row.int64(3)?.expect("data_file_id is not null");
+        let relative_path = row.utf8(4)?.expect("relative_path is not null").to_string();
+        Ok(Self {
+            index_file_id,
+            table_id,
+            index_id,
+            data_file_id,
+            relative_path,
+        })
     }
 }

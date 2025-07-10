@@ -3,7 +3,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::{DataType, Field, FieldRef};
 
-use crate::catalog::{CatalogHelper, DataFileRecord, FieldRecord, IndexRecord, RowsValidity};
+use crate::catalog::{
+    CatalogHelper, DataFileRecord, FieldRecord, IndexFileRecord, IndexRecord, RowsValidity,
+};
 use crate::expr::Expr;
 use crate::{
     ILError, ILResult,
@@ -104,6 +106,7 @@ impl TransactionHelper {
         }
     }
 
+    // TODO fix this
     pub(crate) async fn get_max_row_id(&mut self, table_id: i64) -> ILResult<i64> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "max_row_id",
@@ -205,21 +208,7 @@ impl TransactionHelper {
             .await?;
         let mut data_files = Vec::with_capacity(rows.len());
         for row in rows {
-            let data_file_id = row.int64(0)?.expect("data_file_id is not null");
-            let table_id = row.int64(1)?.expect("table_id is not null");
-            let relative_path = row.utf8(2)?.expect("relative_path is not null").to_string();
-            let file_size_bytes = row.int64(3)?.expect("file_size_bytes is not null");
-            let record_count = row.int64(4)?.expect("record_count is not null");
-            let validity_bytes = row.binary(5)?.expect("validity is not null");
-            let validity = RowsValidity::from_bytes(&validity_bytes)?;
-            data_files.push(DataFileRecord {
-                data_file_id,
-                table_id,
-                relative_path,
-                file_size_bytes,
-                record_count,
-                validity,
-            });
+            data_files.push(DataFileRecord::from_row(&row)?);
         }
         Ok(data_files)
     }
@@ -315,19 +304,7 @@ impl CatalogHelper {
         if rows.is_empty() {
             Ok(None)
         } else {
-            let table_id = rows[0].int64(0)?.expect("table_id is not null");
-            let table_name = rows[0].utf8(1)?.expect("table_name is not null");
-            let namespace_id = rows[0].int64(2)?.expect("namespace_id is not null");
-            let config_str = rows[0].utf8(3)?.expect("config is not null");
-            let config: TableConfig = serde_json::from_str(&config_str).map_err(|e| {
-                ILError::InternalError(format!("Failed to deserialize table config: {e:?}"))
-            })?;
-            Ok(Some(TableRecord {
-                table_id,
-                table_name: table_name.clone(),
-                namespace_id,
-                config,
-            }))
+            Ok(Some(TableRecord::from_row(&rows[0])?))
         }
     }
 
@@ -377,30 +354,7 @@ impl CatalogHelper {
             .await?;
         let mut indexes = Vec::with_capacity(rows.len());
         for row in rows {
-            let index_id = row.int64(0)?.expect("index_id is not null");
-            let index_name = row.utf8(1)?.expect("index_name is not null");
-            let table_id = row.int64(2)?.expect("table_id is not null");
-            let kind = row.utf8(3)?.expect("kind is not null");
-            let key_field_ids_str = row.utf8(4)?.expect("key_field_ids is not null");
-            let key_field_ids = key_field_ids_str
-                .split(",")
-                .map(|id| id.parse::<i64>().unwrap())
-                .collect::<Vec<_>>();
-            let include_field_ids_str = row.utf8(5)?.expect("include_field_ids is not null");
-            let include_field_ids = include_field_ids_str
-                .split(",")
-                .map(|id| id.parse::<i64>().unwrap())
-                .collect::<Vec<_>>();
-            let params = row.utf8(6)?.expect("params is not null");
-            indexes.push(IndexRecord {
-                index_id,
-                index_name: index_name.clone(),
-                index_kind: kind.clone(),
-                table_id,
-                key_field_ids,
-                include_field_ids,
-                params: params.clone(),
-            });
+            indexes.push(IndexRecord::from_row(&row)?);
         }
         Ok(indexes)
     }
@@ -466,22 +420,29 @@ impl CatalogHelper {
             .await?;
         let mut data_files = Vec::with_capacity(rows.len());
         for row in rows {
-            let data_file_id = row.int64(0)?.expect("data_file_id is not null");
-            let table_id = row.int64(1)?.expect("table_id is not null");
-            let relative_path = row.utf8(2)?.expect("relative_path is not null").to_string();
-            let file_size_bytes = row.int64(3)?.expect("file_size_bytes is not null");
-            let record_count = row.int64(4)?.expect("record_count is not null");
-            let validity_bytes = row.binary(5)?.expect("validity is not null");
-            let validity = RowsValidity::from_bytes(&validity_bytes)?;
-            data_files.push(DataFileRecord {
-                data_file_id,
-                table_id,
-                relative_path,
-                file_size_bytes,
-                record_count,
-                validity,
-            });
+            data_files.push(DataFileRecord::from_row(&row)?);
         }
         Ok(data_files)
+    }
+
+    pub(crate) async fn get_index_files(
+        &self,
+        data_file_id: i64,
+    ) -> ILResult<Vec<IndexFileRecord>> {
+        let schema = Arc::new(IndexFileRecord::catalog_schema());
+        let rows = self
+            .query_rows(
+                &format!(
+                    "SELECT {} FROM indexlake_index_file WHERE data_file_id = {data_file_id}",
+                    schema.select_items(self.catalog.database()).join(", ")
+                ),
+                schema,
+            )
+            .await?;
+        let mut index_files = Vec::with_capacity(rows.len());
+        for row in rows {
+            index_files.push(IndexFileRecord::from_row(&row)?);
+        }
+        Ok(index_files)
     }
 }

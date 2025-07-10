@@ -48,6 +48,7 @@ impl TransactionHelper {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct CatalogHelper {
     pub(crate) catalog: Arc<dyn Catalog>,
 }
