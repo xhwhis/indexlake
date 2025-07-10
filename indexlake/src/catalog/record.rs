@@ -203,6 +203,21 @@ impl RowsValidity {
             self.validity.len(),
         ))
     }
+
+    pub(crate) fn row_ids(&self) -> Vec<i64> {
+        self.validity
+            .iter()
+            .map(|(row_id, _)| *row_id)
+            .collect::<Vec<_>>()
+    }
+
+    pub(crate) fn valid_row_ids(&self) -> Vec<i64> {
+        self.validity
+            .iter()
+            .filter(|(_, valid)| *valid)
+            .map(|(row_id, _)| *row_id)
+            .collect::<Vec<_>>()
+    }
 }
 
 #[derive(Debug, Clone)]

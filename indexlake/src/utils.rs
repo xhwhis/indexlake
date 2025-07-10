@@ -61,6 +61,19 @@ pub fn project_schema(schema: &Schema, projection: Option<&Vec<usize>>) -> ILRes
     }
 }
 
+pub(crate) fn build_projection_from_columns(
+    schema: &Schema,
+    cols: &[String],
+) -> ILResult<Vec<usize>> {
+    let mut projection = Vec::new();
+    for (i, field) in schema.fields().iter().enumerate() {
+        if cols.contains(&field.name()) {
+            projection.push(i);
+        }
+    }
+    Ok(projection)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::utils::has_duplicated_items;

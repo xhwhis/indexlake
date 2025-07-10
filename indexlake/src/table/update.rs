@@ -37,13 +37,7 @@ pub(crate) async fn process_update(
         let mut updated_row_ids = Vec::new();
         while let Some(batch) = stream.next().await {
             let batch = batch?;
-            let array = condition.eval(&batch)?.into_array(batch.num_rows())?;
-            let bool_array = array.as_boolean_opt().ok_or_else(|| {
-                ILError::InternalError(format!(
-                    "condition should return BooleanArray, but got {:?}",
-                    array.data_type()
-                ))
-            })?;
+            let bool_array = condition.condition_eval(&batch)?;
 
             let row_id_array =
                 batch

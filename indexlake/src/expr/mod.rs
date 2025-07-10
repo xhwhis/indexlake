@@ -120,6 +120,29 @@ impl Expr {
         }
     }
 
+    pub fn check_data_type(&self, schema: &Schema, expected: &DataType) -> ILResult<()> {
+        let return_type = self.data_type(schema)?;
+        if &return_type != expected {
+            return Err(ILError::InternalError(format!(
+                "expr should return {expected} instead of {return_type}"
+            )));
+        }
+        Ok(())
+    }
+
+    pub fn condition_eval(&self, batch: &RecordBatch) -> ILResult<BooleanArray> {
+        self.check_data_type(&batch.schema(), &DataType::Boolean)?;
+
+        let array = self.eval(batch)?.into_array(batch.num_rows())?;
+        let bool_array = array.as_boolean_opt().ok_or_else(|| {
+            ILError::InternalError(format!(
+                "condition should return BooleanArray, but got {}",
+                array.data_type()
+            ))
+        })?;
+        Ok(bool_array.clone())
+    }
+
     pub fn data_type(&self, schema: &Schema) -> ILResult<DataType> {
         match self {
             Expr::Column(name) => {

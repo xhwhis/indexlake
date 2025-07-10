@@ -52,8 +52,7 @@ async fn insert_table(
             Arc::new(Int64Array::from(vec![1, 2])),
             Arc::new(StringArray::from(vec!["Alice", "Bob"])),
         ],
-    )
-    .unwrap();
+    )?;
 
     table.insert(&record_batch).await?;
 
