@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     ops::Range,
     sync::Arc,
 };
@@ -94,7 +94,7 @@ pub(crate) async fn read_parquet_file_by_record(
     data_file_record: &DataFileRecord,
     projection: Option<Vec<usize>>,
     predicate: Option<Expr>,
-    limit: Option<usize>,
+    row_ids: Option<&HashSet<i64>>,
 ) -> ILResult<RecordBatchStream> {
     let projection_mask = match projection {
         Some(projection) => {
@@ -118,7 +118,7 @@ pub(crate) async fn read_parquet_file_by_record(
     }
 
     let stream = arrow_reader_builder
-        .with_row_selection(data_file_record.validity.row_selection(limit)?)
+        .with_row_selection(data_file_record.validity.row_selection(row_ids)?)
         .with_projection(projection_mask.clone())
         .build()?
         .map_err(ILError::from);

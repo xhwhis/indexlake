@@ -70,3 +70,6 @@ async fn insert_table(
 
     Ok(())
 }
+
+// TODO parallel insert test
+// TODO bypass insert test

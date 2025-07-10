@@ -380,7 +380,6 @@ impl CatalogHelper {
         table_id: i64,
         schema: &CatalogSchemaRef,
         filters: &[Expr],
-        limit: Option<usize>,
     ) -> ILResult<Vec<Row>> {
         let where_clause = if filters.is_empty() {
             "".to_string()
@@ -392,14 +391,9 @@ impl CatalogHelper {
                 .join(" AND ");
             format!(" WHERE {filters_str}")
         };
-        let limit_clause = if let Some(limit) = limit {
-            format!(" LIMIT {limit}")
-        } else {
-            "".to_string()
-        };
         self.query_rows(
             &format!(
-                "SELECT {}  FROM indexlake_inline_row_{table_id}{where_clause}{limit_clause}",
+                "SELECT {}  FROM indexlake_inline_row_{table_id}{where_clause}",
                 schema.select_items(self.catalog.database()).join(", ")
             ),
             Arc::clone(schema),
@@ -425,7 +419,7 @@ impl CatalogHelper {
         Ok(data_files)
     }
 
-    pub(crate) async fn get_index_files(
+    pub(crate) async fn get_index_files_by_data_file_id(
         &self,
         data_file_id: i64,
     ) -> ILResult<Vec<IndexFileRecord>> {

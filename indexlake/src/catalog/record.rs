@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use arrow::datatypes::{DataType, Field};
 use parquet::arrow::arrow_reader::RowSelection;
@@ -210,17 +210,20 @@ impl RowsValidity {
         self.validity.iter().filter(|(_, valid)| *valid).count()
     }
 
-    pub(crate) fn row_selection(&self, limit: Option<usize>) -> ILResult<RowSelection> {
-        let mut offsets = self
+    pub(crate) fn row_selection(&self, row_ids: Option<&HashSet<i64>>) -> ILResult<RowSelection> {
+        let offsets = self
             .validity
             .iter()
             .enumerate()
-            .filter(|(_, (_, valid))| *valid)
+            .filter(|(_, (row_id, valid))| {
+                *valid
+                    && row_ids
+                        .as_ref()
+                        .map(|ids| ids.contains(row_id))
+                        .unwrap_or(true)
+            })
             .map(|(i, _)| i)
             .collect::<Vec<_>>();
-        if let Some(limit) = limit {
-            offsets.truncate(limit);
-        }
 
         let mut ranges = Vec::new();
         let mut offset_idx = 0;

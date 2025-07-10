@@ -1,10 +1,15 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use arrow::datatypes::{Schema, SchemaRef};
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
-    catalog::{CatalogHelper, CatalogSchema, DataFileRecord, rows_to_record_batch},
+    catalog::{
+        CatalogHelper, CatalogSchema, DataFileRecord, IndexFileRecord, rows_to_record_batch,
+    },
     expr::{Expr, merge_filters, split_conjunction_filters},
     index::{Index, IndexDefinationRef},
     storage::{Storage, read_parquet_file_by_record},
@@ -16,7 +21,6 @@ use crate::{
 pub struct TableScan {
     pub projection: Option<Vec<usize>>,
     pub filters: Vec<Expr>,
-    pub limit: Option<usize>,
 }
 
 impl TableScan {
@@ -35,7 +39,6 @@ impl Default for TableScan {
         Self {
             projection: None,
             filters: vec![],
-            limit: None,
         }
     }
 }
@@ -62,7 +65,6 @@ pub(crate) async fn process_scan(
             table,
             scan.projection,
             &filters,
-            scan.limit,
             index_filter_assignment,
         )
         .await
@@ -74,7 +76,6 @@ pub(crate) async fn process_scan(
             table_schema,
             scan.projection,
             filters,
-            scan.limit,
         )
         .await
     }
@@ -87,25 +88,17 @@ async fn process_table_scan(
     table_schema: &SchemaRef,
     projection: Option<Vec<usize>>,
     filters: Vec<Expr>,
-    limit: Option<usize>,
 ) -> ILResult<RecordBatchStream> {
     // Scan inline rows
     let projected_schema = Arc::new(project_schema(table_schema, projection.as_ref())?);
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
+    // TODO change this to stream
     let rows = catalog_helper
-        .scan_inline_rows(table_id, &catalog_schema, &filters, limit)
+        .scan_inline_rows(table_id, &catalog_schema, &filters)
         .await?;
-    let inline_row_count = rows.len();
     let batch = rows_to_record_batch(&projected_schema, &rows)?;
     let batch_stream =
         Box::pin(futures::stream::once(futures::future::ready(Ok(batch)))) as RecordBatchStream;
-    if let Some(limit) = limit
-        && inline_row_count == limit
-    {
-        return Ok(batch_stream);
-    }
-
-    let mut left_limit_opt = limit.map(|l| l - inline_row_count);
 
     let merged_filter = merge_filters(filters);
 
@@ -114,48 +107,17 @@ async fn process_table_scan(
     let mut streams = vec![batch_stream];
     let data_file_records = catalog_helper.get_data_files(table_id).await?;
     for data_file_record in data_file_records {
-        let valid_row_count = data_file_record.validity.valid_row_count();
-        if let Some(left_limit) = left_limit_opt {
-            if valid_row_count <= left_limit {
-                streams.push(
-                    read_parquet_file_by_record(
-                        storage,
-                        &table_schema,
-                        &data_file_record,
-                        projection.clone(),
-                        merged_filter.clone(),
-                        None,
-                    )
-                    .await?,
-                );
-                left_limit_opt = left_limit_opt.map(|l| l - valid_row_count);
-            } else {
-                streams.push(
-                    read_parquet_file_by_record(
-                        storage,
-                        &table_schema,
-                        &data_file_record,
-                        projection.clone(),
-                        merged_filter.clone(),
-                        left_limit_opt,
-                    )
-                    .await?,
-                );
-                break;
-            }
-        } else {
-            streams.push(
-                read_parquet_file_by_record(
-                    storage,
-                    &table_schema,
-                    &data_file_record,
-                    projection.clone(),
-                    merged_filter.clone(),
-                    None,
-                )
-                .await?,
-            );
-        }
+        streams.push(
+            read_parquet_file_by_record(
+                storage,
+                &table_schema,
+                &data_file_record,
+                projection.clone(),
+                merged_filter.clone(),
+                None,
+            )
+            .await?,
+        );
     }
 
     Ok(Box::pin(futures::stream::select_all(streams)))
@@ -166,10 +128,23 @@ async fn process_index_scan(
     table: &Table,
     projection: Option<Vec<usize>>,
     filters: &[Expr],
-    limit: Option<usize>,
     index_filter_assignment: HashMap<String, Vec<usize>>,
 ) -> ILResult<RecordBatchStream> {
-    todo!()
+    let data_file_records = catalog_helper.get_data_files(table.table_id).await?;
+    let mut streams = Vec::new();
+    for data_file_record in data_file_records {
+        let stream = index_scan_data_file(
+            catalog_helper,
+            table,
+            projection.clone(),
+            filters,
+            &data_file_record,
+            &index_filter_assignment,
+        )
+        .await?;
+        streams.push(stream);
+    }
+    Ok(Box::pin(futures::stream::select_all(streams)))
 }
 
 async fn index_scan_data_file(
@@ -177,12 +152,98 @@ async fn index_scan_data_file(
     table: &Table,
     projection: Option<Vec<usize>>,
     filters: &[Expr],
-    limit: Option<usize>,
     data_file_record: &DataFileRecord,
-    index_def: &IndexDefinationRef,
-    index_kind: Arc<dyn Index>,
+    index_filter_assignment: &HashMap<String, Vec<usize>>,
 ) -> ILResult<RecordBatchStream> {
-    todo!()
+    let index_file_records = catalog_helper
+        .get_index_files_by_data_file_id(data_file_record.data_file_id)
+        .await?;
+    let index_file_records_map = index_file_records
+        .iter()
+        .map(|record| (record.index_id, record))
+        .collect::<HashMap<_, _>>();
+    let row_ids = filter_row_ids_by_indexes(
+        table,
+        filters,
+        &index_file_records_map,
+        &index_filter_assignment,
+    )
+    .await?;
+
+    let left_filters = filters
+        .iter()
+        .enumerate()
+        .filter(|(idx, _)| {
+            !index_filter_assignment
+                .values()
+                .any(|indices| indices.contains(idx))
+        })
+        .map(|(_, filter)| filter.clone())
+        .collect::<Vec<_>>();
+    let merged_filter = merge_filters(left_filters);
+
+    read_parquet_file_by_record(
+        &table.storage,
+        &table.schema,
+        &data_file_record,
+        projection,
+        merged_filter,
+        Some(&row_ids),
+    )
+    .await
+}
+
+async fn filter_row_ids_by_indexes(
+    table: &Table,
+    filters: &[Expr],
+    index_file_records: &HashMap<i64, &IndexFileRecord>,
+    index_filter_assignment: &HashMap<String, Vec<usize>>,
+) -> ILResult<HashSet<i64>> {
+    let mut filter_index_entries_list = Vec::new();
+    for (index_name, filter_indices) in index_filter_assignment.iter() {
+        let index_def = table
+            .indexes
+            .get(index_name)
+            .ok_or_else(|| ILError::InternalError(format!("Index {index_name} not found")))?;
+        let index_kind = &index_def.kind;
+        let index = table
+            .index_kinds
+            .get(index_kind)
+            .ok_or_else(|| ILError::InternalError(format!("Index kind {index_kind} not found")))?;
+        let index_file_record = index_file_records.get(&index_def.index_id).ok_or_else(|| {
+            ILError::InternalError(format!(
+                "Index file record not found for index {index_name}"
+            ))
+        })?;
+        let filters = filter_indices
+            .iter()
+            .map(|idx| filters[*idx].clone())
+            .collect::<Vec<_>>();
+        let input_file = table
+            .storage
+            .open_file(&index_file_record.relative_path)
+            .await?;
+        let filter_index_entries = index.filter(index_def, input_file, &filters).await?;
+        filter_index_entries_list.push(filter_index_entries);
+    }
+
+    let mut intersected_row_ids = filter_index_entries_list[0]
+        .row_ids
+        .values()
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    for filter_index_entries in filter_index_entries_list.iter().skip(1) {
+        let set = filter_index_entries
+            .row_ids
+            .values()
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>();
+        intersected_row_ids = intersected_row_ids.intersection(&set).cloned().collect();
+    }
+
+    Ok(intersected_row_ids)
 }
 
 fn assign_index_filters(
