@@ -156,7 +156,7 @@ pub(crate) async fn process_delete_by_row_id_condition(
     Ok(())
 }
 
-pub(crate) async fn find_matched_data_file_row_ids(
+pub(crate) async fn parallel_find_matched_data_file_row_ids(
     storage: Arc<Storage>,
     table_schema: SchemaRef,
     condition: Expr,

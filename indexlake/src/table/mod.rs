@@ -96,17 +96,32 @@ impl Table {
 
     pub async fn update(&self, set_map: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {
         condition.check_data_type(&self.schema, &DataType::Boolean)?;
-        let mut tx_helper = self.transaction_helper().await?;
-        process_update(
-            &mut tx_helper,
-            self.storage.clone(),
-            self.table_id,
-            &self.schema,
-            set_map,
-            condition,
-        )
-        .await?;
-        tx_helper.commit().await?;
+        if visited_columns(condition) == vec![INTERNAL_ROW_ID_FIELD_NAME] {
+            todo!()
+        } else {
+            let catalog_helper = CatalogHelper::new(self.catalog.clone());
+            let data_file_records = catalog_helper.get_data_files(self.table_id).await?;
+            let matched_data_file_rows = parallel_find_matched_data_file_rows(
+                self.storage.clone(),
+                self.schema.clone(),
+                condition.clone(),
+                data_file_records,
+            )
+            .await?;
+
+            let mut tx_helper = self.transaction_helper().await?;
+            process_update_by_condition(
+                &mut tx_helper,
+                self.storage.clone(),
+                self.table_id,
+                &self.schema,
+                set_map,
+                condition,
+                matched_data_file_rows,
+            )
+            .await?;
+            tx_helper.commit().await?;
+        }
         Ok(())
     }
 
@@ -120,7 +135,7 @@ impl Table {
         } else {
             let catalog_helper = CatalogHelper::new(self.catalog.clone());
             let data_file_records = catalog_helper.get_data_files(self.table_id).await?;
-            let matched_data_file_row_ids = find_matched_data_file_row_ids(
+            let matched_data_file_row_ids = parallel_find_matched_data_file_row_ids(
                 self.storage.clone(),
                 self.schema.clone(),
                 condition.clone(),
