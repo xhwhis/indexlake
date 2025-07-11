@@ -67,11 +67,7 @@ impl Table {
         process_insert(&mut tx_helper, self.table_id, record).await?;
         tx_helper.commit().await?;
 
-        let catalog_helper = CatalogHelper::new(self.catalog.clone());
-        let inline_row_count = catalog_helper.count_inline_rows(self.table_id).await?;
-        if inline_row_count as usize >= self.config.inline_row_count_limit {
-            spawn_dump_task(self).await?;
-        }
+        try_run_dump_task(self).await?;
 
         Ok(())
     }

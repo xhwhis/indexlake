@@ -8,49 +8,68 @@ use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 use crate::{
     ILError, ILResult,
     catalog::{
-        Catalog, CatalogSchema, DataFileRecord, IndexFileRecord, RowStream, RowsValidity,
-        TransactionHelper, rows_to_record_batch,
+        Catalog, CatalogHelper, CatalogSchema, DataFileRecord, IndexFileRecord, RowStream,
+        RowsValidity, TransactionHelper, rows_to_record_batch,
     },
     index::{IndexBuilder, IndexDefinationRef, IndexKind},
     storage::Storage,
     table::{Table, TableConfig},
 };
 
-pub(crate) async fn spawn_dump_task(table: &Table) -> ILResult<()> {
-    let mut tx_helper = TransactionHelper::new(&table.catalog).await?;
-    let dump_row_ids = tx_helper
-        .scan_inline_row_ids_with_limit(table.table_id, table.config.inline_row_count_limit)
-        .await?;
-    tx_helper.commit().await?;
-    if dump_row_ids.len() < table.config.inline_row_count_limit {
-        debug!(
-            "Table {} has less than {} inline rows, skip dump",
-            table.table_id, table.config.inline_row_count_limit
-        );
-        return Ok(());
-    }
-
-    let dump_task = DumpTask {
-        namespace_id: table.namespace_id,
-        table_id: table.table_id,
-        table_schema: table.schema.clone(),
-        table_indexes: table.indexes.clone(),
-        index_kinds: table.index_kinds.clone(),
-        table_config: table.config.clone(),
-        catalog: table.catalog.clone(),
-        storage: table.storage.clone(),
-        dump_row_ids,
-    };
+pub(crate) async fn try_run_dump_task(table: &Table) -> ILResult<()> {
+    let namespace_id = table.namespace_id;
+    let table_id = table.table_id;
+    let table_schema = table.schema.clone();
+    let table_indexes = table.indexes.clone();
+    let index_kinds = table.index_kinds.clone();
+    let table_config = table.config.clone();
+    let catalog = table.catalog.clone();
+    let storage = table.storage.clone();
     tokio::spawn(async move {
-        let now = Instant::now();
-        if let Err(e) = dump_task.run().await {
-            error!("Failed to dump table: {:?}", e);
+        let result = async {
+            let catalog_helper = CatalogHelper::new(catalog.clone());
+            let inline_row_count = catalog_helper.count_inline_rows(table_id).await?;
+            if inline_row_count < table_config.inline_row_count_limit as i64 {
+                return Ok(());
+            }
+
+            let dump_row_ids = catalog_helper
+                .scan_inline_row_ids_with_limit(table_id, table_config.inline_row_count_limit)
+                .await?;
+            if dump_row_ids.len() < table_config.inline_row_count_limit {
+                debug!(
+                    "Table {} has less than {} inline rows, skip dump",
+                    table_id, table_config.inline_row_count_limit
+                );
+                return Ok(());
+            }
+
+            let dump_task = DumpTask {
+                namespace_id,
+                table_id,
+                table_schema,
+                table_indexes,
+                index_kinds,
+                table_config,
+                catalog,
+                storage,
+                dump_row_ids,
+            };
+
+            let now = Instant::now();
+            dump_task.run().await?;
+            debug!(
+                "Dump table {} inline rows in {} ms",
+                dump_task.table_id,
+                now.elapsed().as_millis()
+            );
+
+            Ok::<(), ILError>(())
         }
-        debug!(
-            "Dump table {} inline rows in {} ms",
-            dump_task.table_id,
-            now.elapsed().as_millis()
-        );
+        .await;
+        if let Err(e) = result {
+            error!("Failed to run dump task: {:?}", e);
+        }
     });
     Ok(())
 }

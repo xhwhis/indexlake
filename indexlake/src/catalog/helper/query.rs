@@ -152,32 +152,6 @@ impl TransactionHelper {
             .await
     }
 
-    pub(crate) async fn scan_inline_row_ids_with_limit(
-        &mut self,
-        table_id: i64,
-        limit: usize,
-    ) -> ILResult<Vec<i64>> {
-        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
-            INTERNAL_ROW_ID_FIELD_NAME.to_string(),
-            CatalogDataType::Int64,
-            false,
-        )]));
-        let rows = self
-            .query_rows(
-                &format!(
-                    "SELECT {} FROM indexlake_inline_row_{table_id} limit {limit}",
-                    INTERNAL_ROW_ID_FIELD_NAME
-                ),
-                schema,
-            )
-            .await?;
-        let mut row_ids = Vec::with_capacity(rows.len());
-        for row in rows {
-            row_ids.push(row.int64(0)?.expect("row_id is not null"));
-        }
-        Ok(row_ids)
-    }
-
     pub(crate) async fn get_max_data_file_id(&mut self) -> ILResult<i64> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "max_data_file_id",
@@ -373,6 +347,32 @@ impl CatalogHelper {
             .await?;
         let count = rows[0].int64(0)?.expect("count is not null");
         Ok(count)
+    }
+
+    pub(crate) async fn scan_inline_row_ids_with_limit(
+        &self,
+        table_id: i64,
+        limit: usize,
+    ) -> ILResult<Vec<i64>> {
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
+            INTERNAL_ROW_ID_FIELD_NAME.to_string(),
+            CatalogDataType::Int64,
+            false,
+        )]));
+        let rows = self
+            .query_rows(
+                &format!(
+                    "SELECT {} FROM indexlake_inline_row_{table_id} limit {limit}",
+                    INTERNAL_ROW_ID_FIELD_NAME
+                ),
+                schema,
+            )
+            .await?;
+        let mut row_ids = Vec::with_capacity(rows.len());
+        for row in rows {
+            row_ids.push(row.int64(0)?.expect("row_id is not null"));
+        }
+        Ok(row_ids)
     }
 
     pub(crate) async fn scan_inline_rows(
