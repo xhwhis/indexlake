@@ -380,7 +380,7 @@ impl CatalogHelper {
         table_id: i64,
         schema: &CatalogSchemaRef,
         filters: &[Expr],
-    ) -> ILResult<Vec<Row>> {
+    ) -> ILResult<RowStream<'static>> {
         let where_clause = if filters.is_empty() {
             "".to_string()
         } else {
@@ -391,14 +391,15 @@ impl CatalogHelper {
                 .join(" AND ");
             format!(" WHERE {filters_str}")
         };
-        self.query_rows(
-            &format!(
-                "SELECT {}  FROM indexlake_inline_row_{table_id}{where_clause}",
-                schema.select_items(self.catalog.database()).join(", ")
-            ),
-            Arc::clone(schema),
-        )
-        .await
+        self.catalog
+            .query(
+                &format!(
+                    "SELECT {}  FROM indexlake_inline_row_{table_id}{where_clause}",
+                    schema.select_items(self.catalog.database()).join(", ")
+                ),
+                Arc::clone(schema),
+            )
+            .await
     }
 
     pub(crate) async fn get_data_files(&self, table_id: i64) -> ILResult<Vec<DataFileRecord>> {

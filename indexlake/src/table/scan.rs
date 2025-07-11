@@ -4,6 +4,7 @@ use std::{
 };
 
 use arrow::datatypes::{Schema, SchemaRef};
+use futures::StreamExt;
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
@@ -93,18 +94,20 @@ async fn process_table_scan(
     let projected_schema = Arc::new(project_schema(table_schema, projection.as_ref())?);
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
     // TODO change this to stream
-    let rows = catalog_helper
+    let row_stream = catalog_helper
         .scan_inline_rows(table_id, &catalog_schema, &filters)
         .await?;
-    let batch = rows_to_record_batch(&projected_schema, &rows)?;
-    let batch_stream =
-        Box::pin(futures::stream::once(futures::future::ready(Ok(batch)))) as RecordBatchStream;
+    let inline_stream = Box::pin(row_stream.chunks(1024).map(move |rows| {
+        let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
+        let batch = rows_to_record_batch(&projected_schema, &rows)?;
+        Ok(batch)
+    }));
 
     let merged_filter = merge_filters(filters);
 
     // Scan data files
     // TODO parallel scan data files
-    let mut streams = vec![batch_stream];
+    let mut streams: Vec<RecordBatchStream> = vec![inline_stream];
     let data_file_records = catalog_helper.get_data_files(table_id).await?;
     for data_file_record in data_file_records {
         streams.push(
@@ -180,10 +183,9 @@ async fn index_scan_inline_rows(
     let projected_schema = Arc::new(project_schema(&table.schema, projection.as_ref())?);
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
     // TODO change this to stream
-    let rows = catalog_helper
+    let row_stream = catalog_helper
         .scan_inline_rows(table.table_id, &catalog_schema, &non_index_filters)
         .await?;
-    let batch = rows_to_record_batch(&projected_schema, &rows)?;
 
     todo!()
 }
