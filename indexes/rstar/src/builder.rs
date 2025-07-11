@@ -26,8 +26,7 @@ pub struct RStarIndexBuilder {
 
 impl RStarIndexBuilder {
     pub fn try_new(index_def: IndexDefinationRef) -> ILResult<Self> {
-        let include_fields = index_def.include_fields()?;
-        let index_schema = index_schema(include_fields);
+        let index_schema = index_schema();
         Ok(Self {
             index_def,
             index_schema,
@@ -48,14 +47,7 @@ impl IndexBuilder for RStarIndexBuilder {
         let key_column = batch.column(key_column_index);
         let aabbs = compute_aabbs(key_column, params.wkb_dialect)?;
 
-        let include_arrays = self.index_def.include_arrays(&batch)?;
-
-        let index_batch = build_index_record_batch(
-            self.index_schema.clone(),
-            row_id_array,
-            aabbs,
-            include_arrays,
-        )?;
+        let index_batch = build_index_record_batch(self.index_schema.clone(), row_id_array, aabbs)?;
 
         self.index_batches.push(index_batch);
 
@@ -82,15 +74,14 @@ impl IndexBuilder for RStarIndexBuilder {
     }
 }
 
-fn index_schema(include_fields: Vec<&Field>) -> SchemaRef {
-    let mut fields = vec![
+fn index_schema() -> SchemaRef {
+    let fields = vec![
         Field::new("row_id", DataType::Int64, false),
         Field::new("xmin", DataType::Float64, true),
         Field::new("ymin", DataType::Float64, true),
         Field::new("xmax", DataType::Float64, true),
         Field::new("ymax", DataType::Float64, true),
     ];
-    fields.extend(include_fields.into_iter().map(|field| field.clone()));
     Arc::new(Schema::new(fields))
 }
 
@@ -98,7 +89,6 @@ fn build_index_record_batch(
     index_schema: SchemaRef,
     row_id_array: Int64Array,
     aabbs: Vec<Option<AABB<geo::Coord<f64>>>>,
-    include_arrays: Vec<ArrayRef>,
 ) -> ILResult<RecordBatch> {
     let xmin_array = Float64Array::from(
         aabbs
@@ -124,14 +114,13 @@ fn build_index_record_batch(
             .map(|aabb| aabb.map(|aabb| aabb.upper().y))
             .collect::<Vec<_>>(),
     );
-    let mut arrays = vec![
+    let arrays = vec![
         Arc::new(row_id_array) as ArrayRef,
         Arc::new(xmin_array) as ArrayRef,
         Arc::new(ymin_array) as ArrayRef,
         Arc::new(xmax_array) as ArrayRef,
         Arc::new(ymax_array) as ArrayRef,
     ];
-    arrays.extend(include_arrays);
 
     let record_batch = RecordBatch::try_new(index_schema, arrays)?;
 

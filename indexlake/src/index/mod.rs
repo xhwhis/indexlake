@@ -43,13 +43,11 @@ pub struct SearchIndexEntries {
     pub row_ids: Int64Array,
     pub scores: Float64Array,
     pub score_higher_is_better: bool,
-    pub include_columns: HashMap<usize, ArrayRef>,
 }
 
 #[derive(Debug, Clone)]
 pub struct FilterIndexEntries {
     pub row_ids: Int64Array,
-    pub include_columns: HashMap<String, ArrayRef>,
 }
 
 pub trait SearchQuery: Debug + Send + Sync {

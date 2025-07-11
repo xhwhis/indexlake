@@ -1,4 +1,3 @@
-use futures::TryStreamExt;
 use indexlake::expr::{col, lit};
 use indexlake::table::TableScan;
 use indexlake::{LakeClient, catalog::Catalog, storage::Storage};

@@ -32,7 +32,6 @@ async fn duplicated_index_name(
         name: "test_index".to_string(),
         kind: HashIndex.kind().to_string(),
         key_columns: vec!["name".to_string()],
-        include_columns: vec!["age".to_string()],
         params: Arc::new(HashIndexParams),
     };
 
@@ -65,7 +64,6 @@ async fn unsupported_index_kind(
         name: "test_index".to_string(),
         kind: "unsupported_index_kind".to_string(),
         key_columns: vec!["name".to_string()],
-        include_columns: vec!["age".to_string()],
         params: Arc::new(HashIndexParams),
     };
 

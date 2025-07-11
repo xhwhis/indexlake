@@ -271,7 +271,6 @@ pub(crate) struct IndexRecord {
     pub(crate) index_kind: String,
     pub(crate) table_id: i64,
     pub(crate) key_field_ids: Vec<i64>,
-    pub(crate) include_field_ids: Vec<i64>,
     pub(crate) params: String,
 }
 
@@ -283,20 +282,13 @@ impl IndexRecord {
             .map(|id| id.to_string())
             .collect::<Vec<_>>()
             .join(",");
-        let include_field_ids_str = self
-            .include_field_ids
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>()
-            .join(",");
         format!(
-            "({}, '{}', '{}', {}, '{}', '{}', '{}')",
+            "({}, '{}', '{}', {}, '{}', '{}')",
             self.index_id,
             self.index_name,
             self.index_kind,
             self.table_id,
             key_field_ids_str,
-            include_field_ids_str,
             self.params
         )
     }
@@ -308,7 +300,6 @@ impl IndexRecord {
             Column::new("index_kind", CatalogDataType::Utf8, false),
             Column::new("table_id", CatalogDataType::Int64, false),
             Column::new("key_field_ids", CatalogDataType::Utf8, false),
-            Column::new("include_field_ids", CatalogDataType::Utf8, false),
             Column::new("params", CatalogDataType::Utf8, false),
         ])
     }
@@ -323,11 +314,6 @@ impl IndexRecord {
             .split(",")
             .map(|id| id.parse::<i64>().unwrap())
             .collect::<Vec<_>>();
-        let include_field_ids_str = row.utf8(5)?.expect("include_field_ids is not null");
-        let include_field_ids = include_field_ids_str
-            .split(",")
-            .map(|id| id.parse::<i64>().unwrap())
-            .collect::<Vec<_>>();
         let params = row.utf8(6)?.expect("params is not null");
         Ok(IndexRecord {
             index_id,
@@ -335,7 +321,6 @@ impl IndexRecord {
             index_kind: kind.clone(),
             table_id,
             key_field_ids,
-            include_field_ids,
             params: params.clone(),
         })
     }

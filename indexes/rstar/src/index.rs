@@ -107,7 +107,6 @@ impl Index for RStarIndex {
         };
 
         let mut selected_row_id_arrays = Vec::new();
-        let mut selected_include_array_map: HashMap<String, Vec<ArrayRef>> = HashMap::new();
 
         while let Some(batch) = batch_stream.next().await {
             let batch = batch?;
@@ -116,7 +115,6 @@ impl Index for RStarIndex {
             let ymin_array = batch.column(2).as_primitive::<Float64Type>().clone();
             let xmax_array = batch.column(3).as_primitive::<Float64Type>().clone();
             let ymax_array = batch.column(4).as_primitive::<Float64Type>().clone();
-            let include_array_map = index_def.include_array_map(&batch)?;
 
             let mut rtree_objects = Vec::with_capacity(batch.num_rows());
             for offset in 0..batch.num_rows() {
@@ -139,14 +137,6 @@ impl Index for RStarIndex {
 
             let selected_row_id_array = arrow::compute::take(&row_id_array, &index_array, None)?;
             selected_row_id_arrays.push(selected_row_id_array);
-
-            for (col_name, array) in include_array_map.iter() {
-                let selected_array = arrow::compute::take(array, &index_array, None)?;
-                selected_include_array_map
-                    .entry(col_name.clone())
-                    .or_default()
-                    .push(selected_array);
-            }
         }
 
         let row_id_array = arrow::compute::concat(
@@ -157,20 +147,8 @@ impl Index for RStarIndex {
         )?;
         let row_id_array = row_id_array.as_primitive::<Int64Type>().clone();
 
-        let mut include_array_map = HashMap::new();
-        for (col_name, arrays) in selected_include_array_map.iter() {
-            let concat_array = arrow::compute::concat(
-                &arrays
-                    .iter()
-                    .map(|array| array.as_ref())
-                    .collect::<Vec<_>>(),
-            )?;
-            include_array_map.insert(col_name.clone(), concat_array);
-        }
-
         Ok(FilterIndexEntries {
             row_ids: row_id_array,
-            include_columns: include_array_map,
         })
     }
 }

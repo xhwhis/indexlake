@@ -24,7 +24,7 @@ use indexlake_integration_tests::data::create_namespace_if_not_exists;
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
-// #[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn create_rstar_index(
     #[future(awt)]
@@ -62,7 +62,6 @@ async fn create_rstar_index(
         name: "rstar_index".to_string(),
         kind: RStarIndex.kind().to_string(),
         key_columns: vec!["geom".to_string()],
-        include_columns: vec![],
         params: Arc::new(RStarIndexParams {
             wkb_dialect: WkbDialect::Wkb,
         }),

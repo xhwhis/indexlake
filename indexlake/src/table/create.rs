@@ -73,7 +73,6 @@ pub struct IndexCreation {
     pub name: String,
     pub kind: String,
     pub key_columns: Vec<String>,
-    pub include_columns: Vec<String>,
     pub params: Arc<dyn IndexParams>,
 }
 
@@ -92,7 +91,6 @@ pub(crate) async fn process_create_index(
         table_name: table.table_name.clone(),
         table_schema: table.schema.clone(),
         key_columns: creation.key_columns.clone(),
-        include_columns: creation.include_columns.clone(),
         params: creation.params.clone(),
     };
 
@@ -113,7 +111,6 @@ pub(crate) async fn process_create_index(
     }
 
     let key_field_ids = field_names_to_ids(&table.field_map, &creation.key_columns)?;
-    let include_field_ids = field_names_to_ids(&table.field_map, &creation.include_columns)?;
 
     tx_helper
         .insert_index(&IndexRecord {
@@ -122,7 +119,6 @@ pub(crate) async fn process_create_index(
             index_kind: creation.kind.clone(),
             table_id: table.table_id,
             key_field_ids,
-            include_field_ids,
             params: creation.params.encode()?,
         })
         .await?;
