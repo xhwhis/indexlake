@@ -1,5 +1,5 @@
 [package]
-name = "indexlake-index-hash"
+name = "indexlake-index-btree"
 version.workspace = true
 edition.workspace = true
 homepage.workspace = true
@@ -11,3 +11,6 @@ indexlake = { workspace = true }
 
 arrow = { workspace = true }
 async-trait = { workspace = true}
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

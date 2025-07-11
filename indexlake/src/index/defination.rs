@@ -1,12 +1,9 @@
 use crate::{
     ILError, ILResult,
     catalog::IndexRecord,
-    index::{Index, IndexParams},
+    index::{IndexKind, IndexParams},
 };
-use arrow::{
-    array::{ArrayRef, RecordBatch},
-    datatypes::{Field, FieldRef, SchemaRef},
-};
+use arrow::datatypes::{Field, FieldRef, SchemaRef};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
@@ -50,7 +47,7 @@ impl IndexDefination {
         field_map: &BTreeMap<i64, FieldRef>,
         table_name: &str,
         table_schema: &SchemaRef,
-        index_kinds: &HashMap<String, Arc<dyn Index>>,
+        index_kinds: &HashMap<String, Arc<dyn IndexKind>>,
     ) -> ILResult<Self> {
         let mut key_columns = Vec::new();
         for key_field_id in index_record.key_field_ids.iter() {

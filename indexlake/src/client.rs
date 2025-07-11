@@ -3,8 +3,8 @@ use arrow::datatypes::Schema;
 use crate::catalog::CatalogHelper;
 use crate::catalog::INTERNAL_ROW_ID_FIELD_REF;
 use crate::catalog::TransactionHelper;
-use crate::index::Index;
 use crate::index::IndexDefination;
+use crate::index::IndexKind;
 use crate::table::{Table, TableCreation, process_create_table};
 use crate::{ILError, ILResult, catalog::Catalog, storage::Storage};
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ use std::sync::Arc;
 pub struct LakeClient {
     pub catalog: Arc<dyn Catalog>,
     pub storage: Arc<Storage>,
-    pub index_kinds: HashMap<String, Arc<dyn Index>>,
+    pub index_kinds: HashMap<String, Arc<dyn IndexKind>>,
 }
 
 impl LakeClient {
@@ -30,8 +30,9 @@ impl LakeClient {
         TransactionHelper::new(&self.catalog).await
     }
 
-    pub fn register_index(&mut self, index: Arc<dyn Index>) -> ILResult<()> {
-        self.index_kinds.insert(index.kind().to_string(), index);
+    pub fn register_index_kind(&mut self, index_kind: Arc<dyn IndexKind>) -> ILResult<()> {
+        self.index_kinds
+            .insert(index_kind.kind().to_string(), index_kind);
         Ok(())
     }
 

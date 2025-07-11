@@ -1,35 +1,49 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use arrow::{
-    array::{ArrayRef, AsArray, Float64Array, Int64Array, RecordBatch},
-    datatypes::{DataType, Field, Schema, SchemaRef},
+    array::{Array, ArrayRef, AsArray, Float64Array, Int64Array, RecordBatch},
+    datatypes::{DataType, Field, Float64Type, Int64Type, Schema, SchemaRef},
 };
+use futures::StreamExt;
 use geo::BoundingRect;
 use geozero::wkb::FromWkb;
 use indexlake::{
     ILError, ILResult,
-    index::{IndexBuilder, IndexDefinationRef},
-    storage::OutputFile,
+    index::{Index, IndexBuilder, IndexDefinationRef},
+    storage::{InputFile, OutputFile},
     utils::extract_row_id_array_from_record_batch,
 };
-use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
-use rstar::AABB;
+use parquet::{
+    arrow::{AsyncArrowWriter, ParquetRecordBatchStreamBuilder},
+    file::properties::WriterProperties,
+};
+use rstar::{AABB, RTree};
 
-use crate::{RStarIndexParams, WkbDialect};
+use crate::{IndexTreeObject, RStarIndex, RStarIndexParams, WkbDialect};
 
-#[derive(Debug, Clone)]
+pub static RSTAR_INDEX_SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| {
+    Arc::new(Schema::new(vec![
+        Field::new("row_id", DataType::Int64, false),
+        Field::new("xmin", DataType::Float64, true),
+        Field::new("ymin", DataType::Float64, true),
+        Field::new("xmax", DataType::Float64, true),
+        Field::new("ymax", DataType::Float64, true),
+    ]))
+});
+
+#[derive(Debug)]
 pub struct RStarIndexBuilder {
     index_def: IndexDefinationRef,
-    index_schema: SchemaRef,
+    params: RStarIndexParams,
     index_batches: Vec<RecordBatch>,
 }
 
 impl RStarIndexBuilder {
     pub fn try_new(index_def: IndexDefinationRef) -> ILResult<Self> {
-        let index_schema = index_schema();
+        let params = index_def.downcast_params::<RStarIndexParams>()?.clone();
         Ok(Self {
             index_def,
-            index_schema,
+            params,
             index_batches: Vec::new(),
         })
     }
@@ -47,20 +61,34 @@ impl IndexBuilder for RStarIndexBuilder {
         let key_column = batch.column(key_column_index);
         let aabbs = compute_aabbs(key_column, params.wkb_dialect)?;
 
-        let index_batch = build_index_record_batch(self.index_schema.clone(), row_id_array, aabbs)?;
+        let index_batch =
+            build_index_record_batch(RSTAR_INDEX_SCHEMA.clone(), row_id_array, aabbs)?;
 
         self.index_batches.push(index_batch);
 
         Ok(())
     }
 
-    async fn write(&mut self, output_file: OutputFile) -> ILResult<()> {
+    async fn read_file(&mut self, input_file: InputFile) -> ILResult<()> {
+        let arrow_reader_builder = ParquetRecordBatchStreamBuilder::new(input_file).await?;
+        let mut batch_stream = arrow_reader_builder.build()?;
+
+        while let Some(batch) = batch_stream.next().await {
+            let batch = batch?;
+
+            self.index_batches.push(batch);
+        }
+
+        Ok(())
+    }
+
+    async fn write_file(&mut self, output_file: OutputFile) -> ILResult<()> {
         let writer_properties = WriterProperties::builder()
             .set_max_row_group_size(4096)
             .build();
         let mut arrow_writer = AsyncArrowWriter::try_new(
             output_file,
-            self.index_schema.clone(),
+            RSTAR_INDEX_SCHEMA.clone(),
             Some(writer_properties),
         )?;
 
@@ -72,59 +100,43 @@ impl IndexBuilder for RStarIndexBuilder {
 
         Ok(())
     }
-}
 
-fn index_schema() -> SchemaRef {
-    let fields = vec![
-        Field::new("row_id", DataType::Int64, false),
-        Field::new("xmin", DataType::Float64, true),
-        Field::new("ymin", DataType::Float64, true),
-        Field::new("xmax", DataType::Float64, true),
-        Field::new("ymax", DataType::Float64, true),
-    ];
-    Arc::new(Schema::new(fields))
-}
+    fn serialize(&self) -> ILResult<Vec<u8>> {
+        todo!()
+    }
 
-fn build_index_record_batch(
-    index_schema: SchemaRef,
-    row_id_array: Int64Array,
-    aabbs: Vec<Option<AABB<geo::Coord<f64>>>>,
-) -> ILResult<RecordBatch> {
-    let xmin_array = Float64Array::from(
-        aabbs
+    fn build(&mut self) -> ILResult<Box<dyn Index>> {
+        let num_rows = self
+            .index_batches
             .iter()
-            .map(|aabb| aabb.map(|aabb| aabb.lower().x))
-            .collect::<Vec<_>>(),
-    );
-    let ymin_array = Float64Array::from(
-        aabbs
-            .iter()
-            .map(|aabb| aabb.map(|aabb| aabb.lower().y))
-            .collect::<Vec<_>>(),
-    );
-    let xmax_array = Float64Array::from(
-        aabbs
-            .iter()
-            .map(|aabb| aabb.map(|aabb| aabb.upper().x))
-            .collect::<Vec<_>>(),
-    );
-    let ymax_array = Float64Array::from(
-        aabbs
-            .iter()
-            .map(|aabb| aabb.map(|aabb| aabb.upper().y))
-            .collect::<Vec<_>>(),
-    );
-    let arrays = vec![
-        Arc::new(row_id_array) as ArrayRef,
-        Arc::new(xmin_array) as ArrayRef,
-        Arc::new(ymin_array) as ArrayRef,
-        Arc::new(xmax_array) as ArrayRef,
-        Arc::new(ymax_array) as ArrayRef,
-    ];
+            .map(|batch| batch.num_rows())
+            .sum();
+        let mut rtree_objects = Vec::with_capacity(num_rows);
+        for batch in self.index_batches.iter() {
+            let row_id_array = batch.column(0).as_primitive::<Int64Type>().clone();
+            let xmin_array = batch.column(1).as_primitive::<Float64Type>().clone();
+            let ymin_array = batch.column(2).as_primitive::<Float64Type>().clone();
+            let xmax_array = batch.column(3).as_primitive::<Float64Type>().clone();
+            let ymax_array = batch.column(4).as_primitive::<Float64Type>().clone();
 
-    let record_batch = RecordBatch::try_new(index_schema, arrays)?;
-
-    Ok(record_batch)
+            for i in 0..batch.num_rows() {
+                if !xmin_array.is_null(i) {
+                    let row_id = row_id_array.value(i);
+                    let aabb = AABB::from_corners(
+                        [xmin_array.value(i), ymin_array.value(i)],
+                        [xmax_array.value(i), ymax_array.value(i)],
+                    );
+                    let object = IndexTreeObject { aabb, row_id };
+                    rtree_objects.push(object);
+                }
+            }
+        }
+        let rtree = RTree::bulk_load(rtree_objects);
+        Ok(Box::new(RStarIndex {
+            rtree,
+            params: self.params.clone(),
+        }))
+    }
 }
 
 fn compute_aabbs(
@@ -196,4 +208,46 @@ pub(crate) fn compute_aabb(wkb: &[u8], wkb_dialect: WkbDialect) -> ILResult<AABB
             "Failed to compute AABB of geometry"
         )))
     }
+}
+
+fn build_index_record_batch(
+    index_schema: SchemaRef,
+    row_id_array: Int64Array,
+    aabbs: Vec<Option<AABB<geo::Coord<f64>>>>,
+) -> ILResult<RecordBatch> {
+    let xmin_array = Float64Array::from(
+        aabbs
+            .iter()
+            .map(|aabb| aabb.map(|aabb| aabb.lower().x))
+            .collect::<Vec<_>>(),
+    );
+    let ymin_array = Float64Array::from(
+        aabbs
+            .iter()
+            .map(|aabb| aabb.map(|aabb| aabb.lower().y))
+            .collect::<Vec<_>>(),
+    );
+    let xmax_array = Float64Array::from(
+        aabbs
+            .iter()
+            .map(|aabb| aabb.map(|aabb| aabb.upper().x))
+            .collect::<Vec<_>>(),
+    );
+    let ymax_array = Float64Array::from(
+        aabbs
+            .iter()
+            .map(|aabb| aabb.map(|aabb| aabb.upper().y))
+            .collect::<Vec<_>>(),
+    );
+    let arrays = vec![
+        Arc::new(row_id_array) as ArrayRef,
+        Arc::new(xmin_array) as ArrayRef,
+        Arc::new(ymin_array) as ArrayRef,
+        Arc::new(xmax_array) as ArrayRef,
+        Arc::new(ymax_array) as ArrayRef,
+    ];
+
+    let record_batch = RecordBatch::try_new(index_schema, arrays)?;
+
+    Ok(record_batch)
 }

@@ -2260,12 +2260,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "indexlake-index-hash"
+name = "indexlake-index-btree"
 version = "0.1.0"
 dependencies = [
  "arrow",
  "async-trait",
+ "futures",
  "indexlake",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2304,7 +2307,7 @@ dependencies = [
  "indexlake",
  "indexlake-catalog-postgres",
  "indexlake-catalog-sqlite",
- "indexlake-index-hash",
+ "indexlake-index-btree",
  "indexlake-index-rstar",
  "opendal",
  "rstest",

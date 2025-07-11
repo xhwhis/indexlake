@@ -15,7 +15,7 @@ pub(crate) use update::*;
 use crate::RecordBatchStream;
 use crate::catalog::{CatalogHelper, CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME, Scalar};
 use crate::expr::{Expr, visited_columns};
-use crate::index::{Index, IndexDefination, IndexDefinationRef, SearchQuery};
+use crate::index::{IndexDefination, IndexDefinationRef, IndexKind, SearchQuery};
 use crate::utils::{has_duplicated_items, schema_with_row_id};
 use crate::{
     ILError, ILResult,
@@ -40,7 +40,7 @@ pub struct Table {
     pub config: Arc<TableConfig>,
     pub catalog: Arc<dyn Catalog>,
     pub storage: Arc<Storage>,
-    pub index_kinds: HashMap<String, Arc<dyn Index>>,
+    pub index_kinds: HashMap<String, Arc<dyn IndexKind>>,
 }
 
 impl Table {

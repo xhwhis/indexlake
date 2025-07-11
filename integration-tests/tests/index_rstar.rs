@@ -5,7 +5,7 @@ use arrow::{
 use indexlake::{
     LakeClient,
     catalog::Catalog,
-    index::Index,
+    index::IndexKind,
     storage::Storage,
     table::{TableConfig, TableCreation},
 };
@@ -19,7 +19,7 @@ use arrow::array::{Int32Array, RecordBatch};
 use geo::{Geometry, Point};
 use geozero::{CoordDimensions, ToWkb};
 use indexlake::table::IndexCreation;
-use indexlake_index_rstar::{RStarIndex, RStarIndexParams, WkbDialect};
+use indexlake_index_rstar::{RStarIndexKind, RStarIndexParams, WkbDialect};
 use indexlake_integration_tests::data::create_namespace_if_not_exists;
 
 #[rstest::rstest]
@@ -35,7 +35,7 @@ async fn create_rstar_index(
     init_env_logger();
 
     let mut client = LakeClient::new(catalog, storage);
-    client.register_index(Arc::new(RStarIndex))?;
+    client.register_index_kind(Arc::new(RStarIndexKind))?;
 
     let namespace_name = "test_namespace";
     create_namespace_if_not_exists(&client, namespace_name).await?;
@@ -60,7 +60,7 @@ async fn create_rstar_index(
 
     let index_creation = IndexCreation {
         name: "rstar_index".to_string(),
-        kind: RStarIndex.kind().to_string(),
+        kind: RStarIndexKind.kind().to_string(),
         key_columns: vec!["geom".to_string()],
         params: Arc::new(RStarIndexParams {
             wkb_dialect: WkbDialect::Wkb,

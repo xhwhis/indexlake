@@ -11,7 +11,7 @@ use crate::{
         Catalog, CatalogSchema, DataFileRecord, IndexFileRecord, RowStream, RowsValidity,
         TransactionHelper, rows_to_record_batch,
     },
-    index::{Index, IndexBuilder, IndexDefinationRef},
+    index::{IndexBuilder, IndexDefinationRef, IndexKind},
     storage::Storage,
     table::{Table, TableConfig},
 };
@@ -60,7 +60,7 @@ pub(crate) struct DumpTask {
     table_id: i64,
     table_schema: SchemaRef,
     table_indexes: HashMap<String, IndexDefinationRef>,
-    index_kinds: HashMap<String, Arc<dyn Index>>,
+    index_kinds: HashMap<String, Arc<dyn IndexKind>>,
     table_config: Arc<TableConfig>,
     catalog: Arc<dyn Catalog>,
     storage: Arc<Storage>,
@@ -134,7 +134,7 @@ impl DumpTask {
                 index_file_id,
             );
             let output_file = self.storage.create_file(&relative_path).await?;
-            index_builder.write(output_file).await?;
+            index_builder.write_file(output_file).await?;
             index_file_records.push(IndexFileRecord {
                 index_file_id,
                 table_id: self.table_id,

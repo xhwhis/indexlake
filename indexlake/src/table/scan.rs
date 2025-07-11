@@ -12,7 +12,7 @@ use crate::{
         CatalogHelper, CatalogSchema, DataFileRecord, IndexFileRecord, rows_to_record_batch,
     },
     expr::{Expr, merge_filters, split_conjunction_filters},
-    index::{Index, IndexDefinationRef},
+    index::{IndexDefinationRef, IndexKind},
     storage::{Storage, read_parquet_file_by_record},
     table::Table,
     utils::project_schema,
@@ -248,25 +248,34 @@ async fn filter_index_files_row_ids(
             .indexes
             .get(index_name)
             .ok_or_else(|| ILError::InternalError(format!("Index {index_name} not found")))?;
-        let index_kind = &index_def.kind;
-        let index = table
+        let kind = &index_def.kind;
+        let index_kind = table
             .index_kinds
-            .get(index_kind)
-            .ok_or_else(|| ILError::InternalError(format!("Index kind {index_kind} not found")))?;
+            .get(kind)
+            .ok_or_else(|| ILError::InternalError(format!("Index kind {kind} not found")))?;
+
         let index_file_record = index_file_records.get(&index_def.index_id).ok_or_else(|| {
             ILError::InternalError(format!(
                 "Index file record not found for index {index_name}"
             ))
         })?;
+
         let filters = filter_indices
             .iter()
             .map(|idx| filters[*idx].clone())
             .collect::<Vec<_>>();
+
         let input_file = table
             .storage
             .open_file(&index_file_record.relative_path)
             .await?;
-        let filter_index_entries = index.filter(index_def, input_file, &filters).await?;
+
+        let mut index_builder = index_kind.builder(index_def)?;
+        index_builder.read_file(input_file).await?;
+
+        let index = index_builder.build()?;
+
+        let filter_index_entries = index.filter(&filters).await?;
         filter_index_entries_list.push(filter_index_entries);
     }
 
@@ -291,17 +300,17 @@ async fn filter_index_files_row_ids(
 
 fn assign_index_filters(
     indexes: &HashMap<String, IndexDefinationRef>,
-    index_kinds: &HashMap<String, Arc<dyn Index>>,
+    index_kinds: &HashMap<String, Arc<dyn IndexKind>>,
     filters: &[Expr],
 ) -> ILResult<HashMap<String, Vec<usize>>> {
     let mut index_filter_assignment: HashMap<String, Vec<usize>> = HashMap::new();
     for (filter_idx, filter) in filters.iter().enumerate() {
         for (index_name, index_def) in indexes.iter() {
-            let index_kind = &index_def.kind;
-            let index = index_kinds.get(index_kind).ok_or_else(|| {
-                ILError::InternalError(format!("Index kind {index_kind} not found"))
-            })?;
-            let supported = index.supports_filter(index_def, &filter)?;
+            let kind = &index_def.kind;
+            let index_kind = index_kinds
+                .get(kind)
+                .ok_or_else(|| ILError::InternalError(format!("Index kind {kind} not found")))?;
+            let supported = index_kind.supports_filter(index_def, &filter)?;
             if supported {
                 index_filter_assignment
                     .entry(index_name.clone())

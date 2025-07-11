@@ -3,15 +3,14 @@ mod defination;
 pub use defination::*;
 
 use crate::{
-    ILError, ILResult,
+    ILResult,
     expr::Expr,
     storage::{InputFile, OutputFile},
 };
-use arrow::array::{ArrayRef, Float64Array, Int64Array, RecordBatch};
-use std::{any::Any, collections::HashMap, fmt::Debug, sync::Arc};
+use arrow::array::{Float64Array, Int64Array, RecordBatch};
+use std::{any::Any, fmt::Debug, sync::Arc};
 
-#[async_trait::async_trait]
-pub trait Index: Debug + Send + Sync {
+pub trait IndexKind: Debug + Send + Sync {
     // The kind of the index.
     fn kind(&self) -> &str;
 
@@ -21,21 +20,33 @@ pub trait Index: Debug + Send + Sync {
 
     fn builder(&self, index_def: &IndexDefinationRef) -> ILResult<Box<dyn IndexBuilder>>;
 
-    async fn search(
+    fn supports_search(
         &self,
         index_def: &IndexDefination,
-        index_file: InputFile,
         query: &dyn SearchQuery,
-    ) -> ILResult<SearchIndexEntries>;
+    ) -> ILResult<bool>;
 
     fn supports_filter(&self, index_def: &IndexDefination, filter: &Expr) -> ILResult<bool>;
+}
 
-    async fn filter(
-        &self,
-        index_def: &IndexDefination,
-        index_file: InputFile,
-        filters: &[Expr],
-    ) -> ILResult<FilterIndexEntries>;
+#[async_trait::async_trait]
+pub trait IndexBuilder: Debug + Send + Sync {
+    fn append(&mut self, batch: &RecordBatch) -> ILResult<()>;
+
+    async fn read_file(&mut self, input_file: InputFile) -> ILResult<()>;
+
+    async fn write_file(&mut self, output_file: OutputFile) -> ILResult<()>;
+
+    fn serialize(&self) -> ILResult<Vec<u8>>;
+
+    fn build(&mut self) -> ILResult<Box<dyn Index>>;
+}
+
+#[async_trait::async_trait]
+pub trait Index: Debug + Send + Sync {
+    async fn search(&self, query: &dyn SearchQuery) -> ILResult<SearchIndexEntries>;
+
+    async fn filter(&self, filters: &[Expr]) -> ILResult<FilterIndexEntries>;
 }
 
 #[derive(Debug, Clone)]
@@ -60,11 +71,4 @@ pub trait IndexParams: Debug + Send + Sync {
     fn as_any(&self) -> &dyn Any;
 
     fn encode(&self) -> ILResult<String>;
-}
-
-#[async_trait::async_trait]
-pub trait IndexBuilder: Debug + Send + Sync {
-    fn append(&mut self, batch: &RecordBatch) -> ILResult<()>;
-
-    async fn write(&mut self, output_file: OutputFile) -> ILResult<()>;
 }
