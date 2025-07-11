@@ -2,7 +2,7 @@ use arrow::array::Int64Array;
 use indexlake::{
     ILError, ILResult,
     catalog::Scalar,
-    expr::Expr,
+    expr::{Expr, Function},
     index::{FilterIndexEntries, Index, SearchIndexEntries, SearchQuery},
 };
 use rstar::{AABB, RTree, RTreeObject};
@@ -39,12 +39,26 @@ impl Index for RStarIndex {
 
     async fn filter(&self, filters: &[Expr]) -> ILResult<FilterIndexEntries> {
         let aabb = match &filters[0] {
-            Expr::Literal(Scalar::Binary(Some(wkb))) => {
-                let aabb = compute_aabb(wkb, self.params.wkb_dialect)?;
-                AABB::from_corners(
-                    [aabb.lower().x, aabb.lower().y],
-                    [aabb.upper().x, aabb.upper().y],
-                )
+            Expr::Function(Function {
+                name,
+                args,
+                return_type: _,
+            }) => {
+                if name == "intersects" {
+                    let scalar = args[1].clone().as_literal()?;
+                    let Scalar::Binary(Some(wkb)) = scalar else {
+                        return Err(ILError::InternalError(format!(
+                            "Intersects function must have a literal binary as the second argument"
+                        )));
+                    };
+                    let aabb = compute_aabb(&wkb, self.params.wkb_dialect)?;
+                    AABB::from_corners(
+                        [aabb.lower().x, aabb.lower().y],
+                        [aabb.upper().x, aabb.upper().y],
+                    )
+                } else {
+                    todo!()
+                }
             }
             _ => todo!(),
         };

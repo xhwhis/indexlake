@@ -1,6 +1,8 @@
+use arrow::datatypes::DataType;
+
 use crate::{
     catalog::Scalar,
-    expr::{BinaryExpr, BinaryOp, Expr, like::Like},
+    expr::{BinaryExpr, BinaryOp, Expr, Function, like::Like},
 };
 
 impl Expr {
@@ -79,4 +81,12 @@ pub fn col(name: &str) -> Expr {
 
 pub fn lit(value: impl Into<Scalar>) -> Expr {
     Expr::Literal(value.into())
+}
+
+pub fn func(name: impl Into<String>, args: Vec<Expr>, return_type: DataType) -> Expr {
+    Expr::Function(Function {
+        name: name.into(),
+        args,
+        return_type,
+    })
 }

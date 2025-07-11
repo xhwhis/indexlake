@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use geozero::wkb::WkbDialect as GeozeroWkbDialect;
 use indexlake::{
     ILError, ILResult,
-    expr::Expr,
+    catalog::Scalar,
+    expr::{Expr, Function},
     index::{
         IndexBuilder, IndexDefination, IndexDefinationRef, IndexKind, IndexParams, SearchQuery,
     },
@@ -59,18 +60,58 @@ impl IndexKind for RStarIndexKind {
         Ok(false)
     }
 
-    fn supports_filter(&self, _index_def: &IndexDefination, filter: &Expr) -> ILResult<bool> {
+    fn supports_filter(&self, index_def: &IndexDefination, filter: &Expr) -> ILResult<bool> {
         match filter {
-            Expr::Function(function) => {
-                if function.name == "intersects" {
-                    Ok(true)
-                } else {
-                    Ok(false)
-                }
-            }
+            Expr::Function(Function {
+                name,
+                args,
+                return_type,
+            }) => match name.as_str() {
+                "intersects" => check_intersects_function(index_def, args, return_type),
+                _ => Ok(false),
+            },
             _ => Ok(false),
         }
     }
+}
+
+fn check_intersects_function(
+    index_def: &IndexDefination,
+    args: &[Expr],
+    return_type: &DataType,
+) -> ILResult<bool> {
+    if args.len() != 2 {
+        return Err(ILError::IndexError(format!(
+            "Intersects function must have two arguments"
+        )));
+    }
+
+    let arg0 = &args[0];
+    let Expr::Column(col) = arg0 else {
+        return Err(ILError::IndexError(format!(
+            "Intersects function must have a column as the first argument"
+        )));
+    };
+    let key_column_name = &index_def.key_columns[0];
+    let key_field = index_def.table_schema.field_with_name(&key_column_name)?;
+    if key_field.name() != col {
+        return Err(ILError::IndexError(format!(
+            "Intersects function must have a column with the same name as the key column"
+        )));
+    }
+
+    let arg1 = &args[1];
+    let Expr::Literal(scalar) = arg1 else {
+        return Err(ILError::IndexError(format!(
+            "Intersects function must have a literal binary as the second argument"
+        )));
+    };
+    if !matches!(scalar, Scalar::Binary(Some(_))) {
+        return Err(ILError::IndexError(format!(
+            "Intersects function must have a literal binary as the second argument"
+        )));
+    }
+    Ok(true)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -3,7 +3,10 @@ use std::{
     sync::Arc,
 };
 
-use arrow::datatypes::{Schema, SchemaRef};
+use arrow::{
+    array::{Int32Array, Int64Array},
+    datatypes::{Schema, SchemaRef},
+};
 use futures::StreamExt;
 
 use crate::{
@@ -172,6 +175,7 @@ async fn process_index_scan(
     Ok(Box::pin(futures::stream::select_all(streams)))
 }
 
+// TODO save inline data index to catalog
 async fn index_scan_inline_rows(
     catalog_helper: &CatalogHelper,
     table: &Table,
@@ -182,12 +186,99 @@ async fn index_scan_inline_rows(
 ) -> ILResult<RecordBatchStream> {
     let projected_schema = Arc::new(project_schema(&table.schema, projection.as_ref())?);
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
-    // TODO change this to stream
     let row_stream = catalog_helper
         .scan_inline_rows(table.table_id, &catalog_schema, &non_index_filters)
         .await?;
+    let mut inline_stream = row_stream.chunks(1024).map(move |rows| {
+        let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
+        let batch = rows_to_record_batch(&projected_schema, &rows)?;
+        Ok::<_, ILError>(batch)
+    });
 
-    todo!()
+    let mut index_builder_map = HashMap::new();
+    for (index_name, _) in index_filter_assignment.iter() {
+        let index_def = table
+            .indexes
+            .get(index_name)
+            .ok_or_else(|| ILError::InternalError(format!("Index {index_name} not found")))?;
+        let kind = &index_def.kind;
+        let index_kind = table
+            .index_kinds
+            .get(kind)
+            .ok_or_else(|| ILError::InternalError(format!("Index kind {kind} not found")))?;
+
+        let index_builder = index_kind.builder(index_def)?;
+        index_builder_map.insert(index_name, index_builder);
+    }
+
+    let mut inline_batches = Vec::new();
+    while let Some(batch) = inline_stream.next().await {
+        let batch = batch?;
+        for (_, index_builder) in index_builder_map.iter_mut() {
+            index_builder.append(&batch)?;
+        }
+        inline_batches.push(batch);
+    }
+
+    let mut filter_index_entries_list = Vec::new();
+    for (index_name, filter_indices) in index_filter_assignment.iter() {
+        let index_builder = index_builder_map.get_mut(index_name).ok_or_else(|| {
+            ILError::InternalError(format!("Index builder not found for index {index_name}"))
+        })?;
+
+        let index = index_builder.build()?;
+
+        let filters = filter_indices
+            .iter()
+            .map(|idx| filters[*idx].clone())
+            .collect::<Vec<_>>();
+
+        let filter_index_entries = index.filter(&filters).await?;
+        filter_index_entries_list.push(filter_index_entries);
+    }
+
+    let mut intersected_row_ids = filter_index_entries_list[0]
+        .row_ids
+        .values()
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    for filter_index_entries in filter_index_entries_list.iter().skip(1) {
+        let set = filter_index_entries
+            .row_ids
+            .values()
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>();
+        intersected_row_ids = intersected_row_ids.intersection(&set).cloned().collect();
+    }
+
+    let mut selected_batches = Vec::new();
+    for batch in inline_batches {
+        let mut indicies = Vec::new();
+        for i in 0..batch.num_rows() {
+            let row_id_array = batch
+                .column(0)
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .ok_or_else(|| {
+                    ILError::InternalError(format!(
+                        "Row id array can not be downcasted to Int64Array"
+                    ))
+                })?;
+            let row_id = row_id_array.value(i);
+            if intersected_row_ids.contains(&row_id) {
+                indicies.push(i as i32);
+            }
+        }
+        let selected_batch =
+            arrow::compute::take_record_batch(&batch, &Int32Array::from(indicies))?;
+        selected_batches.push(selected_batch);
+    }
+
+    Ok(Box::pin(futures::stream::iter(
+        selected_batches.into_iter().map(Ok),
+    )))
 }
 
 async fn index_scan_data_file(

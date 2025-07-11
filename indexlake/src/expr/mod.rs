@@ -143,6 +143,13 @@ impl Expr {
         Ok(bool_array.clone())
     }
 
+    pub fn as_literal(self) -> ILResult<Scalar> {
+        match self {
+            Expr::Literal(scalar) => Ok(scalar),
+            _ => Err(ILError::InternalError(format!("Expr is not a literal"))),
+        }
+    }
+
     pub fn data_type(&self, schema: &Schema) -> ILResult<DataType> {
         match self {
             Expr::Column(name) => {

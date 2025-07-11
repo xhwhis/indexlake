@@ -7,7 +7,7 @@ use indexlake::{
     catalog::Catalog,
     index::IndexKind,
     storage::Storage,
-    table::{TableConfig, TableCreation},
+    table::{TableConfig, TableCreation, TableScan},
 };
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, data::prepare_testing_table, init_env_logger, storage_fs,
@@ -18,9 +18,11 @@ use std::sync::Arc;
 use arrow::array::{Int32Array, RecordBatch};
 use geo::{Geometry, Point};
 use geozero::{CoordDimensions, ToWkb};
+use indexlake::expr::{Expr, col, func, lit};
 use indexlake::table::IndexCreation;
 use indexlake_index_rstar::{RStarIndexKind, RStarIndexParams, WkbDialect};
 use indexlake_integration_tests::data::create_namespace_if_not_exists;
+use indexlake_integration_tests::utils::table_scan;
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
@@ -90,6 +92,26 @@ async fn create_rstar_index(
     )?;
     table.insert(&record_batch).await?;
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+    let scan = TableScan::default().with_filters(vec![func(
+        "intersects",
+        vec![
+            col("geom"),
+            lit(Geometry::from(Point::new(11.0, 11.0)).to_wkb(CoordDimensions::xy())?),
+        ],
+        DataType::Boolean,
+    )]);
+
+    let table_str = table_scan(&table, scan).await?;
+    println!("{}", table_str);
+    assert_eq!(
+        table_str,
+        r#"+-------------------+----+--------------------------------------------+
+| _indexlake_row_id | id | geom                                       |
++-------------------+----+--------------------------------------------+
+| 2                 | 2  | 010100000000000000000026400000000000002640 |
++-------------------+----+--------------------------------------------+"#,
+    );
 
     Ok(())
 }
