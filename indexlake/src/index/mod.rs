@@ -64,6 +64,8 @@ pub struct FilterIndexEntries {
 pub trait SearchQuery: Debug + Send + Sync {
     fn as_any(&self) -> &dyn Any;
 
+    fn index_kind(&self) -> &str;
+
     fn limit(&self) -> Option<usize>;
 }
 

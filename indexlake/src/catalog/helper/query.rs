@@ -440,4 +440,25 @@ impl CatalogHelper {
         }
         Ok(index_files)
     }
+
+    pub(crate) async fn get_index_file_by_index_id_and_data_file_id(
+        &self,
+        index_id: i64,
+        data_file_id: i64,
+    ) -> ILResult<Option<IndexFileRecord>> {
+        let schema = Arc::new(IndexFileRecord::catalog_schema());
+        let rows = self.query_rows(
+            &format!(
+                "SELECT {} FROM indexlake_index_file WHERE index_id = {index_id} AND data_file_id = {data_file_id}",
+                schema.select_items(self.catalog.database()).join(", ")
+            ),
+            schema,
+        )
+        .await?;
+        if rows.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(IndexFileRecord::from_row(&rows[0])?))
+        }
+    }
 }

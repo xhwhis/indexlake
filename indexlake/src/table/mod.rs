@@ -3,6 +3,7 @@ mod delete;
 mod dump;
 mod insert;
 mod scan;
+mod search;
 mod update;
 
 pub use create::*;
@@ -10,6 +11,7 @@ pub(crate) use delete::*;
 pub(crate) use dump::*;
 pub(crate) use insert::*;
 pub use scan::*;
+pub(crate) use search::*;
 pub(crate) use update::*;
 
 use crate::RecordBatchStream;
@@ -74,7 +76,7 @@ impl Table {
 
     pub async fn scan(&self, scan: TableScan) -> ILResult<RecordBatchStream> {
         let catalog_helper = CatalogHelper::new(self.catalog.clone());
-        let record_batch_stream = process_scan(
+        let batch_stream = process_scan(
             &catalog_helper,
             self.table_id,
             &self.schema,
@@ -83,7 +85,7 @@ impl Table {
             self,
         )
         .await?;
-        Ok(record_batch_stream)
+        Ok(batch_stream)
     }
 
     pub async fn search(&self, query: Arc<dyn SearchQuery>) -> ILResult<RecordBatchStream> {

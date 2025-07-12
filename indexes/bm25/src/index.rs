@@ -21,6 +21,10 @@ impl SearchQuery for BM25SearchQuery {
         self
     }
 
+    fn index_kind(&self) -> &str {
+        "bm25"
+    }
+
     fn limit(&self) -> Option<usize> {
         self.limit
     }
