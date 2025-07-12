@@ -43,7 +43,9 @@ pub(crate) fn record_batch_with_row_id(
 }
 
 pub fn extract_row_id_array_from_record_batch(record_batch: &RecordBatch) -> ILResult<Int64Array> {
-    let index = record_batch.schema().index_of(INTERNAL_ROW_ID_FIELD_NAME)?;
+    let index = record_batch
+        .schema_ref()
+        .index_of(INTERNAL_ROW_ID_FIELD_NAME)?;
     let row_id_array = record_batch
         .column(index)
         .as_any()

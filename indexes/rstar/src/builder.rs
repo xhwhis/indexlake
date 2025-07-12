@@ -57,12 +57,11 @@ impl IndexBuilder for RStarIndexBuilder {
         let row_id_array = extract_row_id_array_from_record_batch(&batch)?;
 
         let key_column_name = &self.index_def.key_columns[0];
-        let key_column_index = self.index_def.table_schema.index_of(&key_column_name)?;
+        let key_column_index = batch.schema_ref().index_of(&key_column_name)?;
         let key_column = batch.column(key_column_index);
         let aabbs = compute_aabbs(key_column, params.wkb_dialect)?;
 
-        let index_batch =
-            build_index_record_batch(RSTAR_INDEX_SCHEMA.clone(), row_id_array, aabbs)?;
+        let index_batch = build_index_record_batch(row_id_array, aabbs)?;
 
         self.index_batches.push(index_batch);
 
@@ -211,7 +210,6 @@ pub(crate) fn compute_aabb(wkb: &[u8], wkb_dialect: WkbDialect) -> ILResult<AABB
 }
 
 fn build_index_record_batch(
-    index_schema: SchemaRef,
     row_id_array: Int64Array,
     aabbs: Vec<Option<AABB<geo::Coord<f64>>>>,
 ) -> ILResult<RecordBatch> {
@@ -247,7 +245,7 @@ fn build_index_record_batch(
         Arc::new(ymax_array) as ArrayRef,
     ];
 
-    let record_batch = RecordBatch::try_new(index_schema, arrays)?;
+    let record_batch = RecordBatch::try_new(RSTAR_INDEX_SCHEMA.clone(), arrays)?;
 
     Ok(record_batch)
 }

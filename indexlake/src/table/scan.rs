@@ -96,7 +96,6 @@ async fn process_table_scan(
     // Scan inline rows
     let projected_schema = Arc::new(project_schema(table_schema, projection.as_ref())?);
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
-    // TODO change this to stream
     let row_stream = catalog_helper
         .scan_inline_rows(table_id, &catalog_schema, &filters)
         .await?;
