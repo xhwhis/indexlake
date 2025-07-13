@@ -6,7 +6,7 @@ use futures::TryStreamExt;
 use indexlake::{
     ILError, ILResult,
     catalog::INTERNAL_ROW_ID_FIELD_NAME,
-    table::{Table, TableScan},
+    table::{Table, TableScan, TableSearch},
 };
 
 pub fn sort_record_batches(batches: &[RecordBatch], sort_col: &str) -> ILResult<RecordBatch> {
@@ -43,5 +43,12 @@ pub async fn table_scan(table: &Table, scan: TableScan) -> ILResult<String> {
     let batches = stream.try_collect::<Vec<_>>().await?;
     let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME)?;
     let table_str = pretty_format_batches(&[sorted_batch])?.to_string();
+    Ok(table_str)
+}
+
+pub async fn table_search(table: &Table, search: TableSearch) -> ILResult<String> {
+    let stream = table.search(search).await?;
+    let batches = stream.try_collect::<Vec<_>>().await?;
+    let table_str = pretty_format_batches(&batches)?.to_string();
     Ok(table_str)
 }

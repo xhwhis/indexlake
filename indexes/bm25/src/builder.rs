@@ -1,11 +1,10 @@
-use std::{
-    ops::DerefMut,
-    sync::{Arc, LazyLock},
-};
+use std::sync::{Arc, LazyLock};
 
 use arrow::{
-    array::{ArrayRef, AsArray, Int64Array, ListArray, PrimitiveArray},
-    datatypes::{DataType, Field, Float32Type, Schema, SchemaRef, UInt32Type},
+    array::{
+        ArrayRef, AsArray, Int64Array, ListArray, ListBuilder, PrimitiveArray, PrimitiveBuilder,
+    },
+    datatypes::{DataType, Field, FieldRef, Float32Type, Schema, SchemaRef, UInt32Type},
     record_batch::RecordBatch,
 };
 use bm25::{Embedder, EmbedderBuilder, Embedding, Scorer, TokenEmbedding};
@@ -29,24 +28,22 @@ static BM25_INDEX_SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| {
         Field::new("row_id", DataType::Int64, false),
         Field::new(
             "embedding_indices",
-            DataType::List(Arc::new(Field::new(
-                "embedding_index",
-                DataType::UInt32,
-                false,
-            ))),
+            DataType::List(BM25_INDEX_SCHEMA_EMBEDDING_INDICES_INNER_FIELD.clone()),
             true,
         ),
         Field::new(
             "embedding_values",
-            DataType::List(Arc::new(Field::new(
-                "embedding_value",
-                DataType::Float32,
-                false,
-            ))),
+            DataType::List(BM25_INDEX_SCHEMA_EMBEDDING_VALUES_INNER_FIELD.clone()),
             true,
         ),
     ]))
 });
+
+static BM25_INDEX_SCHEMA_EMBEDDING_INDICES_INNER_FIELD: LazyLock<FieldRef> =
+    LazyLock::new(|| Arc::new(Field::new("item", DataType::UInt32, false)));
+
+static BM25_INDEX_SCHEMA_EMBEDDING_VALUES_INNER_FIELD: LazyLock<FieldRef> =
+    LazyLock::new(|| Arc::new(Field::new("item", DataType::Float32, false)));
 
 #[derive(Debug)]
 pub struct Bm25IndexBuilder {
@@ -213,23 +210,25 @@ fn build_index_record_batch(
     row_id_array: Int64Array,
     embeddings: &[Option<Embedding>],
 ) -> ILResult<RecordBatch> {
-    let mut embedding_indices: Vec<Option<Vec<Option<u32>>>> = Vec::with_capacity(embeddings.len());
-    let mut embedding_values: Vec<Option<Vec<Option<f32>>>> = Vec::with_capacity(embeddings.len());
+    let mut indices_builder = ListBuilder::new(PrimitiveBuilder::<UInt32Type>::new())
+        .with_field(BM25_INDEX_SCHEMA_EMBEDDING_INDICES_INNER_FIELD.clone());
+    let mut values_builder = ListBuilder::new(PrimitiveBuilder::<Float32Type>::new())
+        .with_field(BM25_INDEX_SCHEMA_EMBEDDING_VALUES_INNER_FIELD.clone());
     for embedding_opt in embeddings.iter() {
         if let Some(embedding) = embedding_opt {
-            let (indices, values) = embedding
+            let (indices, values): (Vec<Option<u32>>, Vec<Option<f32>>) = embedding
                 .iter()
-                .map(|te| ((Some(te.index), Some(te.value))))
+                .map(|te| (Some(te.index), Some(te.value)))
                 .unzip();
-            embedding_indices.push(Some(indices));
-            embedding_values.push(Some(values));
+            indices_builder.append_value(indices);
+            values_builder.append_value(values);
         } else {
-            embedding_indices.push(None);
-            embedding_values.push(None);
+            indices_builder.append(false);
+            values_builder.append(false);
         }
     }
-    let indices_array = ListArray::from_iter_primitive::<UInt32Type, _, _>(embedding_indices);
-    let values_array = ListArray::from_iter_primitive::<Float32Type, _, _>(embedding_values);
+    let indices_array = indices_builder.finish();
+    let values_array = values_builder.finish();
 
     Ok(RecordBatch::try_new(
         BM25_INDEX_SCHEMA.clone(),

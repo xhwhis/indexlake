@@ -11,7 +11,7 @@ pub(crate) use delete::*;
 pub(crate) use dump::*;
 pub(crate) use insert::*;
 pub use scan::*;
-pub(crate) use search::*;
+pub use search::*;
 pub(crate) use update::*;
 
 use crate::RecordBatchStream;
@@ -88,8 +88,9 @@ impl Table {
         Ok(batch_stream)
     }
 
-    pub async fn search(&self, query: Arc<dyn SearchQuery>) -> ILResult<RecordBatchStream> {
-        todo!()
+    pub async fn search(&self, search: TableSearch) -> ILResult<RecordBatchStream> {
+        let batch_stream = process_search(self, search).await?;
+        Ok(batch_stream)
     }
 
     pub async fn update(&self, set_map: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {

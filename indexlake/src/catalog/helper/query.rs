@@ -402,6 +402,31 @@ impl CatalogHelper {
             .await
     }
 
+    pub(crate) async fn scan_inline_rows_by_row_ids(
+        &self,
+        table_id: i64,
+        table_schema: &CatalogSchemaRef,
+        row_ids: &[i64],
+    ) -> ILResult<RowStream> {
+        self.catalog
+            .query(
+                &format!(
+                    "SELECT {} FROM indexlake_inline_row_{table_id} WHERE {} IN ({})",
+                    table_schema
+                        .select_items(self.catalog.database())
+                        .join(", "),
+                    INTERNAL_ROW_ID_FIELD_NAME,
+                    row_ids
+                        .iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                Arc::clone(table_schema),
+            )
+            .await
+    }
+
     pub(crate) async fn get_data_files(&self, table_id: i64) -> ILResult<Vec<DataFileRecord>> {
         let schema = Arc::new(DataFileRecord::catalog_schema());
         let rows = self

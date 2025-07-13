@@ -51,9 +51,14 @@ pub trait Index: Debug + Send + Sync {
 
 #[derive(Debug, Clone)]
 pub struct SearchIndexEntries {
-    pub row_ids: Int64Array,
-    pub scores: Float64Array,
+    pub row_id_scores: Vec<RowIdScore>,
     pub score_higher_is_better: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct RowIdScore {
+    pub row_id: i64,
+    pub score: f64,
 }
 
 #[derive(Debug, Clone)]

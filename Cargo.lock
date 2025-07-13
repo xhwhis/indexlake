@@ -2417,6 +2417,7 @@ dependencies = [
  "indexlake",
  "indexlake-catalog-postgres",
  "indexlake-catalog-sqlite",
+ "indexlake-index-bm25",
  "indexlake-index-btree",
  "indexlake-index-rstar",
  "opendal",

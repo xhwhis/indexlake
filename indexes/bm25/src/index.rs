@@ -1,11 +1,12 @@
 use std::any::Any;
 
-use arrow::array::{Float64Array, Int64Array};
 use bm25::{Embedder, Scorer};
 use indexlake::{
     ILError, ILResult,
     expr::Expr,
-    index::{FilterIndexEntries, Index, IndexDefinationRef, SearchIndexEntries, SearchQuery},
+    index::{
+        FilterIndexEntries, Index, IndexDefinationRef, RowIdScore, SearchIndexEntries, SearchQuery,
+    },
 };
 
 use crate::BM25IndexParams;
@@ -50,16 +51,16 @@ impl Index for BM25Index {
             matches.truncate(limit);
         }
 
-        let (row_ids, scores): (Vec<_>, Vec<_>) = matches
+        let row_id_scores: Vec<_> = matches
             .into_iter()
-            .map(|doc| (doc.id, doc.score as f64))
-            .unzip();
-        let row_ids_array = Int64Array::from(row_ids);
-        let scores_array = Float64Array::from(scores);
+            .map(|doc| RowIdScore {
+                row_id: doc.id,
+                score: doc.score as f64,
+            })
+            .collect();
 
         Ok(SearchIndexEntries {
-            row_ids: row_ids_array,
-            scores: scores_array,
+            row_id_scores,
             score_higher_is_better: true,
         })
     }
