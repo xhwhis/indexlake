@@ -17,6 +17,7 @@ pub(crate) struct TableRecord {
     pub(crate) table_name: String,
     pub(crate) namespace_id: i64,
     pub(crate) config: TableConfig,
+    pub(crate) max_row_id: i64,
 }
 
 impl TableRecord {
@@ -25,8 +26,8 @@ impl TableRecord {
             ILError::InternalError(format!("Failed to serialize table config: {e:?}"))
         })?;
         Ok(format!(
-            "({}, '{}', {}, '{}')",
-            self.table_id, self.table_name, self.namespace_id, config_str
+            "({}, '{}', {}, '{}', {})",
+            self.table_id, self.table_name, self.namespace_id, config_str, self.max_row_id
         ))
     }
 
@@ -36,6 +37,7 @@ impl TableRecord {
             Column::new("table_name", CatalogDataType::Utf8, false),
             Column::new("namespace_id", CatalogDataType::Int64, false),
             Column::new("config", CatalogDataType::Utf8, false),
+            Column::new("max_row_id", CatalogDataType::Int64, false),
         ])
     }
 
@@ -47,11 +49,13 @@ impl TableRecord {
         let config: TableConfig = serde_json::from_str(&config_str).map_err(|e| {
             ILError::InternalError(format!("Failed to deserialize table config: {e:?}"))
         })?;
+        let max_row_id = row.int64(4)?.expect("max_row_id is not null");
         Ok(TableRecord {
             table_id,
             table_name: table_name.clone(),
             namespace_id,
             config,
+            max_row_id,
         })
     }
 }

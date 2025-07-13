@@ -106,18 +106,15 @@ impl TransactionHelper {
         }
     }
 
-    // TODO fix this
     pub(crate) async fn get_max_row_id(&mut self, table_id: i64) -> ILResult<i64> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "max_row_id",
             CatalogDataType::Int64,
-            true,
+            false,
         )]));
         let rows = self
             .query_rows(
-                &format!(
-                    "SELECT MAX({INTERNAL_ROW_ID_FIELD_NAME}) FROM indexlake_inline_row_{table_id}"
-                ),
+                &format!("SELECT max_row_id FROM indexlake_table WHERE table_id = {table_id}"),
                 schema,
             )
             .await?;
@@ -125,7 +122,7 @@ impl TransactionHelper {
             Ok(0)
         } else {
             let max_row_id = rows[0].int64(0)?;
-            Ok(max_row_id.unwrap_or(0))
+            Ok(max_row_id.expect("max_row_id should not be null"))
         }
     }
 

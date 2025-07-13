@@ -7,6 +7,17 @@ use crate::{
 };
 
 impl TransactionHelper {
+    pub(crate) async fn update_table_max_row_id(
+        &mut self,
+        table_id: i64,
+        max_row_id: i64,
+    ) -> ILResult<usize> {
+        self.transaction
+            .execute(&format!(
+                "UPDATE indexlake_table SET max_row_id = {max_row_id} WHERE table_id = {table_id}"
+            ))
+            .await
+    }
     pub(crate) async fn update_inline_rows(
         &mut self,
         table_id: i64,

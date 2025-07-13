@@ -49,6 +49,7 @@ pub(crate) async fn process_create_table(
             table_name: creation.table_name,
             namespace_id,
             config: creation.config,
+            max_row_id: 0,
         })
         .await?;
 

@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
 use arrow::{
     array::{
-        ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array,
-        Int64Array, RecordBatch, StringArray,
+        BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
+        RecordBatch, StringArray,
     },
-    datatypes::{DataType, Field, Schema},
+    datatypes::DataType,
 };
 
 use crate::{
@@ -28,6 +26,11 @@ pub(crate) async fn process_insert(
     let record = record_batch_with_row_id(record, row_id_array)?;
 
     process_insert_into_inline_rows(tx_helper, table_id, &record).await?;
+
+    tx_helper
+        .update_table_max_row_id(table_id, max_row_id + record.num_rows() as i64)
+        .await?;
+
     Ok(())
 }
 
