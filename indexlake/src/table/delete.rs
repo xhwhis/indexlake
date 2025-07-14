@@ -57,7 +57,7 @@ pub(crate) async fn delete_data_file_rows_by_condition(
         &table_schema,
         &data_file_record,
         None,
-        Some(condition.clone()),
+        vec![condition.clone()],
         None,
     )
     .await?;
@@ -192,7 +192,7 @@ pub(crate) async fn parallel_find_matched_data_file_row_ids(
                 &table_schema,
                 &data_file_record,
                 Some(projection),
-                Some(condition.clone()),
+                vec![condition.clone()],
                 None,
             )
             .await?;

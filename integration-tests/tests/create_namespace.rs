@@ -14,10 +14,10 @@ async fn create_namespace(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let client = LakeClient::new(catalog, storage);
 
-    let namespace_name = "create_namespace";
-    let expected_namespace_id = client.create_namespace(namespace_name, false).await?;
+    let namespace_name = uuid::Uuid::new_v4().to_string();
+    let expected_namespace_id = client.create_namespace(&namespace_name, false).await?;
 
-    let namespace_id = client.get_namespace_id(namespace_name).await?;
+    let namespace_id = client.get_namespace_id(&namespace_name).await?;
     assert_eq!(namespace_id, Some(expected_namespace_id));
 
     let namespace_id = client.get_namespace_id("not_exists").await?;

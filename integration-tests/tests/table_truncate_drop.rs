@@ -1,17 +1,45 @@
 use arrow::array::RecordBatch;
 use arrow::array::{Int64Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
+use futures::TryStreamExt;
+use indexlake::table::TableScan;
 use indexlake::{
     LakeClient,
     catalog::Catalog,
     storage::Storage,
     table::{TableConfig, TableCreation},
 };
+use indexlake_integration_tests::data::prepare_testing_table;
 use indexlake_integration_tests::utils::full_table_scan;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
 use std::sync::Arc;
+
+#[rstest::rstest]
+#[case(async { catalog_sqlite() }, storage_fs())]
+#[case(async { catalog_postgres().await }, storage_s3())]
+#[tokio::test(flavor = "multi_thread")]
+async fn truncate_table(
+    #[future(awt)]
+    #[case]
+    catalog: Arc<dyn Catalog>,
+    #[case] storage: Arc<Storage>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    init_env_logger();
+
+    let client = LakeClient::new(catalog, storage);
+    let table = prepare_testing_table(&client).await?;
+
+    table.truncate().await?;
+
+    let scan = TableScan::default();
+    let stream = table.scan(scan).await?;
+    let batches = stream.try_collect::<Vec<_>>().await?;
+    assert_eq!(batches.len(), 0);
+
+    Ok(())
+}
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
@@ -34,16 +62,16 @@ async fn drop_table(
         Field::new("id", DataType::Int64, false),
         Field::new("name", DataType::Utf8, false),
     ]));
-    let table_name = "test_table";
+    let table_name = uuid::Uuid::new_v4().to_string();
     let table_creation = TableCreation {
         namespace_name: namespace_name.to_string(),
-        table_name: table_name.to_string(),
+        table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: TableConfig::default(),
     };
     client.create_table(table_creation.clone()).await?;
 
-    let table = client.load_table(namespace_name, table_name).await?;
+    let table = client.load_table(namespace_name, &table_name).await?;
 
     let record_batch = RecordBatch::try_new(
         table_schema.clone(),
@@ -57,10 +85,15 @@ async fn drop_table(
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
     table.drop().await?;
-    assert!(client.load_table(namespace_name, table_name).await.is_err());
+    assert!(
+        client
+            .load_table(namespace_name, &table_name)
+            .await
+            .is_err()
+    );
 
     client.create_table(table_creation).await?;
-    let table = client.load_table(namespace_name, table_name).await?;
+    let table = client.load_table(namespace_name, &table_name).await?;
     table.insert(&record_batch).await?;
     let table_str = full_table_scan(&table).await?;
     println!("{}", table_str);

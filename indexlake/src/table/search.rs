@@ -271,7 +271,7 @@ async fn read_data_file_rows(
             &table.schema,
             data_file_record,
             projection.clone(),
-            None,
+            vec![],
             Some(&row_ids),
         )
         .await?;

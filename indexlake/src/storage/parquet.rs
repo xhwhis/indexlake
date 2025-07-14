@@ -93,7 +93,7 @@ pub(crate) async fn read_parquet_file_by_record(
     table_schema: &Schema,
     data_file_record: &DataFileRecord,
     projection: Option<Vec<usize>>,
-    predicate: Option<Expr>,
+    filters: Vec<Expr>,
     row_ids: Option<&HashSet<i64>>,
 ) -> ILResult<RecordBatchStream> {
     let projection_mask = match projection {
@@ -104,9 +104,10 @@ pub(crate) async fn read_parquet_file_by_record(
         None => ProjectionMask::all(),
     };
 
-    let arrow_predicate_opt = match predicate {
-        Some(expr) => Some(ExprPredicate::try_new(expr, projection_mask.clone())?),
-        None => None,
+    let arrow_predicate_opt = if filters.is_empty() {
+        None
+    } else {
+        Some(ExprPredicate::try_new(filters, projection_mask.clone())?)
     };
 
     let input_file = storage.open_file(&data_file_record.relative_path).await?;

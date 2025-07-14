@@ -105,8 +105,6 @@ async fn process_table_scan(
         Ok(batch)
     }));
 
-    let merged_filter = merge_filters(filters);
-
     // Scan data files
     // TODO parallel scan data files
     let mut streams: Vec<RecordBatchStream> = vec![inline_stream];
@@ -118,7 +116,7 @@ async fn process_table_scan(
                 &table_schema,
                 &data_file_record,
                 projection.clone(),
-                merged_filter.clone(),
+                filters.clone(),
                 None,
             )
             .await?,
@@ -313,14 +311,13 @@ async fn index_scan_data_file(
         })
         .map(|(_, filter)| filter.clone())
         .collect::<Vec<_>>();
-    let merged_filter = merge_filters(left_filters);
 
     read_parquet_file_by_record(
         &table.storage,
         &table.schema,
         &data_file_record,
         projection,
-        merged_filter,
+        left_filters,
         Some(&row_ids),
     )
     .await
