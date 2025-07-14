@@ -3,7 +3,7 @@ use opendal::{Configurator, Operator, services::S3Config};
 use crate::{ILError, ILResult};
 
 #[derive(Debug, Clone)]
-pub(crate) struct S3Storage {
+pub struct S3Storage {
     config: S3Config,
     bucket: String,
 }

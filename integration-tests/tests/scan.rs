@@ -21,7 +21,7 @@ async fn scan_with_projection(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-    let table = prepare_testing_table(&client, "scan_with_projection").await?;
+    let table = prepare_testing_table(&client).await?;
 
     let scan = TableScan::default().with_projection(Some(vec![0, 2]));
     let table_str = table_scan(&table, scan).await?;
@@ -54,7 +54,7 @@ async fn scan_with_filters(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-    let table = prepare_testing_table(&client, "scan_with_filters").await?;
+    let table = prepare_testing_table(&client).await?;
 
     let scan = TableScan::default()
         .with_filters(vec![col("age").gt(lit(21)), col("name").eq(lit("Charlie"))]);

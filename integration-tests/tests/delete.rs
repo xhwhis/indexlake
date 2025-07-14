@@ -20,7 +20,7 @@ async fn delete_table_by_condition(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-    let table = prepare_testing_table(&client, "delete_table_by_condition").await?;
+    let table = prepare_testing_table(&client).await?;
 
     let condition = col("age").gt(lit(21i32));
     table.delete(&condition).await?;
@@ -53,7 +53,7 @@ async fn delete_table_by_row_id(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-    let table = prepare_testing_table(&client, "delete_table_by_row_id").await?;
+    let table = prepare_testing_table(&client).await?;
 
     let condition = col(INTERNAL_ROW_ID_FIELD_NAME).eq(lit(1i64));
     table.delete(&condition).await?;

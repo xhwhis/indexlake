@@ -15,6 +15,8 @@ use opendal::services::S3Config;
 use crate::docker::DockerCompose;
 
 static ENV_LOGGER: OnceLock<()> = OnceLock::new();
+static POSTGRES_DB: OnceLock<DockerCompose> = OnceLock::new();
+static MINIO: OnceLock<DockerCompose> = OnceLock::new();
 
 pub fn init_env_logger() {
     unsafe {
@@ -42,14 +44,14 @@ pub fn setup_sqlite_db() -> String {
     db_path
 }
 
-pub async fn setup_postgres_db() -> DockerCompose {
+pub fn setup_postgres_db() -> DockerCompose {
     let docker_compose = DockerCompose::new(
         "postgres",
         format!("{}/testdata/postgres", env!("CARGO_MANIFEST_DIR")),
     );
     docker_compose.down();
     docker_compose.up();
-    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    std::thread::sleep(std::time::Duration::from_secs(5));
     docker_compose
 }
 
@@ -69,7 +71,7 @@ pub fn catalog_sqlite() -> Arc<dyn Catalog> {
 }
 
 pub async fn catalog_postgres() -> Arc<dyn Catalog> {
-    let _ = setup_postgres_db().await;
+    let _ = POSTGRES_DB.get_or_init(|| setup_postgres_db());
     Arc::new(
         PostgresCatalog::try_new("localhost", 5432, "postgres", "password", Some("postgres"))
             .await
@@ -83,7 +85,7 @@ pub fn storage_fs() -> Arc<Storage> {
 }
 
 pub fn storage_s3() -> Arc<Storage> {
-    let _ = setup_minio();
+    let _ = MINIO.get_or_init(|| setup_minio());
     std::thread::sleep(std::time::Duration::from_secs(5));
     let mut config = S3Config::default();
     config.endpoint = Some("http://127.0.0.1:9000".to_string());

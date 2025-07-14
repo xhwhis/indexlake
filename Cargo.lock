@@ -2306,6 +2306,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "async-trait",
+ "backon",
  "bytes",
  "comfy-table",
  "derive-visitor",

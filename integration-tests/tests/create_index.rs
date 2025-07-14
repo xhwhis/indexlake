@@ -23,7 +23,7 @@ async fn duplicated_index_name(
     let mut client = LakeClient::new(catalog, storage);
     client.register_index_kind(Arc::new(BTreeIndexKind))?;
 
-    let mut table = prepare_testing_table(&client, "duplicated_index_name").await?;
+    let mut table = prepare_testing_table(&client).await?;
 
     let index_creation = IndexCreation {
         name: "test_index".to_string(),
@@ -55,7 +55,7 @@ async fn unsupported_index_kind(
     let mut client = LakeClient::new(catalog, storage);
     client.register_index_kind(Arc::new(BTreeIndexKind))?;
 
-    let mut table = prepare_testing_table(&client, "unsupported_index_kind").await?;
+    let mut table = prepare_testing_table(&client).await?;
 
     let index_creation = IndexCreation {
         name: "test_index".to_string(),

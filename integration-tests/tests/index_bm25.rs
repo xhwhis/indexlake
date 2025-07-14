@@ -18,12 +18,11 @@ use std::sync::Arc;
 use arrow::array::{Int32Array, RecordBatch};
 use indexlake::table::IndexCreation;
 use indexlake_index_bm25::{BM25IndexKind, BM25IndexParams, BM25SearchQuery, Language};
-use indexlake_integration_tests::data::create_namespace_if_not_exists;
 use indexlake_integration_tests::utils::{table_scan, table_search};
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
-// #[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn create_bm25_index(
     #[future(awt)]
@@ -37,7 +36,7 @@ async fn create_bm25_index(
     client.register_index_kind(Arc::new(BM25IndexKind))?;
 
     let namespace_name = "test_namespace";
-    create_namespace_if_not_exists(&client, namespace_name).await?;
+    client.create_namespace(namespace_name, true).await?;
 
     let table_schema = Arc::new(Schema::new(vec![
         Field::new("title", DataType::Utf8, false),
@@ -55,7 +54,7 @@ async fn create_bm25_index(
         config: table_config,
     };
     client.create_table(table_creation).await?;
-    let mut table = client.load_table(namespace_name, table_name).await?;
+    let mut table = client.load_table(&namespace_name, table_name).await?;
 
     let index_creation = IndexCreation {
         name: "bm25_index".to_string(),

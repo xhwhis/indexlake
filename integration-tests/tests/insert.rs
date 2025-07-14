@@ -29,7 +29,7 @@ async fn insert_table(
     let client = LakeClient::new(catalog, storage);
 
     let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name).await?;
+    client.create_namespace(namespace_name, true).await?;
 
     let table_schema = Arc::new(Schema::new(vec![
         Field::new("id", DataType::Int64, false),

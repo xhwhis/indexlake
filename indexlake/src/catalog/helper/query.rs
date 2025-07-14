@@ -132,6 +132,9 @@ impl TransactionHelper {
         table_schema: &CatalogSchemaRef,
         row_ids: &[i64],
     ) -> ILResult<RowStream> {
+        if row_ids.is_empty() {
+            return Ok(Box::pin(futures::stream::empty::<ILResult<Row>>()));
+        }
         self.transaction
             .query(
                 &format!(
@@ -405,6 +408,9 @@ impl CatalogHelper {
         table_schema: &CatalogSchemaRef,
         row_ids: &[i64],
     ) -> ILResult<RowStream> {
+        if row_ids.is_empty() {
+            return Ok(Box::pin(futures::stream::empty::<ILResult<Row>>()));
+        }
         self.catalog
             .query(
                 &format!(

@@ -21,7 +21,7 @@ async fn update_table(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-    let table = prepare_testing_table(&client, "update_table").await?;
+    let table = prepare_testing_table(&client).await?;
 
     let set_map = HashMap::from([("age".to_string(), Scalar::Int32(Some(30)))]);
     let condition = col("name").eq(lit("Alice"));

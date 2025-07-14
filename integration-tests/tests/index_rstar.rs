@@ -21,7 +21,6 @@ use geozero::{CoordDimensions, ToWkb};
 use indexlake::expr::{Expr, col, func, lit};
 use indexlake::table::IndexCreation;
 use indexlake_index_rstar::{RStarIndexKind, RStarIndexParams, WkbDialect};
-use indexlake_integration_tests::data::create_namespace_if_not_exists;
 use indexlake_integration_tests::utils::table_scan;
 
 #[rstest::rstest]
@@ -40,7 +39,7 @@ async fn create_rstar_index(
     client.register_index_kind(Arc::new(RStarIndexKind))?;
 
     let namespace_name = "test_namespace";
-    create_namespace_if_not_exists(&client, namespace_name).await?;
+    client.create_namespace(&namespace_name, true).await?;
 
     let table_schema = Arc::new(Schema::new(vec![
         Field::new("id", DataType::Int32, false),
@@ -58,7 +57,7 @@ async fn create_rstar_index(
         config: table_config,
     };
     client.create_table(table_creation).await?;
-    let mut table = client.load_table(namespace_name, table_name).await?;
+    let mut table = client.load_table(&namespace_name, table_name).await?;
 
     let index_creation = IndexCreation {
         name: "rstar_index".to_string(),

@@ -6,7 +6,7 @@ use indexlake::{
     catalog::{Catalog, CatalogDatabase, RowStream, Transaction},
     catalog::{CatalogDataType, CatalogSchemaRef, Row, Scalar},
 };
-use log::debug;
+use log::{debug, error};
 
 #[derive(Debug, Clone)]
 pub struct PostgresCatalog {
@@ -167,10 +167,9 @@ impl Drop for PostgresTransaction {
         }
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
-                self.conn
-                    .batch_execute("ROLLBACK")
-                    .await
-                    .expect("rollback failed");
+                if let Err(e) = self.conn.batch_execute("ROLLBACK").await {
+                    error!("[indexlake] failed to rollback postgres txn: {e}");
+                }
             });
         });
     }

@@ -20,7 +20,7 @@ async fn truncate_table(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-    let table = prepare_testing_table(&client, "truncate_table").await?;
+    let table = prepare_testing_table(&client).await?;
 
     table.truncate().await?;
 

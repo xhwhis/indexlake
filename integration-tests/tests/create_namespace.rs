@@ -14,9 +14,10 @@ async fn create_namespace(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let client = LakeClient::new(catalog, storage);
 
-    let expected_namespace_id = client.create_namespace("test_namespace").await?;
+    let namespace_name = "create_namespace";
+    let expected_namespace_id = client.create_namespace(namespace_name, false).await?;
 
-    let namespace_id = client.get_namespace_id("test_namespace").await?;
+    let namespace_id = client.get_namespace_id(namespace_name).await?;
     assert_eq!(namespace_id, Some(expected_namespace_id));
 
     let namespace_id = client.get_namespace_id("not_exists").await?;
@@ -37,9 +38,9 @@ async fn duplicated_namespace_name(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let client = LakeClient::new(catalog, storage);
 
-    let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name).await?;
-    let result = client.create_namespace(namespace_name).await;
+    let namespace_name = "duplicated_namespace_name";
+    client.create_namespace(namespace_name, false).await?;
+    let result = client.create_namespace(namespace_name, false).await;
     assert!(result.is_err());
 
     Ok(())

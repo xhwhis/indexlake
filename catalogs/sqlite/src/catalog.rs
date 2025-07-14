@@ -4,7 +4,7 @@ use indexlake::{
     catalog::{Catalog, CatalogDatabase, RowStream, Transaction},
     catalog::{CatalogDataType, CatalogSchemaRef, Row, Scalar},
 };
-use log::debug;
+use log::{debug, error};
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -34,18 +34,18 @@ impl Catalog for SqliteCatalog {
     async fn query(&self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream<'static>> {
         debug!("sqlite query: {sql}");
         let conn = rusqlite::Connection::open(&self.path)
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to open sqlite db: {e}")))?;
         let mut stmt = conn
             .prepare(sql)
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to prepare sqlite stmt: {e}")))?;
         let mut sqlite_rows = stmt
             .query([])
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to query sqlite stmt: {e}")))?;
 
         let mut rows: Vec<Row> = Vec::new();
         while let Some(sqlite_row) = sqlite_rows
             .next()
-            .map_err(|e| ILError::CatalogError(e.to_string()))?
+            .map_err(|e| ILError::CatalogError(format!("failed to get next sqlite row: {e}")))?
         {
             let row = sqlite_row_to_row(sqlite_row, &schema)?;
             rows.push(row);
@@ -55,9 +55,9 @@ impl Catalog for SqliteCatalog {
 
     async fn transaction(&self) -> ILResult<Box<dyn Transaction>> {
         let conn = rusqlite::Connection::open(&self.path)
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to open sqlite db: {e}")))?;
         conn.execute_batch("BEGIN DEFERRED")
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to begin sqlite txn: {e}")))?;
         Ok(Box::new(SqliteTransaction { conn, done: false }))
     }
 }
@@ -81,15 +81,15 @@ impl Transaction for SqliteTransaction {
         let mut stmt = self
             .conn
             .prepare(sql)
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to prepare sqlite stmt: {e}")))?;
         let mut sqlite_rows = stmt
             .query([])
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to query sqlite stmt: {e}")))?;
 
         let mut rows: Vec<Row> = Vec::new();
         while let Some(sqlite_row) = sqlite_rows
             .next()
-            .map_err(|e| ILError::CatalogError(e.to_string()))?
+            .map_err(|e| ILError::CatalogError(format!("failed to get next sqlite row: {e}")))?
         {
             let row = sqlite_row_to_row(sqlite_row, &schema)?;
             rows.push(row);
@@ -106,7 +106,7 @@ impl Transaction for SqliteTransaction {
         }
         self.conn
             .execute(sql, [])
-            .map_err(|e| ILError::CatalogError(e.to_string()))
+            .map_err(|e| ILError::CatalogError(format!("failed to execute sqlite stmt: {e}")))
     }
 
     async fn execute_batch(&mut self, sqls: &[String]) -> ILResult<()> {
@@ -118,7 +118,7 @@ impl Transaction for SqliteTransaction {
         }
         self.conn
             .execute_batch(sqls.join(";").as_str())
-            .map_err(|e| ILError::CatalogError(e.to_string()))
+            .map_err(|e| ILError::CatalogError(format!("failed to execute sqlite batch: {e}")))
     }
 
     async fn commit(&mut self) -> ILResult<()> {
@@ -130,7 +130,7 @@ impl Transaction for SqliteTransaction {
         }
         self.conn
             .execute_batch("COMMIT")
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to commit sqlite txn: {e}")))?;
         self.done = true;
         Ok(())
     }
@@ -144,7 +144,7 @@ impl Transaction for SqliteTransaction {
         }
         self.conn
             .execute_batch("ROLLBACK")
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to rollback sqlite txn: {e}")))?;
         self.done = true;
         Ok(())
     }
@@ -155,7 +155,9 @@ impl Drop for SqliteTransaction {
         if self.done {
             return;
         }
-        self.conn.execute_batch("ROLLBACK").unwrap();
+        if let Err(e) = self.conn.execute_batch("ROLLBACK") {
+            error!("[indexlake] failed to rollback sqlite txn: {e}");
+        }
     }
 }
 

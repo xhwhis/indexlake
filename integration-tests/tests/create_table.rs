@@ -1,6 +1,4 @@
 use arrow::datatypes::{DataType, Field, Schema};
-use arrow::util::pretty::pretty_format_batches;
-use futures::TryStreamExt;
 use indexlake::catalog::INTERNAL_ROW_ID_FIELD_REF;
 use indexlake::{
     LakeClient,
@@ -34,24 +32,24 @@ async fn create_table(
     let client = LakeClient::new(catalog, storage);
 
     let namespace_name = "test_namespace";
-    let expected_namespace_id = client.create_namespace(namespace_name).await?;
+    let expected_namespace_id = client.create_namespace(namespace_name, true).await?;
 
     let expected_schema = Arc::new(Schema::new(vec![
         Field::new("id", DataType::Int64, false),
         Field::new("name", DataType::Utf8, false),
     ]));
 
-    let table_name = "test_table";
+    let table_name = uuid::Uuid::new_v4().to_string();
     let table_creation = TableCreation {
         namespace_name: namespace_name.to_string(),
-        table_name: table_name.to_string(),
+        table_name: table_name.clone(),
         schema: expected_schema.clone(),
         config: TableConfig::default(),
     };
 
     let expected_table_id = client.create_table(table_creation).await?;
 
-    let table = client.load_table(namespace_name, table_name).await?;
+    let table = client.load_table(namespace_name, &table_name).await?;
     println!("table: {:?}", table);
     assert_eq!(table.namespace_id, expected_namespace_id);
     assert_eq!(table.namespace_name, namespace_name);
@@ -82,7 +80,7 @@ async fn table_data_types(
     let client = LakeClient::new(catalog, storage);
 
     let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name).await?;
+    client.create_namespace(namespace_name, true).await?;
 
     let table_schema = Arc::new(Schema::new(vec![
         Field::new("boolean_col", DataType::Boolean, true),
@@ -95,17 +93,17 @@ async fn table_data_types(
         Field::new("binary_col", DataType::Binary, true),
     ]));
 
-    let table_name = "test_table";
+    let table_name = uuid::Uuid::new_v4().to_string();
     let table_creation = TableCreation {
         namespace_name: namespace_name.to_string(),
-        table_name: table_name.to_string(),
+        table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: TableConfig::default(),
     };
 
     client.create_table(table_creation).await?;
 
-    let table = client.load_table(namespace_name, table_name).await?;
+    let table = client.load_table(namespace_name, &table_name).await?;
 
     let record_batch = RecordBatch::try_new(
         table_schema.clone(),
@@ -151,17 +149,17 @@ async fn duplicated_table_name(
     let client = LakeClient::new(catalog, storage);
 
     let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name).await?;
+    client.create_namespace(namespace_name, true).await?;
 
     let expected_schema = Arc::new(Schema::new(vec![
         Field::new("id", DataType::Int64, false),
         Field::new("name", DataType::Utf8, false),
     ]));
 
-    let table_name = "test_table";
+    let table_name = uuid::Uuid::new_v4().to_string();
     let table_creation = TableCreation {
         namespace_name: namespace_name.to_string(),
-        table_name: table_name.to_string(),
+        table_name: table_name.clone(),
         schema: expected_schema.clone(),
         config: TableConfig::default(),
     };
