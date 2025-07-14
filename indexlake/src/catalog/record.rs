@@ -256,12 +256,11 @@ impl RowsValidity {
             .collect::<Vec<_>>()
     }
 
-    pub(crate) fn valid_row_ids(&self) -> Vec<i64> {
+    pub(crate) fn valid_row_ids(&self) -> impl Iterator<Item = i64> {
         self.validity
             .iter()
             .filter(|(_, valid)| *valid)
             .map(|(row_id, _)| *row_id)
-            .collect::<Vec<_>>()
     }
 
     pub(crate) fn iter_mut_valid_row_ids(&mut self) -> impl Iterator<Item = &mut (i64, bool)> {

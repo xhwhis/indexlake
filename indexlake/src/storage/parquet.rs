@@ -27,6 +27,7 @@ use crate::{
     catalog::{DataFileRecord, INTERNAL_ROW_ID_FIELD_REF},
     expr::{Expr, ExprPredicate},
     storage::{InputFile, OutputFile, Storage},
+    utils::build_projection_from_condition,
 };
 
 impl AsyncFileReader for InputFile {
@@ -174,4 +175,48 @@ pub(crate) async fn read_parquet_file_by_record_and_row_id_condition(
     )
     .await?;
     Ok(stream)
+}
+
+pub(crate) async fn find_matched_row_ids_from_parquet_file(
+    storage: &Storage,
+    table_schema: &Schema,
+    condition: &Expr,
+    data_file_record: &DataFileRecord,
+) -> ILResult<HashSet<i64>> {
+    let mut projection = build_projection_from_condition(table_schema, &condition)?;
+    // If the condition does not contain the row id column, add it to the projection
+    if !projection.contains(&0) {
+        projection.insert(0, 0);
+    }
+
+    let mut stream = read_parquet_file_by_record(
+        storage,
+        table_schema,
+        data_file_record,
+        Some(projection),
+        vec![condition.clone()],
+        None,
+    )
+    .await?;
+
+    let mut matched_row_ids = HashSet::new();
+    while let Some(batch) = stream.next().await {
+        let batch = batch?;
+        let row_id_array = batch
+            .column(0)
+            .as_primitive_opt::<Int64Type>()
+            .ok_or_else(|| {
+                ILError::InternalError(format!(
+                    "row id array should be Int64Array, but got {:?}",
+                    batch.column(0).data_type()
+                ))
+            })?;
+
+        matched_row_ids.extend(
+            row_id_array
+                .iter()
+                .map(|row_id| row_id.expect("Row id should not be null")),
+        );
+    }
+    Ok(matched_row_ids)
 }

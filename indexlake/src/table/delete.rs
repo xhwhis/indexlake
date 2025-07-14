@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use arrow::array::{AsArray, Int64Array, RecordBatch};
@@ -7,9 +7,8 @@ use futures::StreamExt;
 use tokio::task::JoinHandle;
 
 use crate::catalog::{DataFileRecord, INTERNAL_ROW_ID_FIELD_REF, TransactionHelper};
-use crate::expr::{Expr, visited_columns};
-use crate::storage::{Storage, read_parquet_file_by_record};
-use crate::utils::build_projection_from_columns;
+use crate::expr::Expr;
+use crate::storage::{Storage, find_matched_row_ids_from_parquet_file};
 use crate::{ILError, ILResult};
 
 pub(crate) async fn process_delete_by_condition(
@@ -18,7 +17,7 @@ pub(crate) async fn process_delete_by_condition(
     table_id: i64,
     table_schema: &SchemaRef,
     condition: &Expr,
-    matched_data_file_row_ids: HashMap<i64, Vec<i64>>,
+    matched_data_file_row_ids: HashMap<i64, HashSet<i64>>,
 ) -> ILResult<()> {
     // Directly delete inline rows
     tx_helper
@@ -52,46 +51,16 @@ pub(crate) async fn delete_data_file_rows_by_condition(
     condition: &Expr,
     mut data_file_record: DataFileRecord,
 ) -> ILResult<()> {
-    let mut stream = read_parquet_file_by_record(
+    let deleted_row_ids = find_matched_row_ids_from_parquet_file(
         &storage,
         &table_schema,
+        &condition,
         &data_file_record,
-        None,
-        vec![condition.clone()],
-        None,
     )
     .await?;
 
-    let mut deleted_row_ids = Vec::new();
-    while let Some(batch) = stream.next().await {
-        let batch = batch?;
-        let bool_array = condition.condition_eval(&batch)?;
-
-        let row_id_array = batch
-            .column(0)
-            .as_primitive_opt::<Int64Type>()
-            .ok_or_else(|| {
-                ILError::InternalError(format!(
-                    "row id array should be Int64Array, but got {:?}",
-                    batch.column(0).data_type()
-                ))
-            })?;
-
-        for (i, v) in bool_array.iter().enumerate() {
-            if let Some(v) = v
-                && v
-            {
-                deleted_row_ids.push(row_id_array.value(i));
-            }
-        }
-    }
-
-    let deleted_row_ids_map = deleted_row_ids
-        .iter()
-        .map(|row_id| (*row_id, ()))
-        .collect::<HashMap<_, _>>();
     for (row_id, valid) in data_file_record.validity.iter_mut_valid_row_ids() {
-        if deleted_row_ids_map.contains_key(row_id) {
+        if deleted_row_ids.contains(row_id) {
             *valid = false;
         }
     }
@@ -105,14 +74,10 @@ pub(crate) async fn delete_data_file_rows_by_condition(
 pub(crate) async fn delete_data_file_rows_by_matched_row_ids(
     tx_helper: &mut TransactionHelper,
     mut data_file_record: DataFileRecord,
-    matched_row_ids: &[i64],
+    matched_row_ids: &HashSet<i64>,
 ) -> ILResult<()> {
-    let matched_row_ids_map = matched_row_ids
-        .iter()
-        .map(|row_id| (*row_id, ()))
-        .collect::<HashMap<_, _>>();
     for (row_id, valid) in data_file_record.validity.iter_mut_valid_row_ids() {
-        if matched_row_ids_map.contains_key(row_id) {
+        if matched_row_ids.contains(row_id) {
             *valid = false;
         }
     }
@@ -131,8 +96,10 @@ pub(crate) async fn process_delete_by_row_id_condition(
         .delete_inline_rows_by_condition(table_id, row_id_condition)
         .await?;
 
+    // TODO this could be done in parallel
     let data_file_records = tx_helper.get_data_files(table_id).await?;
     for mut data_file_record in data_file_records {
+        // We need row index to update validity, so we need to get all row ids
         let row_ids = data_file_record.validity.row_ids();
         let row_id_array = Int64Array::from(row_ids);
 
@@ -162,65 +129,23 @@ pub(crate) async fn parallel_find_matched_data_file_row_ids(
     table_schema: SchemaRef,
     condition: Expr,
     data_file_records: Vec<DataFileRecord>,
-) -> ILResult<HashMap<i64, Vec<i64>>> {
+) -> ILResult<HashMap<i64, HashSet<i64>>> {
     condition.check_data_type(&table_schema, &DataType::Boolean)?;
-
-    let visited_columns = visited_columns(&condition);
-    if visited_columns.is_empty() {
-        return Err(ILError::InternalError(
-            "condition should not be a constant".to_string(),
-        ));
-    }
-
-    let mut projection = build_projection_from_columns(&table_schema, &visited_columns)?;
-    // If the condition does not contain the row id column, add it to the projection
-    if !projection.contains(&0) {
-        projection.push(0);
-    }
-    projection.sort();
 
     let mut handles = Vec::new();
     for data_file_record in data_file_records {
         let storage = storage.clone();
         let table_schema = table_schema.clone();
         let condition = condition.clone();
-        let projection = projection.clone();
 
-        let handle: JoinHandle<ILResult<(i64, Vec<i64>)>> = tokio::spawn(async move {
-            let mut stream = read_parquet_file_by_record(
+        let handle: JoinHandle<ILResult<(i64, HashSet<i64>)>> = tokio::spawn(async move {
+            let matched_row_ids = find_matched_row_ids_from_parquet_file(
                 &storage,
                 &table_schema,
+                &condition,
                 &data_file_record,
-                Some(projection),
-                vec![condition.clone()],
-                None,
             )
             .await?;
-
-            let mut matched_row_ids = Vec::new();
-            while let Some(batch) = stream.next().await {
-                let batch = batch?;
-                let bool_array = condition.condition_eval(&batch)?;
-
-                let row_id_array =
-                    batch
-                        .column(0)
-                        .as_primitive_opt::<Int64Type>()
-                        .ok_or_else(|| {
-                            ILError::InternalError(format!(
-                                "row id array should be Int64Array, but got {:?}",
-                                batch.column(0).data_type()
-                            ))
-                        })?;
-
-                for (i, v) in bool_array.iter().enumerate() {
-                    if let Some(v) = v
-                        && v
-                    {
-                        matched_row_ids.push(row_id_array.value(i));
-                    }
-                }
-            }
             Ok((data_file_record.data_file_id, matched_row_ids))
         });
         handles.push(handle);

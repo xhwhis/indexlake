@@ -8,6 +8,7 @@ use arrow::{
 use crate::{
     ILError, ILResult,
     catalog::{INTERNAL_ROW_ID_FIELD_NAME, INTERNAL_ROW_ID_FIELD_REF},
+    expr::{Expr, visited_columns},
 };
 
 pub fn has_duplicated_items(container: impl Iterator<Item = impl Eq + Hash>) -> bool {
@@ -63,16 +64,17 @@ pub fn project_schema(schema: &Schema, projection: Option<&Vec<usize>>) -> ILRes
     }
 }
 
-pub(crate) fn build_projection_from_columns(
-    schema: &Schema,
-    cols: &[String],
-) -> ILResult<Vec<usize>> {
-    let mut projection = Vec::new();
-    for (i, field) in schema.fields().iter().enumerate() {
-        if cols.contains(&field.name()) {
-            projection.push(i);
-        }
+pub fn build_projection_from_condition(schema: &Schema, condition: &Expr) -> ILResult<Vec<usize>> {
+    let visited_columns = visited_columns(condition);
+    if visited_columns.is_empty() {
+        return Ok(Vec::new());
     }
+    let mut projection = Vec::new();
+    for col in visited_columns {
+        let idx = schema.index_of(&col)?;
+        projection.push(idx);
+    }
+    projection.sort();
     Ok(projection)
 }
 
