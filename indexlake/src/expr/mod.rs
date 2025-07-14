@@ -25,7 +25,7 @@ use derive_visitor::{Drive, DriveMut};
 
 use crate::{
     ILError, ILResult,
-    catalog::{CatalogDatabase, Row, Scalar},
+    catalog::{CatalogDatabase, INTERNAL_ROW_ID_FIELD_NAME, Row, Scalar},
     expr::like::Like,
 };
 
@@ -189,6 +189,10 @@ impl Expr {
             )),
             Expr::Like(like_expr) => like_expr.to_sql(database),
         }
+    }
+
+    pub(crate) fn only_visit_row_id_column(&self) -> bool {
+        visited_columns(self) == [INTERNAL_ROW_ID_FIELD_NAME]
     }
 }
 

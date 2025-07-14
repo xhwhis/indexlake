@@ -6,6 +6,7 @@ use crate::catalog::INTERNAL_ROW_ID_FIELD_REF;
 use crate::catalog::TransactionHelper;
 use crate::index::IndexDefination;
 use crate::index::IndexKind;
+use crate::retry;
 use crate::table::{Table, TableCreation, process_create_table};
 use crate::{ILError, ILResult, catalog::Catalog, storage::Storage};
 use backon::ExponentialBuilder;
@@ -45,20 +46,32 @@ impl LakeClient {
         namespace_name: &str,
         if_not_exists: bool,
     ) -> ILResult<i64> {
-        let catalog_helper = CatalogHelper::new(self.catalog.clone());
-        if let Some(namespace_id) = catalog_helper.get_namespace_id(namespace_name).await? {
-            if if_not_exists {
-                return Ok(namespace_id);
-            } else {
-                return Err(ILError::InvalidInput(format!(
-                    "Namespace {namespace_name} already exists"
-                )));
-            }
-        }
+        let create_namespace_fn = || async {
+            let mut tx_helper = self.transaction_helper().await?;
 
-        let namespace_id = (|| create_namespace(self, namespace_name, if_not_exists))
+            if let Some(namespace_id) = tx_helper.get_namespace_id(namespace_name).await? {
+                if if_not_exists {
+                    return Ok(namespace_id);
+                } else {
+                    return Err(ILError::InvalidInput(format!(
+                        "Namespace {namespace_name} already exists"
+                    )));
+                }
+            }
+
+            let namespace_id = tx_helper.get_max_namespace_id().await? + 1;
+            tx_helper
+                .insert_namespace(namespace_id, namespace_name)
+                .await?;
+            tx_helper.commit().await?;
+
+            Ok::<_, ILError>(namespace_id)
+        };
+
+        let namespace_id = create_namespace_fn
             .retry(ConstantBuilder::default().with_delay(Duration::from_millis(100)))
             .sleep(tokio::time::sleep)
+            .when(|e| !matches!(e, ILError::InvalidInput(_)))
             .await?;
 
         Ok(namespace_id)
@@ -71,10 +84,19 @@ impl LakeClient {
     }
 
     pub async fn create_table(&self, table_creation: TableCreation) -> ILResult<i64> {
-        let table_id = (|| create_table(self, table_creation.clone()))
+        let create_table_fn = || async {
+            let mut tx_helper = self.transaction_helper().await?;
+            let table_id = process_create_table(&mut tx_helper, table_creation.clone()).await?;
+            tx_helper.commit().await?;
+            Ok::<_, ILError>(table_id)
+        };
+
+        let table_id = create_table_fn
             .retry(ConstantBuilder::default().with_delay(Duration::from_millis(100)))
             .sleep(tokio::time::sleep)
+            .when(|e| !matches!(e, ILError::InvalidInput(_)))
             .await?;
+
         Ok(table_id)
     }
 
@@ -85,14 +107,14 @@ impl LakeClient {
             .get_namespace_id(namespace_name)
             .await?
             .ok_or_else(|| {
-                ILError::CatalogError(format!("Namespace {namespace_name} not found"))
+                ILError::InvalidInput(format!("Namespace {namespace_name} not found"))
             })?;
 
         let table_record = catalog_helper
             .get_table(namespace_id, table_name)
             .await?
             .ok_or_else(|| {
-                ILError::CatalogError(format!(
+                ILError::InvalidInput(format!(
                     "Table {table_name} not found in namespace {namespace_name}"
                 ))
             })?;
@@ -135,40 +157,4 @@ impl LakeClient {
             index_kinds: self.index_kinds.clone(),
         })
     }
-}
-
-async fn create_namespace(
-    client: &LakeClient,
-    namespace_name: &str,
-    if_not_exists: bool,
-) -> ILResult<i64> {
-    let mut tx_helper = client.transaction_helper().await?;
-
-    if let Some(namespace_id) = tx_helper.get_namespace_id(namespace_name).await? {
-        if if_not_exists {
-            return Ok(namespace_id);
-        } else {
-            return Err(ILError::InvalidInput(format!(
-                "Namespace {namespace_name} already exists"
-            )));
-        }
-    }
-
-    let max_namespace_id = tx_helper.get_max_namespace_id().await?;
-    let namespace_id = max_namespace_id + 1;
-
-    tx_helper
-        .insert_namespace(namespace_id, namespace_name)
-        .await?;
-
-    tx_helper.commit().await?;
-
-    Ok(namespace_id)
-}
-
-async fn create_table(client: &LakeClient, table_creation: TableCreation) -> ILResult<i64> {
-    let mut tx_helper = client.transaction_helper().await?;
-    let table_id = process_create_table(&mut tx_helper, table_creation).await?;
-    tx_helper.commit().await?;
-    Ok(table_id)
 }

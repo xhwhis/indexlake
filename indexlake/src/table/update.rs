@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use arrow::{
-    array::{AsArray, Int64Array, RecordBatch, RecordBatchOptions, UInt64Array},
+    array::{AsArray, Int64Array, RecordBatch, RecordBatchOptions},
     datatypes::{Int64Type, SchemaRef},
 };
 use futures::StreamExt;
@@ -9,9 +9,11 @@ use tokio::task::JoinHandle;
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
-    catalog::{DataFileRecord, INTERNAL_ROW_ID_FIELD_NAME, Scalar, TransactionHelper},
-    expr::{Expr, visited_columns},
-    storage::{Storage, read_parquet_file_by_record},
+    catalog::{DataFileRecord, Scalar, TransactionHelper},
+    expr::Expr,
+    storage::{
+        Storage, read_parquet_file_by_record, read_parquet_file_by_record_and_row_id_condition,
+    },
     table::process_insert_into_inline_rows,
 };
 
@@ -107,15 +109,26 @@ pub(crate) async fn update_data_file_rows_by_condition(
     condition: &Expr,
     mut data_file_record: DataFileRecord,
 ) -> ILResult<()> {
-    let mut stream = read_parquet_file_by_record(
-        storage,
-        &table_schema,
-        &data_file_record,
-        None,
-        vec![condition.clone()],
-        None,
-    )
-    .await?;
+    let mut stream = if condition.only_visit_row_id_column() {
+        read_parquet_file_by_record_and_row_id_condition(
+            storage,
+            &table_schema,
+            &data_file_record,
+            None,
+            condition,
+        )
+        .await?
+    } else {
+        read_parquet_file_by_record(
+            storage,
+            &table_schema,
+            &data_file_record,
+            None,
+            vec![condition.clone()],
+            None,
+        )
+        .await?
+    };
 
     let mut updated_row_ids = Vec::new();
     while let Some(batch) = stream.next().await {
@@ -179,30 +192,26 @@ pub(crate) async fn parallel_find_matched_data_file_rows(
         let table_schema = table_schema.clone();
         let condition = condition.clone();
         let handle: JoinHandle<ILResult<(i64, RecordBatchStream)>> = tokio::spawn(async move {
-            let stream = read_parquet_file_by_record(
-                &storage,
-                &table_schema,
-                &data_file_record,
-                None,
-                vec![condition.clone()],
-                None,
-            )
-            .await?;
-            let mut stream = Box::pin(stream.map(move |batch| {
-                let batch = batch?;
-                let bool_array = condition.condition_eval(&batch)?;
-                let mut indices = Vec::new();
-                for (i, v) in bool_array.iter().enumerate() {
-                    if let Some(v) = v
-                        && v
-                    {
-                        indices.push(i as u64);
-                    }
-                }
-                let index_array = UInt64Array::from(indices);
-                let selected_batch = arrow::compute::take_record_batch(&batch, &index_array)?;
-                Ok(selected_batch)
-            })) as RecordBatchStream;
+            let mut stream = if condition.only_visit_row_id_column() {
+                read_parquet_file_by_record_and_row_id_condition(
+                    &storage,
+                    &table_schema,
+                    &data_file_record,
+                    None,
+                    &condition,
+                )
+                .await?
+            } else {
+                read_parquet_file_by_record(
+                    &storage,
+                    &table_schema,
+                    &data_file_record,
+                    None,
+                    vec![condition],
+                    None,
+                )
+                .await?
+            };
 
             // prefetch record batch into memory
             let mut prefetch_row_count = 0;

@@ -5,8 +5,8 @@ use std::{
 };
 
 use arrow::{
-    array::RecordBatch,
-    datatypes::{Schema, SchemaRef},
+    array::{ArrayRef, AsArray, Int64Array, RecordBatch, UInt64Array},
+    datatypes::{Int64Type, Schema, SchemaRef},
 };
 use futures::{StreamExt, TryStreamExt, future::BoxFuture};
 use parquet::{
@@ -24,7 +24,7 @@ use parquet::{
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
-    catalog::DataFileRecord,
+    catalog::{DataFileRecord, INTERNAL_ROW_ID_FIELD_REF},
     expr::{Expr, ExprPredicate},
     storage::{InputFile, OutputFile, Storage},
 };
@@ -124,4 +124,54 @@ pub(crate) async fn read_parquet_file_by_record(
         .build()?
         .map_err(ILError::from);
     Ok(Box::pin(stream))
+}
+
+pub(crate) async fn read_parquet_file_by_record_and_row_id_condition(
+    storage: &Storage,
+    table_schema: &Schema,
+    data_file_record: &DataFileRecord,
+    projection: Option<Vec<usize>>,
+    row_id_condition: &Expr,
+) -> ILResult<RecordBatchStream> {
+    let valid_row_ids = data_file_record.validity.valid_row_ids();
+    let valid_row_ids_array = Arc::new(Int64Array::from_iter_values(valid_row_ids)) as ArrayRef;
+
+    let schema = Arc::new(Schema::new(vec![INTERNAL_ROW_ID_FIELD_REF.clone()]));
+    let batch = RecordBatch::try_new(schema, vec![valid_row_ids_array.clone()])?;
+
+    let bool_array = row_id_condition.condition_eval(&batch)?;
+
+    let mut indices = Vec::new();
+    for (i, v) in bool_array.iter().enumerate() {
+        if let Some(v) = v
+            && v
+        {
+            indices.push(i as u64);
+        }
+    }
+    let index_array = UInt64Array::from(indices);
+
+    let take_array = arrow::compute::take(valid_row_ids_array.as_ref(), &index_array, None)?;
+    let match_row_id_array = take_array.as_primitive_opt::<Int64Type>().ok_or_else(|| {
+        ILError::InternalError(format!(
+            "match row id array should be Int64Array, but got {:?}",
+            take_array.data_type()
+        ))
+    })?;
+    let match_row_ids = match_row_id_array
+        .values()
+        .iter()
+        .map(|v| *v)
+        .collect::<HashSet<_>>();
+
+    let stream = read_parquet_file_by_record(
+        &storage,
+        &table_schema,
+        &data_file_record,
+        projection,
+        vec![],
+        Some(&match_row_ids),
+    )
+    .await?;
+    Ok(stream)
 }

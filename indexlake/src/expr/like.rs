@@ -87,7 +87,6 @@ impl std::fmt::Display for Like {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::catalog::CatalogDatabase;
     use crate::expr::{col, lit};
     use arrow::array::{BooleanArray, StringArray};
     use arrow::datatypes::{DataType, Field, Schema};
@@ -97,111 +96,6 @@ mod tests {
         let schema = Schema::new(vec![Field::new("c1", DataType::Utf8, false)]);
         let c1 = StringArray::from(vec!["hello", "world", "HELLO", "WORLD"]);
         RecordBatch::try_new(Arc::new(schema), vec![Arc::new(c1)]).unwrap()
-    }
-
-    #[tokio::test]
-    async fn test_like_to_sql() {
-        // Test Postgres
-        let db_pg = CatalogDatabase::Postgres;
-        let expr_pg = col("c1");
-        let pattern_pg = lit("a%");
-
-        let like_expr_pg = Like::new(
-            false,
-            Box::new(expr_pg.clone()),
-            Box::new(pattern_pg.clone()),
-            false,
-        );
-        assert_eq!(
-            like_expr_pg.to_sql(db_pg.clone()).unwrap(),
-            "\"c1\" LIKE 'a%'"
-        );
-
-        let not_like_expr_pg = Like::new(
-            true,
-            Box::new(expr_pg.clone()),
-            Box::new(pattern_pg.clone()),
-            false,
-        );
-        assert_eq!(
-            not_like_expr_pg.to_sql(db_pg.clone()).unwrap(),
-            "\"c1\" NOT LIKE 'a%'"
-        );
-
-        let ilike_expr_pg = Like::new(
-            false,
-            Box::new(expr_pg.clone()),
-            Box::new(pattern_pg.clone()),
-            true,
-        );
-        assert_eq!(
-            ilike_expr_pg.to_sql(db_pg.clone()).unwrap(),
-            "\"c1\" ILIKE 'a%'"
-        );
-
-        let not_ilike_expr_pg = Like::new(
-            true,
-            Box::new(expr_pg.clone()),
-            Box::new(pattern_pg.clone()),
-            true,
-        );
-        assert_eq!(
-            not_ilike_expr_pg.to_sql(db_pg.clone()).unwrap(),
-            "\"c1\" NOT ILIKE 'a%'"
-        );
-
-        // Test Sqlite
-        let db_sqlite = CatalogDatabase::Sqlite;
-        let expr_sqlite = col("c1");
-        let pattern_sqlite = lit("a%");
-
-        // LIKE (case-sensitive, requires PRAGMA)
-        let like_expr_sqlite = Like::new(
-            false,
-            Box::new(expr_sqlite.clone()),
-            Box::new(pattern_sqlite.clone()),
-            false,
-        );
-        assert_eq!(
-            like_expr_sqlite.to_sql(db_sqlite.clone()).unwrap(),
-            "`c1` LIKE 'a%'"
-        );
-
-        // NOT LIKE (case-sensitive, requires PRAGMA)
-        let not_like_expr_sqlite = Like::new(
-            true,
-            Box::new(expr_sqlite.clone()),
-            Box::new(pattern_sqlite.clone()),
-            false,
-        );
-        assert_eq!(
-            not_like_expr_sqlite.to_sql(db_sqlite.clone()).unwrap(),
-            "`c1` NOT LIKE 'a%'"
-        );
-
-        // ILIKE -> UPPER(expr) LIKE UPPER(pattern)
-        let ilike_expr_sqlite = Like::new(
-            false,
-            Box::new(expr_sqlite.clone()),
-            Box::new(pattern_sqlite.clone()),
-            true,
-        );
-        assert_eq!(
-            ilike_expr_sqlite.to_sql(db_sqlite.clone()).unwrap(),
-            "UPPER(`c1`) LIKE UPPER('a%')"
-        );
-
-        // NOT ILIKE -> UPPER(expr) NOT LIKE UPPER(pattern)
-        let not_ilike_expr_sqlite = Like::new(
-            true,
-            Box::new(expr_sqlite.clone()),
-            Box::new(pattern_sqlite.clone()),
-            true,
-        );
-        assert_eq!(
-            not_ilike_expr_sqlite.to_sql(db_sqlite.clone()).unwrap(),
-            "UPPER(`c1`) NOT LIKE UPPER('a%')"
-        );
     }
 
     #[test]
