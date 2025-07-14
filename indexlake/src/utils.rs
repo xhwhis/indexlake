@@ -76,6 +76,24 @@ pub(crate) fn build_projection_from_columns(
     Ok(projection)
 }
 
+#[macro_export]
+macro_rules! retry {
+    ($fn:expr) => {{
+        let mut retry_count = 0;
+        loop {
+            let result = $fn().await;
+            if result.is_ok() {
+                break result;
+            }
+            retry_count += 1;
+            if retry_count > 3 {
+                break result;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+    }};
+}
+
 #[cfg(test)]
 mod tests {
     use crate::utils::has_duplicated_items;

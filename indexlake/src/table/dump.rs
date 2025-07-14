@@ -1,6 +1,11 @@
-use std::{collections::HashMap, sync::Arc, time::Instant};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use arrow::datatypes::SchemaRef;
+use backon::{ConstantBuilder, Retryable};
 use futures::{StreamExt, TryStreamExt};
 use log::{debug, error};
 use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
@@ -12,6 +17,7 @@ use crate::{
         RowsValidity, TransactionHelper, rows_to_record_batch,
     },
     index::{IndexBuilder, IndexDefinationRef, IndexKind},
+    retry,
     storage::Storage,
     table::{Table, TableConfig},
 };
@@ -94,15 +100,12 @@ impl DumpTask {
             return Ok(());
         }
 
-        let data_file_id = tx_helper.get_max_data_file_id().await? + 1;
-
         let catalog_schema = Arc::new(CatalogSchema::from_arrow(&self.table_schema)?);
         let row_stream = tx_helper
             .scan_inline_rows_by_row_ids(self.table_id, &catalog_schema, &self.dump_row_ids)
             .await?;
 
-        let relative_path =
-            DataFileRecord::build_relative_path(self.namespace_id, self.table_id, data_file_id);
+        let relative_path = DataFileRecord::build_relative_path(self.namespace_id, self.table_id);
 
         let mut index_builders = HashMap::new();
         for (index_name, index_def) in self.table_indexes.iter() {
@@ -125,18 +128,24 @@ impl DumpTask {
             )));
         }
 
-        tx_helper
-            .insert_data_files(&[DataFileRecord {
-                data_file_id,
-                table_id: self.table_id,
-                relative_path,
-                file_size_bytes: file_size_bytes as i64,
-                record_count: row_ids.len() as i64,
-                validity: RowsValidity {
-                    validity: row_ids.iter().map(|id| (*id, true)).collect::<Vec<_>>(),
-                },
-            }])
-            .await?;
+        let mut insert_data_file_fn = async || {
+            let data_file_id = tx_helper.get_max_data_file_id().await? + 1;
+            tx_helper
+                .insert_data_files(&[DataFileRecord {
+                    data_file_id,
+                    table_id: self.table_id,
+                    relative_path: relative_path.clone(),
+                    file_size_bytes: file_size_bytes as i64,
+                    record_count: row_ids.len() as i64,
+                    validity: RowsValidity {
+                        validity: row_ids.iter().map(|id| (*id, true)).collect::<Vec<_>>(),
+                    },
+                }])
+                .await?;
+            Ok::<_, ILError>(data_file_id)
+        };
+
+        let data_file_id = retry!(insert_data_file_fn)?;
 
         let mut index_file_id = tx_helper.get_max_index_file_id().await? + 1;
         let mut index_file_records = Vec::new();

@@ -144,12 +144,13 @@ impl DataFileRecord {
         ])
     }
 
-    pub(crate) fn build_relative_path(
-        namespace_id: i64,
-        table_id: i64,
-        data_file_id: i64,
-    ) -> String {
-        format!("{}/{}/{}.parquet", namespace_id, table_id, data_file_id)
+    pub(crate) fn build_relative_path(namespace_id: i64, table_id: i64) -> String {
+        format!(
+            "{}/{}/{}.parquet",
+            namespace_id,
+            table_id,
+            uuid::Uuid::new_v4().to_string()
+        )
     }
 
     pub(crate) fn from_row(row: &Row) -> ILResult<Self> {

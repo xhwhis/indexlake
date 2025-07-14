@@ -53,6 +53,8 @@ async fn drop_table(
         ],
     )?;
     table.insert(&record_batch).await?;
+    // avoid dump task failure due to inline row table dropped
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
     table.drop().await?;
     assert!(client.load_table(namespace_name, table_name).await.is_err());
