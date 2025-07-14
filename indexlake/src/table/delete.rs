@@ -28,7 +28,8 @@ pub(crate) async fn process_delete_by_condition(
     for data_file_record in data_file_records {
         if let Some(matched_row_ids) = matched_data_file_row_ids.get(&data_file_record.data_file_id)
         {
-            delete_data_file_rows_by_matched_row_ids(tx_helper, data_file_record, matched_row_ids)
+            tx_helper
+                .update_data_file_rows_as_invalid(data_file_record, matched_row_ids)
                 .await?;
         } else {
             delete_data_file_rows_by_condition(
@@ -49,7 +50,7 @@ pub(crate) async fn delete_data_file_rows_by_condition(
     storage: &Arc<Storage>,
     table_schema: &SchemaRef,
     condition: &Expr,
-    mut data_file_record: DataFileRecord,
+    data_file_record: DataFileRecord,
 ) -> ILResult<()> {
     let deleted_row_ids = find_matched_row_ids_from_parquet_file(
         &storage,
@@ -59,30 +60,8 @@ pub(crate) async fn delete_data_file_rows_by_condition(
     )
     .await?;
 
-    for (row_id, valid) in data_file_record.validity.iter_mut_valid_row_ids() {
-        if deleted_row_ids.contains(row_id) {
-            *valid = false;
-        }
-    }
-
     tx_helper
-        .update_data_file_validity(data_file_record.data_file_id, &data_file_record.validity)
-        .await?;
-    Ok(())
-}
-
-pub(crate) async fn delete_data_file_rows_by_matched_row_ids(
-    tx_helper: &mut TransactionHelper,
-    mut data_file_record: DataFileRecord,
-    matched_row_ids: &HashSet<i64>,
-) -> ILResult<()> {
-    for (row_id, valid) in data_file_record.validity.iter_mut_valid_row_ids() {
-        if matched_row_ids.contains(row_id) {
-            *valid = false;
-        }
-    }
-    tx_helper
-        .update_data_file_validity(data_file_record.data_file_id, &data_file_record.validity)
+        .update_data_file_rows_as_invalid(data_file_record, &deleted_row_ids)
         .await?;
     Ok(())
 }

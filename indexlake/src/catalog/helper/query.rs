@@ -106,50 +106,51 @@ impl TransactionHelper {
         }
     }
 
-    pub(crate) async fn get_max_row_id(&mut self, table_id: i64) -> ILResult<i64> {
+    pub(crate) async fn scan_inline_rows(
+        &mut self,
+        table_id: i64,
+        schema: &CatalogSchemaRef,
+        filters: &[Expr],
+        limit: Option<usize>,
+    ) -> ILResult<RowStream> {
+        let where_clause = if filters.is_empty() {
+            "".to_string()
+        } else {
+            let filters_str = filters
+                .iter()
+                .map(|f| f.to_sql(self.database))
+                .collect::<Result<Vec<_>, _>>()?
+                .join(" AND ");
+            format!(" WHERE {filters_str}")
+        };
+        let limit_clause = limit
+            .map(|limit| format!(" LIMIT {limit}"))
+            .unwrap_or_default();
+        self.transaction
+            .query(
+                &format!(
+                    "SELECT {}  FROM indexlake_inline_row_{table_id}{where_clause}{limit_clause}",
+                    schema.select_items(self.database).join(", ")
+                ),
+                Arc::clone(schema),
+            )
+            .await
+    }
+
+    pub(crate) async fn count_inline_rows(&mut self, table_id: i64) -> ILResult<i64> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
-            "max_row_id",
+            "count",
             CatalogDataType::Int64,
             false,
         )]));
         let rows = self
             .query_rows(
-                &format!("SELECT max_row_id FROM indexlake_table WHERE table_id = {table_id}"),
+                &format!("SELECT COUNT(1) FROM indexlake_inline_row_{table_id}"),
                 schema,
             )
             .await?;
-        if rows.is_empty() {
-            Ok(0)
-        } else {
-            let max_row_id = rows[0].int64(0)?;
-            Ok(max_row_id.expect("max_row_id should not be null"))
-        }
-    }
-
-    pub(crate) async fn scan_inline_rows_by_row_ids(
-        &mut self,
-        table_id: i64,
-        table_schema: &CatalogSchemaRef,
-        row_ids: &[i64],
-    ) -> ILResult<RowStream> {
-        if row_ids.is_empty() {
-            return Ok(Box::pin(futures::stream::empty::<ILResult<Row>>()));
-        }
-        self.transaction
-            .query(
-                &format!(
-                    "SELECT {} FROM indexlake_inline_row_{table_id} WHERE {} IN ({})",
-                    table_schema.select_items(self.database).join(", "),
-                    INTERNAL_ROW_ID_FIELD_NAME,
-                    row_ids
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ),
-                Arc::clone(table_schema),
-            )
-            .await
+        let count = rows[0].int64(0)?.expect("count is not null");
+        Ok(count)
     }
 
     pub(crate) async fn get_max_data_file_id(&mut self) -> ILResult<i64> {
@@ -349,32 +350,6 @@ impl CatalogHelper {
         Ok(count)
     }
 
-    pub(crate) async fn scan_inline_row_ids_with_limit(
-        &self,
-        table_id: i64,
-        limit: usize,
-    ) -> ILResult<Vec<i64>> {
-        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
-            INTERNAL_ROW_ID_FIELD_NAME.to_string(),
-            CatalogDataType::Int64,
-            false,
-        )]));
-        let rows = self
-            .query_rows(
-                &format!(
-                    "SELECT {} FROM indexlake_inline_row_{table_id} limit {limit}",
-                    INTERNAL_ROW_ID_FIELD_NAME
-                ),
-                schema,
-            )
-            .await?;
-        let mut row_ids = Vec::with_capacity(rows.len());
-        for row in rows {
-            row_ids.push(row.int64(0)?.expect("row_id is not null"));
-        }
-        Ok(row_ids)
-    }
-
     pub(crate) async fn scan_inline_rows(
         &self,
         table_id: i64,
@@ -488,5 +463,20 @@ impl CatalogHelper {
         } else {
             Ok(Some(IndexFileRecord::from_row(&rows[0])?))
         }
+    }
+
+    pub(crate) async fn dump_task_exists(&self, table_id: i64) -> ILResult<bool> {
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
+            "table_id",
+            CatalogDataType::Int64,
+            false,
+        )]));
+        let rows = self
+            .query_rows(
+                &format!("SELECT table_id FROM indexlake_dump_task WHERE table_id = {table_id}"),
+                schema,
+            )
+            .await?;
+        Ok(rows.len() > 0)
     }
 }

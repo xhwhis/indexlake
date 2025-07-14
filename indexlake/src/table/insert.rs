@@ -9,30 +9,7 @@ use arrow::{
 use crate::{
     ILError, ILResult,
     catalog::{CatalogDatabase, TransactionHelper},
-    utils::record_batch_with_row_id,
 };
-
-// TODO bypass insert: save to parquet file
-pub(crate) async fn process_insert(
-    tx_helper: &mut TransactionHelper,
-    table_id: i64,
-    record: &RecordBatch,
-) -> ILResult<()> {
-    let max_row_id = tx_helper.get_max_row_id(table_id).await?;
-
-    // Generate row id for each row
-    let row_ids = (max_row_id + 1..max_row_id + 1 + record.num_rows() as i64).collect::<Vec<_>>();
-    let row_id_array = Int64Array::from(row_ids);
-    let record = record_batch_with_row_id(record, row_id_array)?;
-
-    process_insert_into_inline_rows(tx_helper, table_id, &record).await?;
-
-    tx_helper
-        .update_table_max_row_id(table_id, max_row_id + record.num_rows() as i64)
-        .await?;
-
-    Ok(())
-}
 
 pub(crate) async fn process_insert_into_inline_rows(
     tx_helper: &mut TransactionHelper,

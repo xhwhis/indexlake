@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use arrow::{
     array::{AsArray, Int64Array, RecordBatch, RecordBatchOptions},
@@ -64,9 +67,9 @@ pub(crate) async fn update_data_file_rows_by_matched_rows(
     table_id: i64,
     set_map: &HashMap<String, Scalar>,
     matched_data_file_rows: &mut RecordBatchStream,
-    mut data_file_record: DataFileRecord,
+    data_file_record: DataFileRecord,
 ) -> ILResult<()> {
-    let mut updated_row_ids = Vec::new();
+    let mut updated_row_ids = HashSet::new();
     while let Some(batch) = matched_data_file_rows.next().await {
         let batch = batch?;
         if batch.num_rows() == 0 {
@@ -81,21 +84,12 @@ pub(crate) async fn update_data_file_rows_by_matched_rows(
                     batch.column(0).data_type()
                 ))
             })?;
-        updated_row_ids.extend_from_slice(row_id_array.values());
+        updated_row_ids.extend(row_id_array.values());
         let updated_batch = update_record_batch(&batch, set_map)?;
         process_insert_into_inline_rows(tx_helper, table_id, &updated_batch).await?;
     }
-    let update_row_id_map = updated_row_ids
-        .into_iter()
-        .map(|row_id| (row_id, ()))
-        .collect::<HashMap<_, _>>();
-    for (row_id, valid) in data_file_record.validity.iter_mut_valid_row_ids() {
-        if update_row_id_map.contains_key(row_id) {
-            *valid = false;
-        }
-    }
     tx_helper
-        .update_data_file_validity(data_file_record.data_file_id, &data_file_record.validity)
+        .update_data_file_rows_as_invalid(data_file_record, &updated_row_ids)
         .await?;
     Ok(())
 }
@@ -107,7 +101,7 @@ pub(crate) async fn update_data_file_rows_by_condition(
     table_schema: &SchemaRef,
     set_map: &HashMap<String, Scalar>,
     condition: &Expr,
-    mut data_file_record: DataFileRecord,
+    data_file_record: DataFileRecord,
 ) -> ILResult<()> {
     let mut stream = if condition.only_visit_row_id_column() {
         read_parquet_file_by_record_and_row_id_condition(
@@ -130,10 +124,9 @@ pub(crate) async fn update_data_file_rows_by_condition(
         .await?
     };
 
-    let mut updated_row_ids = Vec::new();
+    let mut updated_row_ids = HashSet::new();
     while let Some(batch) = stream.next().await {
         let batch = batch?;
-        let bool_array = condition.condition_eval(&batch)?;
 
         let row_id_array = batch
             .column(0)
@@ -145,37 +138,13 @@ pub(crate) async fn update_data_file_rows_by_condition(
                 ))
             })?;
 
-        let mut selected_indices = Vec::new();
-        for (i, v) in bool_array.iter().enumerate() {
-            if let Some(v) = v
-                && v
-            {
-                selected_indices.push(i as i64);
-                updated_row_ids.push(row_id_array.value(i));
-            }
-        }
-
-        let indices = Arc::new(Int64Array::from(selected_indices));
-        let selected_batch = arrow::compute::take_record_batch(&batch, indices.as_ref())?;
-        if selected_batch.num_rows() == 0 {
-            continue;
-        }
-        let updated_batch = update_record_batch(&selected_batch, set_map)?;
+        updated_row_ids.extend(row_id_array.values());
+        let updated_batch = update_record_batch(&batch, set_map)?;
         process_insert_into_inline_rows(tx_helper, table_id, &updated_batch).await?;
     }
 
-    let update_row_id_map = updated_row_ids
-        .into_iter()
-        .map(|row_id| (row_id, ()))
-        .collect::<HashMap<_, _>>();
-    for (row_id, valid) in data_file_record.validity.iter_mut_valid_row_ids() {
-        if update_row_id_map.contains_key(row_id) {
-            *valid = false;
-        }
-    }
-
     tx_helper
-        .update_data_file_validity(data_file_record.data_file_id, &data_file_record.validity)
+        .update_data_file_rows_as_invalid(data_file_record, &updated_row_ids)
         .await?;
     Ok(())
 }

@@ -6,6 +6,7 @@ mod scan;
 mod search;
 mod update;
 
+use backon::{ConstantBuilder, Retryable};
 pub use create::*;
 pub(crate) use delete::*;
 pub(crate) use dump::*;
@@ -29,6 +30,7 @@ use arrow::datatypes::{DataType, FieldRef, SchemaRef};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct Table {
@@ -58,7 +60,6 @@ impl Table {
     }
 
     pub async fn insert(&self, record: &RecordBatch) -> ILResult<()> {
-        let mut tx_helper = self.transaction_helper().await?;
         let schema = schema_with_row_id(&record.schema());
         if &schema != self.schema.as_ref() {
             return Err(ILError::InvalidInput(format!(
@@ -66,7 +67,9 @@ impl Table {
                 self.schema, schema
             )));
         }
-        process_insert(&mut tx_helper, self.table_id, record).await?;
+
+        let mut tx_helper = self.transaction_helper().await?;
+        process_insert_into_inline_rows(&mut tx_helper, self.table_id, record).await?;
         tx_helper.commit().await?;
 
         try_run_dump_task(self).await?;

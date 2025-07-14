@@ -2,7 +2,7 @@ use arrow::datatypes::Fields;
 
 use crate::{
     ILError, ILResult,
-    catalog::{CatalogDataType, INTERNAL_ROW_ID_FIELD_NAME, TransactionHelper},
+    catalog::{CatalogDataType, CatalogDatabase, INTERNAL_ROW_ID_FIELD_NAME, TransactionHelper},
 };
 
 impl TransactionHelper {
@@ -12,7 +12,20 @@ impl TransactionHelper {
         fields: &Fields,
     ) -> ILResult<()> {
         let mut columns = Vec::new();
-        columns.push(format!("{} BIGINT PRIMARY KEY", INTERNAL_ROW_ID_FIELD_NAME));
+        match self.database {
+            CatalogDatabase::Postgres => {
+                columns.push(format!(
+                    "{} BIGSERIAL PRIMARY KEY",
+                    INTERNAL_ROW_ID_FIELD_NAME
+                ));
+            }
+            CatalogDatabase::Sqlite => {
+                columns.push(format!(
+                    "{} INTEGER PRIMARY KEY AUTOINCREMENT",
+                    INTERNAL_ROW_ID_FIELD_NAME
+                ));
+            }
+        }
         for field in fields {
             columns.push(format!(
                 "{} {} {}",

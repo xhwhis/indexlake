@@ -38,17 +38,11 @@ pub(crate) async fn try_run_dump_task(table: &Table) -> ILResult<()> {
             if inline_row_count < table_config.inline_row_count_limit as i64 {
                 return Ok(());
             }
-
-            let dump_row_ids = catalog_helper
-                .scan_inline_row_ids_with_limit(table_id, table_config.inline_row_count_limit)
-                .await?;
-            if dump_row_ids.len() < table_config.inline_row_count_limit {
-                debug!(
-                    "Table {} has less than {} inline rows, skip dump",
-                    table_id, table_config.inline_row_count_limit
-                );
+            if catalog_helper.dump_task_exists(table_id).await? {
                 return Ok(());
             }
+
+            let inline_row_count_limit = table_config.inline_row_count_limit;
 
             let dump_task = DumpTask {
                 namespace_id,
@@ -59,14 +53,12 @@ pub(crate) async fn try_run_dump_task(table: &Table) -> ILResult<()> {
                 table_config,
                 catalog,
                 storage,
-                dump_row_ids,
             };
 
             let now = Instant::now();
             dump_task.run().await?;
             debug!(
-                "Dump table {} inline rows in {} ms",
-                dump_task.table_id,
+                "Dump table {table_id} {inline_row_count_limit} inline rows in {} ms",
                 now.elapsed().as_millis()
             );
 
@@ -89,7 +81,6 @@ pub(crate) struct DumpTask {
     table_config: Arc<TableConfig>,
     catalog: Arc<dyn Catalog>,
     storage: Arc<Storage>,
-    dump_row_ids: Vec<i64>,
 }
 
 impl DumpTask {
@@ -100,9 +91,19 @@ impl DumpTask {
             return Ok(());
         }
 
+        let inline_row_count = tx_helper.count_inline_rows(self.table_id).await?;
+        if inline_row_count < self.table_config.inline_row_count_limit as i64 {
+            return Ok(());
+        }
+
         let catalog_schema = Arc::new(CatalogSchema::from_arrow(&self.table_schema)?);
         let row_stream = tx_helper
-            .scan_inline_rows_by_row_ids(self.table_id, &catalog_schema, &self.dump_row_ids)
+            .scan_inline_rows(
+                self.table_id,
+                &catalog_schema,
+                &[],
+                Some(self.table_config.inline_row_count_limit),
+            )
             .await?;
 
         let relative_path = DataFileRecord::build_relative_path(self.namespace_id, self.table_id);
@@ -120,11 +121,12 @@ impl DumpTask {
             .write_dump_file(row_stream, &relative_path, &mut index_builders)
             .await?;
 
-        if row_ids.len() != self.dump_row_ids.len() {
+        if row_ids.len() != self.table_config.inline_row_count_limit {
+            self.storage.delete(&relative_path).await?;
             return Err(ILError::InternalError(format!(
                 "Read row count mismatch: {} rows read, expected {}",
                 row_ids.len(),
-                self.dump_row_ids.len()
+                self.table_config.inline_row_count_limit
             )));
         }
 
@@ -176,13 +178,13 @@ impl DumpTask {
         tx_helper.insert_index_files(&index_file_records).await?;
 
         let deleted_count = tx_helper
-            .delete_inline_rows_by_row_ids(self.table_id, &self.dump_row_ids)
+            .delete_inline_rows_by_row_ids(self.table_id, &row_ids)
             .await?;
-        if deleted_count != self.dump_row_ids.len() {
+        if deleted_count != row_ids.len() {
             return Err(ILError::InternalError(format!(
                 "Delete row count mismatch: {} inline rows deleted, expected {}",
                 deleted_count,
-                self.dump_row_ids.len()
+                row_ids.len()
             )));
         }
 

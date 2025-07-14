@@ -64,7 +64,6 @@ impl Catalog for SqliteCatalog {
 
 #[derive(Debug)]
 pub struct SqliteTransaction {
-    // TODO use tokio rusqlite connection
     conn: rusqlite::Connection,
     done: bool,
 }
