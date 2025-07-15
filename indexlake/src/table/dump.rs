@@ -32,14 +32,14 @@ pub(crate) async fn try_run_dump_task(table: &Table) -> ILResult<()> {
     let catalog = table.catalog.clone();
     let storage = table.storage.clone();
     tokio::spawn(async move {
-        let result = async {
+        let try_dump_fn = async || {
             let catalog_helper = CatalogHelper::new(catalog.clone());
             let inline_row_count = catalog_helper.count_inline_rows(table_id).await?;
             if inline_row_count < table_config.inline_row_count_limit as i64 {
-                return Ok(());
+                return Ok(false);
             }
             if catalog_helper.dump_task_exists(table_id).await? {
-                return Ok(());
+                return Ok(false);
             }
 
             let inline_row_count_limit = table_config.inline_row_count_limit;
@@ -47,26 +47,36 @@ pub(crate) async fn try_run_dump_task(table: &Table) -> ILResult<()> {
             let dump_task = DumpTask {
                 namespace_id,
                 table_id,
-                table_schema,
-                table_indexes,
-                index_kinds,
-                table_config,
-                catalog,
-                storage,
+                table_schema: table_schema.clone(),
+                table_indexes: table_indexes.clone(),
+                index_kinds: index_kinds.clone(),
+                table_config: table_config.clone(),
+                catalog: catalog.clone(),
+                storage: storage.clone(),
             };
 
             let now = Instant::now();
             dump_task.run().await?;
             debug!(
-                "Dump table {table_id} {inline_row_count_limit} inline rows in {} ms",
+                "[indexlake] dump table {table_id} {inline_row_count_limit} inline rows in {} ms",
                 now.elapsed().as_millis()
             );
 
-            Ok::<(), ILError>(())
-        }
-        .await;
-        if let Err(e) = result {
-            error!("Failed to run dump task: {:?}", e);
+            Ok::<_, ILError>(true)
+        };
+
+        loop {
+            match try_dump_fn().await {
+                Ok(continue_dump) => {
+                    if !continue_dump {
+                        return;
+                    }
+                }
+                Err(e) => {
+                    error!("[indexlake] failed to run dump task: {e:?}");
+                    return;
+                }
+            }
         }
     });
     Ok(())

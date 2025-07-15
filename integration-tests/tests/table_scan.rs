@@ -1,7 +1,7 @@
 use indexlake::expr::{col, lit};
 use indexlake::table::TableScan;
 use indexlake::{LakeClient, catalog::Catalog, storage::Storage};
-use indexlake_integration_tests::data::prepare_testing_table;
+use indexlake_integration_tests::data::prepare_simple_testing_table;
 use indexlake_integration_tests::utils::table_scan;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
@@ -21,7 +21,7 @@ async fn scan_with_projection(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-    let table = prepare_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client).await?;
 
     let scan = TableScan::default().with_projection(Some(vec![0, 2]));
     let table_str = table_scan(&table, scan).await?;
@@ -54,7 +54,7 @@ async fn scan_with_filters(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-    let table = prepare_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client).await?;
 
     let scan = TableScan::default()
         .with_filters(vec![col("age").gt(lit(21)), col("name").eq(lit("Charlie"))]);

@@ -9,7 +9,7 @@ use indexlake::{
     table::{Table, TableConfig, TableCreation},
 };
 
-pub async fn prepare_testing_table(client: &LakeClient) -> ILResult<Table> {
+pub async fn prepare_simple_testing_table(client: &LakeClient) -> ILResult<Table> {
     let namespace_name = "test_namespace";
     client.create_namespace(namespace_name, true).await?;
 

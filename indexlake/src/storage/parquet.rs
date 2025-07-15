@@ -150,6 +150,9 @@ pub(crate) async fn read_parquet_file_by_record_and_row_id_condition(
             indices.push(i as u64);
         }
     }
+    if indices.is_empty() {
+        return Ok(Box::pin(futures::stream::empty()));
+    }
     let index_array = UInt64Array::from(indices);
 
     let take_array = arrow::compute::take(valid_row_ids_array.as_ref(), &index_array, None)?;

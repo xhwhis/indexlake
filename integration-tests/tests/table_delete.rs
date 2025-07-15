@@ -4,7 +4,7 @@ use indexlake::{LakeClient, catalog::Catalog, storage::Storage};
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
-use indexlake_integration_tests::{data::prepare_testing_table, utils::full_table_scan};
+use indexlake_integration_tests::{data::prepare_simple_testing_table, utils::full_table_scan};
 use std::sync::Arc;
 
 #[rstest::rstest]
@@ -20,7 +20,7 @@ async fn delete_table_by_condition(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-    let table = prepare_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client).await?;
 
     let condition = col("age").gt(lit(21i32));
     table.delete(&condition).await?;
@@ -53,7 +53,7 @@ async fn delete_table_by_row_id(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-    let table = prepare_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client).await?;
 
     let condition = col(INTERNAL_ROW_ID_FIELD_NAME).eq(lit(1i64));
     table.delete(&condition).await?;

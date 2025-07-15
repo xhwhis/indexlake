@@ -1,7 +1,7 @@
 use indexlake::{LakeClient, catalog::Catalog, index::IndexKind, storage::Storage};
 use indexlake_integration_tests::{
-    catalog_postgres, catalog_sqlite, data::prepare_testing_table, init_env_logger, storage_fs,
-    storage_s3,
+    catalog_postgres, catalog_sqlite, data::prepare_simple_testing_table, init_env_logger,
+    storage_fs, storage_s3,
 };
 use std::sync::Arc;
 
@@ -23,7 +23,7 @@ async fn duplicated_index_name(
     let mut client = LakeClient::new(catalog, storage);
     client.register_index_kind(Arc::new(BTreeIndexKind))?;
 
-    let mut table = prepare_testing_table(&client).await?;
+    let mut table = prepare_simple_testing_table(&client).await?;
 
     let index_creation = IndexCreation {
         name: "test_index".to_string(),
@@ -55,7 +55,7 @@ async fn unsupported_index_kind(
     let mut client = LakeClient::new(catalog, storage);
     client.register_index_kind(Arc::new(BTreeIndexKind))?;
 
-    let mut table = prepare_testing_table(&client).await?;
+    let mut table = prepare_simple_testing_table(&client).await?;
 
     let index_creation = IndexCreation {
         name: "test_index".to_string(),

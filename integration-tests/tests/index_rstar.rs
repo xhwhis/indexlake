@@ -10,8 +10,8 @@ use indexlake::{
     table::{TableConfig, TableCreation, TableScan},
 };
 use indexlake_integration_tests::{
-    catalog_postgres, catalog_sqlite, data::prepare_testing_table, init_env_logger, storage_fs,
-    storage_s3,
+    catalog_postgres, catalog_sqlite, data::prepare_simple_testing_table, init_env_logger,
+    storage_fs, storage_s3,
 };
 use std::sync::Arc;
 

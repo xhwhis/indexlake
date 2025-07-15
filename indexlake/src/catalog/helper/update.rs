@@ -48,6 +48,10 @@ impl TransactionHelper {
         mut data_file_record: DataFileRecord,
         invalid_row_ids: &HashSet<i64>,
     ) -> ILResult<usize> {
+        if invalid_row_ids.is_empty() {
+            return Ok(1);
+        }
+
         for (row_id, valid) in data_file_record.validity.iter_mut_valid_row_ids() {
             if invalid_row_ids.contains(row_id) {
                 *valid = false;

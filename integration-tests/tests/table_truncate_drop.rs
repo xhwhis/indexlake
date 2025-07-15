@@ -9,7 +9,7 @@ use indexlake::{
     storage::Storage,
     table::{TableConfig, TableCreation},
 };
-use indexlake_integration_tests::data::prepare_testing_table;
+use indexlake_integration_tests::data::prepare_simple_testing_table;
 use indexlake_integration_tests::utils::full_table_scan;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
@@ -29,7 +29,7 @@ async fn truncate_table(
     init_env_logger();
 
     let client = LakeClient::new(catalog, storage);
-    let table = prepare_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client).await?;
 
     table.truncate().await?;
 
