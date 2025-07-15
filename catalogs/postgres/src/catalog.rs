@@ -30,7 +30,7 @@ impl PostgresCatalog {
         let pool = Pool::builder()
             .build(manager)
             .await
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to build postgres pool: {e}")))?;
         Ok(Self { pool })
     }
 }
@@ -43,32 +43,29 @@ impl Catalog for PostgresCatalog {
 
     async fn query(&self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream<'static>> {
         debug!("postgres query: {sql}");
-        let conn = self
-            .pool
-            .get_owned()
-            .await
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+        let conn = self.pool.get_owned().await.map_err(|e| {
+            ILError::CatalogError(format!("failed to get postgres connection: {e}"))
+        })?;
         let pg_row_stream = conn
             .query_raw(sql, Vec::<String>::new())
             .await
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to query postgres: {e}")))?;
 
         let stream = pg_row_stream.map(move |row| {
-            let pg_row = row.map_err(|e| ILError::CatalogError(e.to_string()))?;
+            let pg_row =
+                row.map_err(|e| ILError::CatalogError(format!("failed to get postgres row: {e}")))?;
             pg_row_to_row(&pg_row, &schema)
         });
         Ok(Box::pin(stream))
     }
 
     async fn transaction(&self) -> ILResult<Box<dyn Transaction>> {
-        let conn = self
-            .pool
-            .get_owned()
-            .await
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+        let conn = self.pool.get_owned().await.map_err(|e| {
+            ILError::CatalogError(format!("failed to get postgres connection: {e}"))
+        })?;
         conn.batch_execute("START TRANSACTION")
             .await
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to start postgres txn: {e}")))?;
         Ok(Box::new(PostgresTransaction { conn, done: false }))
     }
 }
@@ -79,24 +76,32 @@ pub struct PostgresTransaction {
     done: bool,
 }
 
-#[async_trait::async_trait]
-impl Transaction for PostgresTransaction {
-    async fn query(&mut self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream> {
-        debug!("postgres txn query: {sql}");
+impl PostgresTransaction {
+    fn check_done(&self) -> ILResult<()> {
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),
             ));
         }
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl Transaction for PostgresTransaction {
+    async fn query(&mut self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream> {
+        debug!("postgres txn query: {sql}");
+        self.check_done()?;
 
         let pg_row_stream = self
             .conn
             .query_raw(sql, Vec::<String>::new())
             .await
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to query postgres: {e}")))?;
 
         let stream = pg_row_stream.map(move |row| {
-            let pg_row = row.map_err(|e| ILError::CatalogError(e.to_string()))?;
+            let pg_row =
+                row.map_err(|e| ILError::CatalogError(format!("failed to get postgres row: {e}")))?;
             pg_row_to_row(&pg_row, &schema)
         });
         Ok(Box::pin(stream))
@@ -104,57 +109,41 @@ impl Transaction for PostgresTransaction {
 
     async fn execute(&mut self, sql: &str) -> ILResult<usize> {
         debug!("postgres txn execute: {sql}");
-        if self.done {
-            return Err(ILError::CatalogError(
-                "Transaction already committed or rolled back".to_string(),
-            ));
-        }
+        self.check_done()?;
         self.conn
             .execute(sql, &[])
             .await
             .map(|r| r as usize)
-            .map_err(|e| ILError::CatalogError(e.to_string()))
+            .map_err(|e| ILError::CatalogError(format!("failed to execute postgres: {e}")))
     }
 
     async fn execute_batch(&mut self, sqls: &[String]) -> ILResult<()> {
         debug!("postgres txn execute batch: {:?}", sqls);
-        if self.done {
-            return Err(ILError::CatalogError(
-                "Transaction already committed or rolled back".to_string(),
-            ));
-        }
+        self.check_done()?;
         self.conn
             .batch_execute(sqls.join(";").as_str())
             .await
-            .map_err(|e| ILError::CatalogError(e.to_string()))
+            .map_err(|e| ILError::CatalogError(format!("failed to execute batch postgres: {e}")))
     }
 
     async fn commit(&mut self) -> ILResult<()> {
         debug!("postgres txn commit");
-        if self.done {
-            return Err(ILError::CatalogError(
-                "Transaction already committed or rolled back".to_string(),
-            ));
-        }
+        self.check_done()?;
         self.conn
             .batch_execute("COMMIT")
             .await
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to commit postgres txn: {e}")))?;
         self.done = true;
         Ok(())
     }
 
     async fn rollback(&mut self) -> ILResult<()> {
         debug!("postgres txn rollback");
-        if self.done {
-            return Err(ILError::CatalogError(
-                "Transaction already committed or rolled back".to_string(),
-            ));
-        }
+        self.check_done()?;
         self.conn
             .batch_execute("ROLLBACK")
             .await
-            .map_err(|e| ILError::CatalogError(e.to_string()))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to rollback postgres txn: {e}")))?;
         self.done = true;
         Ok(())
     }

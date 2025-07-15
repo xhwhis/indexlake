@@ -9,11 +9,15 @@ use indexlake::{
     storage::Storage,
     table::{TableConfig, TableCreation},
 };
-use indexlake_integration_tests::{catalog_postgres, init_env_logger, storage_s3};
+use indexlake_integration_tests::{
+    catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
+};
 use std::sync::Arc;
 use std::time::Duration;
 
 #[rstest::rstest]
+// TODO fix sqlite test
+// #[case(async { catalog_sqlite() }, storage_fs())]
 #[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn parallel_insert_table(

@@ -5,6 +5,7 @@ use indexlake::{
     catalog::{CatalogDataType, CatalogSchemaRef, Row, Scalar},
 };
 use log::{debug, error};
+use rusqlite::OpenFlags;
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -33,8 +34,13 @@ impl Catalog for SqliteCatalog {
 
     async fn query(&self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream<'static>> {
         debug!("sqlite query: {sql}");
-        let conn = rusqlite::Connection::open(&self.path)
-            .map_err(|e| ILError::CatalogError(format!("failed to open sqlite db: {e}")))?;
+        let conn = rusqlite::Connection::open_with_flags(
+            &self.path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY
+                | OpenFlags::SQLITE_OPEN_NO_MUTEX
+                | OpenFlags::SQLITE_OPEN_URI,
+        )
+        .map_err(|e| ILError::CatalogError(format!("failed to open sqlite db: {e}")))?;
         let mut stmt = conn
             .prepare(sql)
             .map_err(|e| ILError::CatalogError(format!("failed to prepare sqlite stmt: {e}")))?;
@@ -54,8 +60,13 @@ impl Catalog for SqliteCatalog {
     }
 
     async fn transaction(&self) -> ILResult<Box<dyn Transaction>> {
-        let conn = rusqlite::Connection::open(&self.path)
-            .map_err(|e| ILError::CatalogError(format!("failed to open sqlite db: {e}")))?;
+        let conn = rusqlite::Connection::open_with_flags(
+            &self.path,
+            OpenFlags::SQLITE_OPEN_READ_WRITE
+                | OpenFlags::SQLITE_OPEN_NO_MUTEX
+                | OpenFlags::SQLITE_OPEN_URI,
+        )
+        .map_err(|e| ILError::CatalogError(format!("failed to open sqlite db: {e}")))?;
         conn.execute_batch("BEGIN DEFERRED")
             .map_err(|e| ILError::CatalogError(format!("failed to begin sqlite txn: {e}")))?;
         Ok(Box::new(SqliteTransaction { conn, done: false }))
@@ -68,15 +79,22 @@ pub struct SqliteTransaction {
     done: bool,
 }
 
-#[async_trait::async_trait]
-impl Transaction for SqliteTransaction {
-    async fn query(&mut self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream> {
-        debug!("sqlite txn query: {sql}");
+impl SqliteTransaction {
+    fn check_done(&self) -> ILResult<()> {
         if self.done {
             return Err(ILError::CatalogError(
                 "Transaction already committed or rolled back".to_string(),
             ));
         }
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl Transaction for SqliteTransaction {
+    async fn query(&mut self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream> {
+        debug!("sqlite txn query: {sql}");
+        self.check_done()?;
         let mut stmt = self
             .conn
             .prepare(sql)
@@ -98,11 +116,7 @@ impl Transaction for SqliteTransaction {
 
     async fn execute(&mut self, sql: &str) -> ILResult<usize> {
         debug!("sqlite txn execute: {sql}");
-        if self.done {
-            return Err(ILError::CatalogError(
-                "Transaction already committed or rolled back".to_string(),
-            ));
-        }
+        self.check_done()?;
         self.conn
             .execute(sql, [])
             .map_err(|e| ILError::CatalogError(format!("failed to execute sqlite stmt: {e}")))
@@ -110,11 +124,7 @@ impl Transaction for SqliteTransaction {
 
     async fn execute_batch(&mut self, sqls: &[String]) -> ILResult<()> {
         debug!("sqlite txn execute batch: {:?}", sqls);
-        if self.done {
-            return Err(ILError::CatalogError(
-                "Transaction already committed or rolled back".to_string(),
-            ));
-        }
+        self.check_done()?;
         self.conn
             .execute_batch(sqls.join(";").as_str())
             .map_err(|e| ILError::CatalogError(format!("failed to execute sqlite batch: {e}")))
@@ -122,11 +132,7 @@ impl Transaction for SqliteTransaction {
 
     async fn commit(&mut self) -> ILResult<()> {
         debug!("sqlite txn commit");
-        if self.done {
-            return Err(ILError::CatalogError(
-                "Transaction already committed or rolled back".to_string(),
-            ));
-        }
+        self.check_done()?;
         self.conn
             .execute_batch("COMMIT")
             .map_err(|e| ILError::CatalogError(format!("failed to commit sqlite txn: {e}")))?;
@@ -136,11 +142,7 @@ impl Transaction for SqliteTransaction {
 
     async fn rollback(&mut self) -> ILResult<()> {
         debug!("sqlite txn rollback");
-        if self.done {
-            return Err(ILError::CatalogError(
-                "Transaction already committed or rolled back".to_string(),
-            ));
-        }
+        self.check_done()?;
         self.conn
             .execute_batch("ROLLBACK")
             .map_err(|e| ILError::CatalogError(format!("failed to rollback sqlite txn: {e}")))?;
