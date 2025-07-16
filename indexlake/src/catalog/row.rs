@@ -4,24 +4,8 @@ use crate::{
     ILError, ILResult,
     catalog::{CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME, Scalar},
 };
-use arrow::{
-    array::{
-        Array, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Date32Builder,
-        Date64Builder, Float32Array, Float32Builder, Float64Array, Float64Builder, Int8Builder,
-        Int16Array, Int16Builder, Int32Array, Int32Builder, Int64Array, Int64Builder, RecordBatch,
-        RecordBatchOptions, StringArray, StringBuilder, TimestampMicrosecondBuilder,
-        TimestampMillisecondBuilder, TimestampNanosecondBuilder, TimestampSecondBuilder,
-        UInt8Builder, UInt16Builder, UInt32Builder, UInt64Builder, make_builder,
-    },
-    datatypes::TimeUnit,
-};
-use arrow::{
-    array::{
-        Time32MillisecondBuilder, Time32SecondBuilder, Time64MicrosecondBuilder,
-        Time64NanosecondBuilder,
-    },
-    datatypes::{DataType, SchemaRef},
-};
+use arrow::array::*;
+use arrow::datatypes::{DataType, SchemaRef, TimeUnit};
 
 #[derive(Debug)]
 pub struct Row {
@@ -222,9 +206,21 @@ macro_rules! builder_append {
 pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<RecordBatch> {
     let mut array_builders = Vec::with_capacity(schema.fields.len());
     for field in schema.fields.iter() {
-        array_builders.push(make_builder(field.data_type(), rows.len()));
+        // TODO wait upstream to fix this
+        let builder = match field.data_type() {
+            DataType::BinaryView => {
+                Box::new(BinaryViewBuilder::with_capacity(rows.len())) as Box<dyn ArrayBuilder>
+            }
+            DataType::Utf8View => {
+                Box::new(StringViewBuilder::with_capacity(rows.len())) as Box<dyn ArrayBuilder>
+            }
+            _ => make_builder(field.data_type(), rows.len()),
+        };
+        array_builders.push(builder);
     }
 
+    let binary_convert: for<'a> fn(&'a Vec<u8>) -> ILResult<&'a Vec<u8>> = |v: &Vec<u8>| Ok(v);
+    let string_convert: for<'a> fn(&'a String) -> ILResult<&'a String> = |v: &String| Ok(v);
     for row in rows {
         for (i, field) in schema.fields.iter().enumerate() {
             match field.data_type() {
@@ -429,22 +425,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         |v| { Ok::<_, ILError>(v) }
                     );
                 }
-                DataType::Utf8 => {
-                    let convert: for<'a> fn(&'a String) -> ILResult<&'a String> =
-                        |v: &String| Ok(v);
-                    builder_append!(
-                        array_builders[i],
-                        StringBuilder,
-                        field,
-                        row,
-                        utf8,
-                        i,
-                        convert
-                    );
-                }
                 DataType::Binary => {
-                    let convert: for<'a> fn(&'a Vec<u8>) -> ILResult<&'a Vec<u8>> =
-                        |v: &Vec<u8>| Ok(v);
                     builder_append!(
                         array_builders[i],
                         BinaryBuilder,
@@ -452,7 +433,82 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         binary,
                         i,
-                        convert
+                        binary_convert
+                    );
+                }
+                DataType::FixedSizeBinary(_) => {
+                    let builder = array_builders[i]
+                        .as_any_mut()
+                        .downcast_mut::<FixedSizeBinaryBuilder>()
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "Failed to downcast builder to FixedSizeBinaryBuilder for {field:?}"
+                            )
+                        });
+                    let v = row.binary(i).map_err(|e| {
+                        ILError::InternalError(format!(
+                            "Failed to get binary value for {field:?}: {e:?}"
+                        ))
+                    })?;
+
+                    match v {
+                        Some(v) => builder.append_value(v)?,
+                        None => builder.append_null(),
+                    }
+                }
+                DataType::LargeBinary => {
+                    builder_append!(
+                        array_builders[i],
+                        LargeBinaryBuilder,
+                        field,
+                        row,
+                        binary,
+                        i,
+                        binary_convert
+                    );
+                }
+                DataType::BinaryView => {
+                    builder_append!(
+                        array_builders[i],
+                        BinaryViewBuilder,
+                        field,
+                        row,
+                        binary,
+                        i,
+                        binary_convert
+                    );
+                }
+                DataType::Utf8 => {
+                    builder_append!(
+                        array_builders[i],
+                        StringBuilder,
+                        field,
+                        row,
+                        utf8,
+                        i,
+                        string_convert
+                    );
+                }
+                DataType::LargeUtf8 => {
+                    builder_append!(
+                        array_builders[i],
+                        LargeStringBuilder,
+                        field,
+                        row,
+                        utf8,
+                        i,
+                        string_convert
+                    );
+                }
+                DataType::Utf8View => {
+                    builder_append!(
+                        array_builders[i],
+                        StringViewBuilder,
+                        field,
+                        row,
+                        utf8,
+                        i,
+                        string_convert
                     );
                 }
                 _ => {

@@ -22,7 +22,7 @@ pub fn init_env_logger() {
     unsafe {
         std::env::set_var(
             "RUST_LOG",
-            "info,indexlake=debug,indexlake_catalog_postgres=trace,indexlake_catalog_sqlite=debug,indexlake_index_rstar=debug",
+            "info,indexlake=debug,indexlake_catalog_postgres=debug,indexlake_catalog_sqlite=debug,indexlake_index_rstar=debug,indexlake_index_bm25=debug",
         );
     }
     ENV_LOGGER.get_or_init(|| {

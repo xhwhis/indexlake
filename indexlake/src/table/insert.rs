@@ -1,11 +1,5 @@
 use arrow::{
-    array::{
-        BinaryArray, BooleanArray, Date32Array, Date64Array, Float32Array, Float64Array, Int8Array,
-        Int16Array, Int32Array, Int64Array, RecordBatch, StringArray, Time32MillisecondArray,
-        Time32SecondArray, Time64MicrosecondArray, Time64NanosecondArray,
-        TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
-        TimestampSecondArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
-    },
+    array::*,
     datatypes::{DataType, TimeUnit},
 };
 
@@ -127,11 +121,29 @@ pub(crate) fn record_batch_to_sql_values(
             DataType::Time64(TimeUnit::Nanosecond) => {
                 extract_sql_values!(array, Time64NanosecondArray, |v: i64| v.to_string())
             }
+            DataType::Binary => {
+                extract_sql_values!(array, BinaryArray, |v: &[u8]| database.sql_binary_value(v))
+            }
+            DataType::FixedSizeBinary(_) => {
+                extract_sql_values!(array, FixedSizeBinaryArray, |v: &[u8]| database
+                    .sql_binary_value(v))
+            }
+            DataType::LargeBinary => {
+                extract_sql_values!(array, LargeBinaryArray, |v: &[u8]| database
+                    .sql_binary_value(v))
+            }
+            DataType::BinaryView => {
+                extract_sql_values!(array, BinaryViewArray, |v: &[u8]| database
+                    .sql_binary_value(v))
+            }
             DataType::Utf8 => {
                 extract_sql_values!(array, StringArray, |v: &str| format!("'{}'", v))
             }
-            DataType::Binary => {
-                extract_sql_values!(array, BinaryArray, |v: &[u8]| database.sql_binary_value(v))
+            DataType::LargeUtf8 => {
+                extract_sql_values!(array, LargeStringArray, |v: &str| format!("'{}'", v))
+            }
+            DataType::Utf8View => {
+                extract_sql_values!(array, StringViewArray, |v: &str| format!("'{}'", v))
             }
             _ => {
                 return Err(ILError::NotSupported(format!(
