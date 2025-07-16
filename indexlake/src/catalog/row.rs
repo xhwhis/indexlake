@@ -4,8 +4,8 @@ use crate::{
     ILError, ILResult,
     catalog::{CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME, Scalar},
 };
-use arrow::array::*;
 use arrow::datatypes::{DataType, SchemaRef, TimeUnit};
+use arrow::{array::*, datatypes::i256};
 
 #[derive(Debug)]
 pub struct Row {
@@ -509,6 +509,42 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         utf8,
                         i,
                         string_convert
+                    );
+                }
+                DataType::Decimal128(_, _) => {
+                    builder_append!(
+                        array_builders[i],
+                        Decimal128Builder,
+                        field,
+                        row,
+                        utf8,
+                        i,
+                        |v: &String| {
+                            let v = v.parse::<i128>().map_err(|e| {
+                                ILError::InternalError(format!(
+                                    "Failed to parse decimal128 value: {e:?}"
+                                ))
+                            })?;
+                            Ok::<_, ILError>(v)
+                        }
+                    );
+                }
+                DataType::Decimal256(_, _) => {
+                    builder_append!(
+                        array_builders[i],
+                        Decimal256Builder,
+                        field,
+                        row,
+                        utf8,
+                        i,
+                        |v: &String| {
+                            let v = v.parse::<i256>().map_err(|e| {
+                                ILError::InternalError(format!(
+                                    "Failed to parse decimal256 value: {e:?}"
+                                ))
+                            })?;
+                            Ok::<_, ILError>(v)
+                        }
                     );
                 }
                 _ => {

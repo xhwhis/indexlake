@@ -1,6 +1,6 @@
 use arrow::{
     array::*,
-    datatypes::{DataType, TimeUnit},
+    datatypes::{DataType, TimeUnit, i256},
 };
 
 use crate::{
@@ -144,6 +144,12 @@ pub(crate) fn record_batch_to_sql_values(
             }
             DataType::Utf8View => {
                 extract_sql_values!(array, StringViewArray, |v: &str| format!("'{}'", v))
+            }
+            DataType::Decimal128(_, _) => {
+                extract_sql_values!(array, Decimal128Array, |v: i128| format!("'{}'", v))
+            }
+            DataType::Decimal256(_, _) => {
+                extract_sql_values!(array, Decimal256Array, |v: i256| format!("'{}'", v))
             }
             _ => {
                 return Err(ILError::NotSupported(format!(

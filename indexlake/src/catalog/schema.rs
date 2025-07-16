@@ -89,6 +89,8 @@ impl CatalogDataType {
             DataType::Utf8 => Ok(CatalogDataType::Utf8),
             DataType::LargeUtf8 => Ok(CatalogDataType::Utf8),
             DataType::Utf8View => Ok(CatalogDataType::Utf8),
+            DataType::Decimal128(_, _) => Ok(CatalogDataType::Utf8),
+            DataType::Decimal256(_, _) => Ok(CatalogDataType::Utf8),
             _ => Err(ILError::NotSupported(format!(
                 "Unsupported datatype: {datatype}"
             ))),
