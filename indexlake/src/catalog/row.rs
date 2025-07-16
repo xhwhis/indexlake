@@ -4,7 +4,6 @@ use crate::{
     ILError, ILResult,
     catalog::{CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME, Scalar},
 };
-use arrow::datatypes::{DataType, SchemaRef};
 use arrow::{
     array::{
         Array, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Date32Builder,
@@ -15,6 +14,13 @@ use arrow::{
         UInt8Builder, UInt16Builder, UInt32Builder, UInt64Builder, make_builder,
     },
     datatypes::TimeUnit,
+};
+use arrow::{
+    array::{
+        Time32MillisecondBuilder, Time32SecondBuilder, Time64MicrosecondBuilder,
+        Time64NanosecondBuilder,
+    },
+    datatypes::{DataType, SchemaRef},
 };
 
 #[derive(Debug)]
@@ -372,6 +378,50 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                     builder_append!(
                         array_builders[i],
                         Date64Builder,
+                        field,
+                        row,
+                        int64,
+                        i,
+                        |v| { Ok::<_, ILError>(v) }
+                    );
+                }
+                DataType::Time32(TimeUnit::Second) => {
+                    builder_append!(
+                        array_builders[i],
+                        Time32SecondBuilder,
+                        field,
+                        row,
+                        int32,
+                        i,
+                        |v| { Ok::<_, ILError>(v) }
+                    );
+                }
+                DataType::Time32(TimeUnit::Millisecond) => {
+                    builder_append!(
+                        array_builders[i],
+                        Time32MillisecondBuilder,
+                        field,
+                        row,
+                        int32,
+                        i,
+                        |v| { Ok::<_, ILError>(v) }
+                    );
+                }
+                DataType::Time64(TimeUnit::Microsecond) => {
+                    builder_append!(
+                        array_builders[i],
+                        Time64MicrosecondBuilder,
+                        field,
+                        row,
+                        int64,
+                        i,
+                        |v| { Ok::<_, ILError>(v) }
+                    );
+                }
+                DataType::Time64(TimeUnit::Nanosecond) => {
+                    builder_append!(
+                        array_builders[i],
+                        Time64NanosecondBuilder,
                         field,
                         row,
                         int64,

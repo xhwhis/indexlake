@@ -82,6 +82,8 @@ impl CatalogDataType {
             DataType::Timestamp(_, _) => Ok(CatalogDataType::Int64),
             DataType::Date32 => Ok(CatalogDataType::Int32),
             DataType::Date64 => Ok(CatalogDataType::Int64),
+            DataType::Time32(_) => Ok(CatalogDataType::Int32),
+            DataType::Time64(_) => Ok(CatalogDataType::Int64),
             _ => Err(ILError::NotSupported(format!(
                 "Unsupported datatype: {datatype}"
             ))),

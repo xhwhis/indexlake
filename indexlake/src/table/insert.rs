@@ -1,9 +1,10 @@
 use arrow::{
     array::{
         BinaryArray, BooleanArray, Date32Array, Date64Array, Float32Array, Float64Array, Int8Array,
-        Int16Array, Int32Array, Int64Array, RecordBatch, StringArray, TimestampMicrosecondArray,
-        TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt8Array,
-        UInt16Array, UInt32Array, UInt64Array,
+        Int16Array, Int32Array, Int64Array, RecordBatch, StringArray, Time32MillisecondArray,
+        Time32SecondArray, Time64MicrosecondArray, Time64NanosecondArray,
+        TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
+        TimestampSecondArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
     },
     datatypes::{DataType, TimeUnit},
 };
@@ -113,6 +114,18 @@ pub(crate) fn record_batch_to_sql_values(
             }
             DataType::Date64 => {
                 extract_sql_values!(array, Date64Array, |v: i64| v.to_string())
+            }
+            DataType::Time32(TimeUnit::Second) => {
+                extract_sql_values!(array, Time32SecondArray, |v: i32| v.to_string())
+            }
+            DataType::Time32(TimeUnit::Millisecond) => {
+                extract_sql_values!(array, Time32MillisecondArray, |v: i32| v.to_string())
+            }
+            DataType::Time64(TimeUnit::Microsecond) => {
+                extract_sql_values!(array, Time64MicrosecondArray, |v: i64| v.to_string())
+            }
+            DataType::Time64(TimeUnit::Nanosecond) => {
+                extract_sql_values!(array, Time64NanosecondArray, |v: i64| v.to_string())
             }
             DataType::Utf8 => {
                 extract_sql_values!(array, StringArray, |v: &str| format!("'{}'", v))
