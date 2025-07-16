@@ -1,8 +1,9 @@
 use std::{collections::HashSet, hash::Hash, sync::Arc};
 
 use arrow::{
-    array::{ArrayRef, Int64Array, RecordBatch, RecordBatchOptions},
-    datatypes::Schema,
+    array::{Array, ArrayRef, Int64Array, RecordBatch, RecordBatchOptions},
+    datatypes::{Field, FieldRef, Schema},
+    ipc::{reader::StreamReader, writer::StreamWriter},
 };
 
 use crate::{
@@ -76,6 +77,42 @@ pub fn build_projection_from_condition(schema: &Schema, condition: &Expr) -> ILR
     }
     projection.sort();
     Ok(projection)
+}
+
+pub fn serialize_array(array: ArrayRef, field: FieldRef) -> ILResult<Vec<u8>> {
+    let schema = Arc::new(Schema::new(vec![field]));
+    let batch = RecordBatch::try_new(schema.clone(), vec![array.clone()])?;
+    let mut buf = Vec::with_capacity(array.get_array_memory_size());
+    let mut writer = StreamWriter::try_new(&mut buf, &schema)?;
+    writer.write(&batch)?;
+    writer.finish()?;
+    Ok(buf)
+}
+
+pub fn deserialize_array(buf: &[u8], field: FieldRef) -> ILResult<ArrayRef> {
+    let schema = Arc::new(Schema::new(vec![field]));
+    let reader = StreamReader::try_new(buf, None)?;
+    if reader.schema() != schema {
+        return Err(ILError::InternalError(format!(
+            "Schema mismatch when deserializing array: {:?}, {:?}",
+            reader.schema(),
+            schema
+        )));
+    }
+    let mut arrays = Vec::new();
+    for batch in reader {
+        let batch = batch?;
+        let array = batch.column(0).clone();
+        arrays.push(array);
+    }
+    let array = arrow::compute::concat(
+        arrays
+            .iter()
+            .map(|a| a.as_ref())
+            .collect::<Vec<_>>()
+            .as_slice(),
+    )?;
+    Ok(array)
 }
 
 #[macro_export]
