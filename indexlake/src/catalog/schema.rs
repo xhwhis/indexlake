@@ -21,7 +21,10 @@ impl CatalogDataType {
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
         match self {
             CatalogDataType::Boolean => "BOOLEAN".to_string(),
-            CatalogDataType::Int8 => "TINYINT".to_string(),
+            CatalogDataType::Int8 => match database {
+                CatalogDatabase::Sqlite => "TINYINT".to_string(),
+                CatalogDatabase::Postgres => "SMALLINT".to_string(),
+            },
             CatalogDataType::Int16 => "SMALLINT".to_string(),
             CatalogDataType::Int32 => "INTEGER".to_string(),
             CatalogDataType::Int64 => "BIGINT".to_string(),

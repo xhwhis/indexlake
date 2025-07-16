@@ -178,10 +178,10 @@ fn pg_row_to_row(
                 Scalar::Boolean(v)
             }
             CatalogDataType::Int8 => {
-                let v: Option<i8> = pg_row
+                let v: Option<i16> = pg_row
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Int8(v)
+                Scalar::Int8(v.map(|v| v as i8))
             }
             CatalogDataType::Int16 => {
                 let v: Option<i16> = pg_row

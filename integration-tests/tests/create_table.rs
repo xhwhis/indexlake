@@ -110,15 +110,27 @@ async fn table_data_types(
     let record_batch = RecordBatch::try_new(
         table_schema.clone(),
         vec![
-            Arc::new(BooleanArray::from(vec![true])),
-            Arc::new(Int8Array::from(vec![1])),
-            Arc::new(Int16Array::from(vec![2])),
-            Arc::new(Int32Array::from(vec![3])),
-            Arc::new(Int64Array::from(vec![4])),
-            Arc::new(Float32Array::from(vec![1.1])),
-            Arc::new(Float64Array::from(vec![2.2])),
-            Arc::new(StringArray::from(vec!["utf8"])),
-            Arc::new(BinaryArray::from_vec(vec![&vec![0u8, 1u8]])),
+            Arc::new(BooleanArray::from(vec![Some(false), Some(true), None])),
+            Arc::new(Int8Array::from(vec![Some(i8::MIN), Some(i8::MAX), None])),
+            Arc::new(Int16Array::from(vec![Some(i16::MIN), Some(i16::MAX), None])),
+            Arc::new(Int32Array::from(vec![Some(i32::MIN), Some(i32::MAX), None])),
+            Arc::new(Int64Array::from(vec![Some(i64::MIN), Some(i64::MAX), None])),
+            Arc::new(Float32Array::from(vec![
+                Some(f32::MIN),
+                Some(f32::MAX),
+                None,
+            ])),
+            Arc::new(Float64Array::from(vec![
+                Some(f64::MIN),
+                Some(f64::MAX),
+                None,
+            ])),
+            Arc::new(StringArray::from(vec![Some("utf8"), Some("utf8"), None])),
+            Arc::new(BinaryArray::from_opt_vec(vec![
+                Some(&vec![0u8, 1u8]),
+                Some(&vec![0u8, 1u8]),
+                None,
+            ])),
         ],
     )?;
     table.insert(&record_batch).await?;
@@ -127,11 +139,13 @@ async fn table_data_types(
     println!("{}", table_str);
     assert_eq!(
         table_str,
-        r#"+-------------------+-------------+----------+-----------+-----------+-----------+-------------+-------------+----------+------------+
-| _indexlake_row_id | boolean_col | int8_col | int16_col | int32_col | int64_col | float32_col | float64_col | utf8_col | binary_col |
-+-------------------+-------------+----------+-----------+-----------+-----------+-------------+-------------+----------+------------+
-| 1                 | true        | 1        | 2         | 3         | 4         | 1.1         | 2.2         | utf8     | 0001       |
-+-------------------+-------------+----------+-----------+-----------+-----------+-------------+-------------+----------+------------+"#,
+        r#"+-------------------+-------------+----------+-----------+-------------+----------------------+---------------+-------------------------+----------+------------+
+| _indexlake_row_id | boolean_col | int8_col | int16_col | int32_col   | int64_col            | float32_col   | float64_col             | utf8_col | binary_col |
++-------------------+-------------+----------+-----------+-------------+----------------------+---------------+-------------------------+----------+------------+
+| 1                 | false       | -128     | -32768    | -2147483648 | -9223372036854775808 | -3.4028235e38 | -1.7976931348623157e308 | utf8     | 0001       |
+| 2                 | true        | 127      | 32767     | 2147483647  | 9223372036854775807  | 3.4028235e38  | 1.7976931348623157e308  | utf8     | 0001       |
+| 3                 |             |          |           |             |                      |               |                         |          |            |
++-------------------+-------------+----------+-----------+-------------+----------------------+---------------+-------------------------+----------+------------+"#,
     );
 
     Ok(())
