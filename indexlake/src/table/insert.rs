@@ -1,9 +1,11 @@
 use arrow::{
     array::{
-        BinaryArray, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array,
-        Int64Array, RecordBatch, StringArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
+        BinaryArray, BooleanArray, Date32Array, Date64Array, Float32Array, Float64Array, Int8Array,
+        Int16Array, Int32Array, Int64Array, RecordBatch, StringArray, TimestampMicrosecondArray,
+        TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt8Array,
+        UInt16Array, UInt32Array, UInt64Array,
     },
-    datatypes::DataType,
+    datatypes::{DataType, TimeUnit},
 };
 
 use crate::{
@@ -34,183 +36,89 @@ pub(crate) async fn process_insert_into_inline_rows(
     Ok(())
 }
 
+macro_rules! extract_sql_values {
+    ($array:expr, $array_ty:ty, $convert:expr) => {{
+        let mut sql_values = Vec::with_capacity($array.len());
+        let array = $array.as_any().downcast_ref::<$array_ty>().ok_or_else(|| {
+            ILError::InternalError(format!(
+                "Failed to downcast array to {}",
+                stringify!($array_ty),
+            ))
+        })?;
+        for v in array.iter() {
+            sql_values.push(match v {
+                Some(v) => $convert(v),
+                None => "NULL".to_string(),
+            });
+        }
+        sql_values
+    }};
+}
+
 pub(crate) fn record_batch_to_sql_values(
     record: &RecordBatch,
     database: CatalogDatabase,
 ) -> ILResult<Vec<String>> {
     let mut column_values_list = Vec::with_capacity(record.num_columns());
     for (i, field) in record.schema().fields().iter().enumerate() {
-        let mut column_values = Vec::with_capacity(record.num_rows());
-        let any_array = record.column(i).as_any();
-        match field.data_type() {
+        let array = record.column(i);
+        let column_values = match field.data_type() {
             DataType::Boolean => {
-                let array = any_array.downcast_ref::<BooleanArray>().ok_or_else(|| {
-                    ILError::InternalError(format!(
-                        "Failed to downcast field {field:?} to BooleanArray"
-                    ))
-                })?;
-                for v in array.iter() {
-                    column_values.push(match v {
-                        Some(v) => v.to_string(),
-                        None => "NULL".to_string(),
-                    });
-                }
+                extract_sql_values!(array, BooleanArray, |v: bool| v.to_string())
             }
             DataType::Int8 => {
-                let array = any_array.downcast_ref::<Int8Array>().ok_or_else(|| {
-                    ILError::InternalError(format!(
-                        "Failed to downcast field {field:?} to Int8Array"
-                    ))
-                })?;
-                for v in array.iter() {
-                    column_values.push(match v {
-                        Some(v) => v.to_string(),
-                        None => "NULL".to_string(),
-                    });
-                }
+                extract_sql_values!(array, Int8Array, |v: i8| v.to_string())
             }
             DataType::Int16 => {
-                let array = any_array.downcast_ref::<Int16Array>().ok_or_else(|| {
-                    ILError::InternalError(format!(
-                        "Failed to downcast field {field:?} to Int16Array"
-                    ))
-                })?;
-                for v in array.iter() {
-                    column_values.push(match v {
-                        Some(v) => v.to_string(),
-                        None => "NULL".to_string(),
-                    });
-                }
+                extract_sql_values!(array, Int16Array, |v: i16| v.to_string())
             }
             DataType::Int32 => {
-                let array = any_array.downcast_ref::<Int32Array>().ok_or_else(|| {
-                    ILError::InternalError(format!(
-                        "Failed to downcast field {field:?} to Int32Array"
-                    ))
-                })?;
-                for v in array.iter() {
-                    column_values.push(match v {
-                        Some(v) => v.to_string(),
-                        None => "NULL".to_string(),
-                    });
-                }
+                extract_sql_values!(array, Int32Array, |v: i32| v.to_string())
             }
             DataType::Int64 => {
-                let array = any_array.downcast_ref::<Int64Array>().ok_or_else(|| {
-                    ILError::InternalError(format!(
-                        "Failed to downcast field {field:?} to Int64Array"
-                    ))
-                })?;
-                for v in array.iter() {
-                    column_values.push(match v {
-                        Some(v) => v.to_string(),
-                        None => "NULL".to_string(),
-                    });
-                }
+                extract_sql_values!(array, Int64Array, |v: i64| v.to_string())
             }
             DataType::UInt8 => {
-                let array = any_array.downcast_ref::<UInt8Array>().ok_or_else(|| {
-                    ILError::InternalError(format!(
-                        "Failed to downcast field {field:?} to UInt8Array"
-                    ))
-                })?;
-                for v in array.iter() {
-                    column_values.push(match v {
-                        Some(v) => v.to_string(),
-                        None => "NULL".to_string(),
-                    });
-                }
+                extract_sql_values!(array, UInt8Array, |v: u8| v.to_string())
             }
             DataType::UInt16 => {
-                let array = any_array.downcast_ref::<UInt16Array>().ok_or_else(|| {
-                    ILError::InternalError(format!(
-                        "Failed to downcast field {field:?} to UInt16Array"
-                    ))
-                })?;
-                for v in array.iter() {
-                    column_values.push(match v {
-                        Some(v) => v.to_string(),
-                        None => "NULL".to_string(),
-                    });
-                }
+                extract_sql_values!(array, UInt16Array, |v: u16| v.to_string())
             }
             DataType::UInt32 => {
-                let array = any_array.downcast_ref::<UInt32Array>().ok_or_else(|| {
-                    ILError::InternalError(format!(
-                        "Failed to downcast field {field:?} to UInt32Array"
-                    ))
-                })?;
-                for v in array.iter() {
-                    column_values.push(match v {
-                        Some(v) => v.to_string(),
-                        None => "NULL".to_string(),
-                    });
-                }
+                extract_sql_values!(array, UInt32Array, |v: u32| v.to_string())
             }
             DataType::UInt64 => {
-                let array = any_array.downcast_ref::<UInt64Array>().ok_or_else(|| {
-                    ILError::InternalError(format!(
-                        "Failed to downcast field {field:?} to UInt64Array"
-                    ))
-                })?;
-                for v in array.iter() {
-                    column_values.push(match v {
-                        Some(v) => v.to_string(),
-                        None => "NULL".to_string(),
-                    });
-                }
+                extract_sql_values!(array, UInt64Array, |v: u64| v.to_string())
             }
             DataType::Float32 => {
-                let array = any_array.downcast_ref::<Float32Array>().ok_or_else(|| {
-                    ILError::InternalError(format!(
-                        "Failed to downcast field {field:?} to Float32Array"
-                    ))
-                })?;
-                for v in array.iter() {
-                    column_values.push(match v {
-                        Some(v) => v.to_string(),
-                        None => "NULL".to_string(),
-                    });
-                }
+                extract_sql_values!(array, Float32Array, |v: f32| v.to_string())
             }
             DataType::Float64 => {
-                let array = any_array.downcast_ref::<Float64Array>().ok_or_else(|| {
-                    ILError::InternalError(format!(
-                        "Failed to downcast field {field:?} to Float64Array"
-                    ))
-                })?;
-                for v in array.iter() {
-                    column_values.push(match v {
-                        Some(v) => v.to_string(),
-                        None => "NULL".to_string(),
-                    });
-                }
+                extract_sql_values!(array, Float64Array, |v: f64| v.to_string())
+            }
+            DataType::Timestamp(TimeUnit::Second, _) => {
+                extract_sql_values!(array, TimestampSecondArray, |v: i64| v.to_string())
+            }
+            DataType::Timestamp(TimeUnit::Millisecond, _) => {
+                extract_sql_values!(array, TimestampMillisecondArray, |v: i64| v.to_string())
+            }
+            DataType::Timestamp(TimeUnit::Microsecond, _) => {
+                extract_sql_values!(array, TimestampMicrosecondArray, |v: i64| v.to_string())
+            }
+            DataType::Timestamp(TimeUnit::Nanosecond, _) => {
+                extract_sql_values!(array, TimestampNanosecondArray, |v: i64| v.to_string())
+            }
+            DataType::Date32 => {
+                extract_sql_values!(array, Date32Array, |v: i32| v.to_string())
+            }
+            DataType::Date64 => {
+                extract_sql_values!(array, Date64Array, |v: i64| v.to_string())
             }
             DataType::Utf8 => {
-                let array = any_array.downcast_ref::<StringArray>().ok_or_else(|| {
-                    ILError::InternalError(format!(
-                        "Failed to downcast field {field:?} to StringArray"
-                    ))
-                })?;
-                for v in array.iter() {
-                    column_values.push(match v {
-                        Some(v) => format!("'{}'", v),
-                        None => "NULL".to_string(),
-                    });
-                }
+                extract_sql_values!(array, StringArray, |v: &str| format!("'{}'", v))
             }
             DataType::Binary => {
-                let array = any_array.downcast_ref::<BinaryArray>().ok_or_else(|| {
-                    ILError::InternalError(format!(
-                        "Failed to downcast field {field:?} to BinaryArray"
-                    ))
-                })?;
-                for v in array.iter() {
-                    column_values.push(match v {
-                        Some(v) => database.sql_binary_value(v),
-                        None => "NULL".to_string(),
-                    });
-                }
+                extract_sql_values!(array, BinaryArray, |v: &[u8]| database.sql_binary_value(v))
             }
             _ => {
                 return Err(ILError::NotSupported(format!(
@@ -218,7 +126,7 @@ pub(crate) fn record_batch_to_sql_values(
                     field.data_type()
                 )));
             }
-        }
+        };
         column_values_list.push(column_values);
     }
     let mut sql_values = Vec::with_capacity(record.num_rows());

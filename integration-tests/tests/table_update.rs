@@ -161,6 +161,8 @@ async fn parallel_update_different_rows_by_row_id(
         handle.await??;
     }
 
+    tokio::time::sleep(Duration::from_secs(5)).await;
+
     let stream = table.scan(TableScan::default()).await?;
     let batches = stream.try_collect::<Vec<_>>().await?;
     let mut read_data = Vec::new();
@@ -244,6 +246,8 @@ async fn parallel_update_different_rows_by_condition(
     for handle in handles {
         handle.await??;
     }
+
+    tokio::time::sleep(Duration::from_secs(5)).await;
 
     let stream = table.scan(TableScan::default()).await?;
     let batches = stream.try_collect::<Vec<_>>().await?;

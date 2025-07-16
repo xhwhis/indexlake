@@ -4,13 +4,18 @@ use crate::{
     ILError, ILResult,
     catalog::{CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME, Scalar},
 };
-use arrow::array::{
-    Array, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Float32Array, Float32Builder,
-    Float64Array, Float64Builder, Int8Builder, Int16Array, Int16Builder, Int32Array, Int32Builder,
-    Int64Array, Int64Builder, RecordBatch, RecordBatchOptions, StringArray, StringBuilder,
-    UInt8Builder, UInt16Builder, UInt32Builder, UInt64Builder, make_builder,
-};
 use arrow::datatypes::{DataType, SchemaRef};
+use arrow::{
+    array::{
+        Array, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Date32Builder,
+        Date64Builder, Float32Array, Float32Builder, Float64Array, Float64Builder, Int8Builder,
+        Int16Array, Int16Builder, Int32Array, Int32Builder, Int64Array, Int64Builder, RecordBatch,
+        RecordBatchOptions, StringArray, StringBuilder, TimestampMicrosecondBuilder,
+        TimestampMillisecondBuilder, TimestampNanosecondBuilder, TimestampSecondBuilder,
+        UInt8Builder, UInt16Builder, UInt32Builder, UInt64Builder, make_builder,
+    },
+    datatypes::TimeUnit,
+};
 
 #[derive(Debug)]
 pub struct Row {
@@ -306,6 +311,72 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         float64,
                         i,
                         |v| Ok::<_, ILError>(v)
+                    );
+                }
+                DataType::Timestamp(TimeUnit::Second, _) => {
+                    builder_append!(
+                        array_builders[i],
+                        TimestampSecondBuilder,
+                        field,
+                        row,
+                        int64,
+                        i,
+                        |v| { Ok::<_, ILError>(v) }
+                    );
+                }
+                DataType::Timestamp(TimeUnit::Millisecond, _) => {
+                    builder_append!(
+                        array_builders[i],
+                        TimestampMillisecondBuilder,
+                        field,
+                        row,
+                        int64,
+                        i,
+                        |v| { Ok::<_, ILError>(v) }
+                    );
+                }
+                DataType::Timestamp(TimeUnit::Microsecond, _) => {
+                    builder_append!(
+                        array_builders[i],
+                        TimestampMicrosecondBuilder,
+                        field,
+                        row,
+                        int64,
+                        i,
+                        |v| { Ok::<_, ILError>(v) }
+                    );
+                }
+                DataType::Timestamp(TimeUnit::Nanosecond, _) => {
+                    builder_append!(
+                        array_builders[i],
+                        TimestampNanosecondBuilder,
+                        field,
+                        row,
+                        int64,
+                        i,
+                        |v| { Ok::<_, ILError>(v) }
+                    );
+                }
+                DataType::Date32 => {
+                    builder_append!(
+                        array_builders[i],
+                        Date32Builder,
+                        field,
+                        row,
+                        int32,
+                        i,
+                        |v| { Ok::<_, ILError>(v) }
+                    );
+                }
+                DataType::Date64 => {
+                    builder_append!(
+                        array_builders[i],
+                        Date64Builder,
+                        field,
+                        row,
+                        int64,
+                        i,
+                        |v| { Ok::<_, ILError>(v) }
                     );
                 }
                 DataType::Utf8 => {

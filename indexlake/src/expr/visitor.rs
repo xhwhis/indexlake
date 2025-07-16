@@ -33,16 +33,13 @@ pub fn visited_columns(expr: &Expr) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::catalog::Scalar;
+    use crate::expr::{col, lit};
 
     use super::*;
 
     #[test]
     fn test_visited_columns() {
-        let col_a = Expr::Column("a".to_string());
-        let col_b = Expr::Column("b".to_string());
-        let scalar_1 = Expr::Literal(Scalar::Int32(Some(1)));
-        let expr = col_a.eq(col_b.plus(scalar_1));
+        let expr = col("a").eq(col("b").plus(lit(1)));
         let columns = visited_columns(&expr);
         assert_eq!(columns, vec!["a", "b"]);
     }

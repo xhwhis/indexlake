@@ -1,4 +1,4 @@
-use arrow::datatypes::{DataType, Field, Schema};
+use arrow::datatypes::{DataType, Field, Schema, TimeUnit, TimestampSecondType};
 use indexlake::catalog::INTERNAL_ROW_ID_FIELD_REF;
 use indexlake::{
     LakeClient,
@@ -13,8 +13,10 @@ use indexlake_integration_tests::{
 use std::sync::Arc;
 
 use arrow::array::{
-    BinaryArray, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array,
-    Int64Array, RecordBatch, StringArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
+    BinaryArray, BooleanArray, Date32Array, Date64Array, Float32Array, Float64Array, Int8Array,
+    Int16Array, Int32Array, Int64Array, RecordBatch, StringArray, TimestampMicrosecondArray,
+    TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt8Array,
+    UInt16Array, UInt32Array, UInt64Array,
 };
 
 #[rstest::rstest]
@@ -66,7 +68,7 @@ async fn create_table(
 }
 
 #[rstest::rstest]
-// #[case(async { catalog_sqlite() }, storage_fs())]
+#[case(async { catalog_sqlite() }, storage_fs())]
 #[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn table_data_types(
@@ -94,6 +96,28 @@ async fn table_data_types(
         Field::new("uint64_col", DataType::UInt64, true),
         Field::new("float32_col", DataType::Float32, true),
         Field::new("float64_col", DataType::Float64, true),
+        Field::new(
+            "timestamp_second_col",
+            DataType::Timestamp(TimeUnit::Second, None),
+            true,
+        ),
+        Field::new(
+            "timestamp_millisecond_col",
+            DataType::Timestamp(TimeUnit::Millisecond, None),
+            true,
+        ),
+        Field::new(
+            "timestamp_microsecond_col",
+            DataType::Timestamp(TimeUnit::Microsecond, None),
+            true,
+        ),
+        Field::new(
+            "timestamp_nanosecond_col",
+            DataType::Timestamp(TimeUnit::Nanosecond, None),
+            true,
+        ),
+        Field::new("date32_col", DataType::Date32, true),
+        Field::new("date64_col", DataType::Date64, true),
         Field::new("utf8_col", DataType::Utf8, true),
         Field::new("binary_col", DataType::Binary, true),
     ]));
@@ -144,6 +168,28 @@ async fn table_data_types(
                 Some(f64::MAX),
                 None,
             ])),
+            Arc::new(TimestampSecondArray::from(vec![
+                Some(0i64),
+                Some(11111111i64),
+                None,
+            ])),
+            Arc::new(TimestampMillisecondArray::from(vec![
+                Some(0i64),
+                Some(11111111i64),
+                None,
+            ])),
+            Arc::new(TimestampMicrosecondArray::from(vec![
+                Some(0i64),
+                Some(11111111i64),
+                None,
+            ])),
+            Arc::new(TimestampNanosecondArray::from(vec![
+                Some(0i64),
+                Some(11111111i64),
+                None,
+            ])),
+            Arc::new(Date32Array::from(vec![Some(0i32), Some(11111111i32), None])),
+            Arc::new(Date64Array::from(vec![Some(0i64), Some(11111111i64), None])),
             Arc::new(StringArray::from(vec![Some("utf8"), Some("utf8"), None])),
             Arc::new(BinaryArray::from_opt_vec(vec![
                 Some(&vec![0u8, 1u8]),
@@ -158,13 +204,13 @@ async fn table_data_types(
     println!("{}", table_str);
     assert_eq!(
         table_str,
-        r#"+-------------------+-------------+----------+-----------+-------------+----------------------+-----------+------------+------------+----------------------+---------------+-------------------------+----------+------------+
-| _indexlake_row_id | boolean_col | int8_col | int16_col | int32_col   | int64_col            | uint8_col | uint16_col | uint32_col | uint64_col           | float32_col   | float64_col             | utf8_col | binary_col |
-+-------------------+-------------+----------+-----------+-------------+----------------------+-----------+------------+------------+----------------------+---------------+-------------------------+----------+------------+
-| 1                 | false       | -128     | -32768    | -2147483648 | -9223372036854775808 | 0         | 0          | 0          | 0                    | -3.4028235e38 | -1.7976931348623157e308 | utf8     | 0001       |
-| 2                 | true        | 127      | 32767     | 2147483647  | 9223372036854775807  | 255       | 65535      | 4294967295 | 18446744073709551615 | 3.4028235e38  | 1.7976931348623157e308  | utf8     | 0001       |
-| 3                 |             |          |           |             |                      |           |            |            |                      |               |                         |          |            |
-+-------------------+-------------+----------+-----------+-------------+----------------------+-----------+------------+------------+----------------------+---------------+-------------------------+----------+------------+"#,
+        r#"+-------------------+-------------+----------+-----------+-------------+----------------------+-----------+------------+------------+----------------------+---------------+-------------------------+----------------------+---------------------------+----------------------------+-------------------------------+--------------+-------------------------+----------+------------+
+| _indexlake_row_id | boolean_col | int8_col | int16_col | int32_col   | int64_col            | uint8_col | uint16_col | uint32_col | uint64_col           | float32_col   | float64_col             | timestamp_second_col | timestamp_millisecond_col | timestamp_microsecond_col  | timestamp_nanosecond_col      | date32_col   | date64_col              | utf8_col | binary_col |
++-------------------+-------------+----------+-----------+-------------+----------------------+-----------+------------+------------+----------------------+---------------+-------------------------+----------------------+---------------------------+----------------------------+-------------------------------+--------------+-------------------------+----------+------------+
+| 1                 | false       | -128     | -32768    | -2147483648 | -9223372036854775808 | 0         | 0          | 0          | 0                    | -3.4028235e38 | -1.7976931348623157e308 | 1970-01-01T00:00:00  | 1970-01-01T00:00:00       | 1970-01-01T00:00:00        | 1970-01-01T00:00:00           | 1970-01-01   | 1970-01-01T00:00:00     | utf8     | 0001       |
+| 2                 | true        | 127      | 32767     | 2147483647  | 9223372036854775807  | 255       | 65535      | 4294967295 | 18446744073709551615 | 3.4028235e38  | 1.7976931348623157e308  | 1970-05-09T14:25:11  | 1970-01-01T03:05:11.111   | 1970-01-01T00:00:11.111111 | 1970-01-01T00:00:00.011111111 | +32391-03-11 | 1970-01-01T03:05:11.111 | utf8     | 0001       |
+| 3                 |             |          |           |             |                      |           |            |            |                      |               |                         |                      |                           |                            |                               |              |                         |          |            |
++-------------------+-------------+----------+-----------+-------------+----------------------+-----------+------------+------------+----------------------+---------------+-------------------------+----------------------+---------------------------+----------------------------+-------------------------------+--------------+-------------------------+----------+------------+"#,
     );
 
     Ok(())

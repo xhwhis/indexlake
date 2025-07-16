@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use arrow::datatypes::{DataType, Schema};
+use arrow::datatypes::{DataType, Schema, TimeUnit};
 
 use crate::{ILError, ILResult, catalog::CatalogDatabase};
 
@@ -22,44 +22,44 @@ pub enum CatalogDataType {
 }
 
 impl CatalogDataType {
-    pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
+    pub(crate) fn to_sql(&self, database: CatalogDatabase) -> &str {
         match self {
-            CatalogDataType::Boolean => "BOOLEAN".to_string(),
+            CatalogDataType::Boolean => "BOOLEAN",
             CatalogDataType::Int8 => match database {
-                CatalogDatabase::Sqlite => "TINYINT".to_string(),
-                CatalogDatabase::Postgres => "SMALLINT".to_string(),
+                CatalogDatabase::Sqlite => "TINYINT",
+                CatalogDatabase::Postgres => "SMALLINT",
             },
-            CatalogDataType::Int16 => "SMALLINT".to_string(),
-            CatalogDataType::Int32 => "INTEGER".to_string(),
-            CatalogDataType::Int64 => "BIGINT".to_string(),
+            CatalogDataType::Int16 => "SMALLINT",
+            CatalogDataType::Int32 => "INTEGER",
+            CatalogDataType::Int64 => "BIGINT",
             CatalogDataType::UInt8 => match database {
-                CatalogDatabase::Sqlite => "TINYINT UNSIGNED".to_string(),
-                CatalogDatabase::Postgres => "SMALLINT".to_string(),
+                CatalogDatabase::Sqlite => "TINYINT UNSIGNED",
+                CatalogDatabase::Postgres => "SMALLINT",
             },
             CatalogDataType::UInt16 => match database {
-                CatalogDatabase::Sqlite => "SMALLINT UNSIGNED".to_string(),
-                CatalogDatabase::Postgres => "INTEGER".to_string(),
+                CatalogDatabase::Sqlite => "SMALLINT UNSIGNED",
+                CatalogDatabase::Postgres => "INTEGER",
             },
             CatalogDataType::UInt32 => match database {
-                CatalogDatabase::Sqlite => "INTEGER UNSIGNED".to_string(),
-                CatalogDatabase::Postgres => "BIGINT".to_string(),
+                CatalogDatabase::Sqlite => "INTEGER UNSIGNED",
+                CatalogDatabase::Postgres => "BIGINT",
             },
             CatalogDataType::UInt64 => match database {
-                CatalogDatabase::Sqlite => "BIGINT UNSIGNED".to_string(),
-                CatalogDatabase::Postgres => "FLOAT4".to_string(),
+                CatalogDatabase::Sqlite => "BIGINT UNSIGNED",
+                CatalogDatabase::Postgres => "FLOAT4",
             },
             CatalogDataType::Float32 => match database {
-                CatalogDatabase::Sqlite => "FLOAT".to_string(),
-                CatalogDatabase::Postgres => "FLOAT4".to_string(),
+                CatalogDatabase::Sqlite => "FLOAT",
+                CatalogDatabase::Postgres => "FLOAT4",
             },
             CatalogDataType::Float64 => match database {
-                CatalogDatabase::Sqlite => "DOUBLE".to_string(),
-                CatalogDatabase::Postgres => "FLOAT8".to_string(),
+                CatalogDatabase::Sqlite => "DOUBLE",
+                CatalogDatabase::Postgres => "FLOAT8",
             },
-            CatalogDataType::Utf8 => "VARCHAR".to_string(),
+            CatalogDataType::Utf8 => "VARCHAR",
             CatalogDataType::Binary => match database {
-                CatalogDatabase::Sqlite => "BLOB".to_string(),
-                CatalogDatabase::Postgres => "BYTEA".to_string(),
+                CatalogDatabase::Sqlite => "BLOB",
+                CatalogDatabase::Postgres => "BYTEA",
             },
         }
     }
@@ -79,6 +79,9 @@ impl CatalogDataType {
             DataType::Float64 => Ok(CatalogDataType::Float64),
             DataType::Utf8 => Ok(CatalogDataType::Utf8),
             DataType::Binary => Ok(CatalogDataType::Binary),
+            DataType::Timestamp(_, _) => Ok(CatalogDataType::Int64),
+            DataType::Date32 => Ok(CatalogDataType::Int32),
+            DataType::Date64 => Ok(CatalogDataType::Int64),
             _ => Err(ILError::NotSupported(format!(
                 "Unsupported datatype: {datatype}"
             ))),
