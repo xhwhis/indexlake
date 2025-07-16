@@ -4,10 +4,12 @@ use std::sync::Arc;
 
 use arrow::array::{
     Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Float32Array, Float64Array, Int8Array,
-    Int16Array, Int32Array, Int64Array, StringArray, new_null_array,
+    Int16Array, Int32Array, Int64Array, StringArray, UInt8Array, UInt16Array, UInt32Array,
+    UInt64Array, new_null_array,
 };
 use arrow::datatypes::{
-    DataType, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type, Int64Type,
+    DataType, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type,
+    UInt16Type, UInt32Type, UInt64Type,
 };
 use derive_visitor::{Drive, DriveMut};
 
@@ -20,6 +22,10 @@ pub enum Scalar {
     Int16(Option<i16>),
     Int32(Option<i32>),
     Int64(Option<i64>),
+    UInt8(Option<u8>),
+    UInt16(Option<u16>),
+    UInt32(Option<u32>),
+    UInt64(Option<u64>),
     Float32(Option<f32>),
     Float64(Option<f64>),
     Utf8(Option<String>),
@@ -34,6 +40,10 @@ impl Scalar {
             DataType::Int16 => Scalar::Int16(None),
             DataType::Int32 => Scalar::Int32(None),
             DataType::Int64 => Scalar::Int64(None),
+            DataType::UInt8 => Scalar::UInt8(None),
+            DataType::UInt16 => Scalar::UInt16(None),
+            DataType::UInt32 => Scalar::UInt32(None),
+            DataType::UInt64 => Scalar::UInt64(None),
             DataType::Float32 => Scalar::Float32(None),
             DataType::Float64 => Scalar::Float64(None),
             DataType::Utf8 => Scalar::Utf8(None),
@@ -53,6 +63,10 @@ impl Scalar {
             Scalar::Int16(v) => v.is_none(),
             Scalar::Int32(v) => v.is_none(),
             Scalar::Int64(v) => v.is_none(),
+            Scalar::UInt8(v) => v.is_none(),
+            Scalar::UInt16(v) => v.is_none(),
+            Scalar::UInt32(v) => v.is_none(),
+            Scalar::UInt64(v) => v.is_none(),
             Scalar::Float32(v) => v.is_none(),
             Scalar::Float64(v) => v.is_none(),
             Scalar::Utf8(v) => v.is_none(),
@@ -82,6 +96,14 @@ impl Scalar {
             Scalar::Int32(None) => "null".to_string(),
             Scalar::Int64(Some(value)) => value.to_string(),
             Scalar::Int64(None) => "null".to_string(),
+            Scalar::UInt8(Some(value)) => value.to_string(),
+            Scalar::UInt8(None) => "null".to_string(),
+            Scalar::UInt16(Some(value)) => value.to_string(),
+            Scalar::UInt16(None) => "null".to_string(),
+            Scalar::UInt32(Some(value)) => value.to_string(),
+            Scalar::UInt32(None) => "null".to_string(),
+            Scalar::UInt64(Some(value)) => value.to_string(),
+            Scalar::UInt64(None) => "null".to_string(),
             Scalar::Float32(Some(value)) => value.to_string(),
             Scalar::Float32(None) => "null".to_string(),
             Scalar::Float64(Some(value)) => value.to_string(),
@@ -115,6 +137,22 @@ impl Scalar {
             Scalar::Int64(e) => match e {
                 Some(value) => Arc::new(Int64Array::from_value(*value, size)),
                 None => new_null_array(&DataType::Int64, size),
+            },
+            Scalar::UInt8(e) => match e {
+                Some(value) => Arc::new(UInt8Array::from_value(*value, size)),
+                None => new_null_array(&DataType::UInt8, size),
+            },
+            Scalar::UInt16(e) => match e {
+                Some(value) => Arc::new(UInt16Array::from_value(*value, size)),
+                None => new_null_array(&DataType::UInt16, size),
+            },
+            Scalar::UInt32(e) => match e {
+                Some(value) => Arc::new(UInt32Array::from_value(*value, size)),
+                None => new_null_array(&DataType::UInt32, size),
+            },
+            Scalar::UInt64(e) => match e {
+                Some(value) => Arc::new(UInt64Array::from_value(*value, size)),
+                None => new_null_array(&DataType::UInt64, size),
             },
             Scalar::Float32(e) => match e {
                 Some(value) => Arc::new(Float32Array::from_value(*value, size)),
@@ -171,6 +209,30 @@ impl Scalar {
                     .expect("Failed to cast array");
                 Scalar::Int64(Some(array.value(index)))
             }
+            DataType::UInt8 => {
+                let array = array
+                    .as_primitive_opt::<UInt8Type>()
+                    .expect("Failed to cast array");
+                Scalar::UInt8(Some(array.value(index)))
+            }
+            DataType::UInt16 => {
+                let array = array
+                    .as_primitive_opt::<UInt16Type>()
+                    .expect("Failed to cast array");
+                Scalar::UInt16(Some(array.value(index)))
+            }
+            DataType::UInt32 => {
+                let array = array
+                    .as_primitive_opt::<UInt32Type>()
+                    .expect("Failed to cast array");
+                Scalar::UInt32(Some(array.value(index)))
+            }
+            DataType::UInt64 => {
+                let array = array
+                    .as_primitive_opt::<UInt64Type>()
+                    .expect("Failed to cast array");
+                Scalar::UInt64(Some(array.value(index)))
+            }
             DataType::Float32 => {
                 let array = array
                     .as_primitive_opt::<Float32Type>()
@@ -191,7 +253,12 @@ impl Scalar {
                 let array = array.as_binary_opt::<i32>().expect("Failed to cast array");
                 Scalar::Binary(Some(array.value(index).to_vec()))
             }
-            _ => todo!(),
+            _ => {
+                return Err(ILError::NotSupported(format!(
+                    "Unsupported array: {:?}",
+                    array.data_type()
+                )));
+            }
         })
     }
 
@@ -202,6 +269,10 @@ impl Scalar {
             Scalar::Int16(_) => DataType::Int16,
             Scalar::Int32(_) => DataType::Int32,
             Scalar::Int64(_) => DataType::Int64,
+            Scalar::UInt8(_) => DataType::UInt8,
+            Scalar::UInt16(_) => DataType::UInt16,
+            Scalar::UInt32(_) => DataType::UInt32,
+            Scalar::UInt64(_) => DataType::UInt64,
             Scalar::Float32(_) => DataType::Float32,
             Scalar::Float64(_) => DataType::Float64,
             Scalar::Utf8(_) => DataType::Utf8,
@@ -223,6 +294,14 @@ impl PartialEq for Scalar {
             (Scalar::Int32(_), _) => false,
             (Scalar::Int64(v1), Scalar::Int64(v2)) => v1.eq(v2),
             (Scalar::Int64(_), _) => false,
+            (Scalar::UInt8(v1), Scalar::UInt8(v2)) => v1.eq(v2),
+            (Scalar::UInt8(_), _) => false,
+            (Scalar::UInt16(v1), Scalar::UInt16(v2)) => v1.eq(v2),
+            (Scalar::UInt16(_), _) => false,
+            (Scalar::UInt32(v1), Scalar::UInt32(v2)) => v1.eq(v2),
+            (Scalar::UInt32(_), _) => false,
+            (Scalar::UInt64(v1), Scalar::UInt64(v2)) => v1.eq(v2),
+            (Scalar::UInt64(_), _) => false,
             (Scalar::Float32(v1), Scalar::Float32(v2)) => match (v1, v2) {
                 (Some(f1), Some(f2)) => f1.to_bits() == f2.to_bits(),
                 _ => v1.eq(v2),
@@ -256,6 +335,14 @@ impl PartialOrd for Scalar {
             (Scalar::Int32(_), _) => None,
             (Scalar::Int64(v1), Scalar::Int64(v2)) => v1.partial_cmp(v2),
             (Scalar::Int64(_), _) => None,
+            (Scalar::UInt8(v1), Scalar::UInt8(v2)) => v1.partial_cmp(v2),
+            (Scalar::UInt8(_), _) => None,
+            (Scalar::UInt16(v1), Scalar::UInt16(v2)) => v1.partial_cmp(v2),
+            (Scalar::UInt16(_), _) => None,
+            (Scalar::UInt32(v1), Scalar::UInt32(v2)) => v1.partial_cmp(v2),
+            (Scalar::UInt32(_), _) => None,
+            (Scalar::UInt64(v1), Scalar::UInt64(v2)) => v1.partial_cmp(v2),
+            (Scalar::UInt64(_), _) => None,
             (Scalar::Float32(v1), Scalar::Float32(v2)) => match (v1, v2) {
                 (Some(f1), Some(f2)) => f1.partial_cmp(f2),
                 _ => v1.partial_cmp(v2),
@@ -287,6 +374,14 @@ impl Display for Scalar {
             Scalar::Int32(None) => write!(f, "null"),
             Scalar::Int64(Some(value)) => write!(f, "{}", value),
             Scalar::Int64(None) => write!(f, "null"),
+            Scalar::UInt8(Some(value)) => write!(f, "{}", value),
+            Scalar::UInt8(None) => write!(f, "null"),
+            Scalar::UInt16(Some(value)) => write!(f, "{}", value),
+            Scalar::UInt16(None) => write!(f, "null"),
+            Scalar::UInt32(Some(value)) => write!(f, "{}", value),
+            Scalar::UInt32(None) => write!(f, "null"),
+            Scalar::UInt64(Some(value)) => write!(f, "{}", value),
+            Scalar::UInt64(None) => write!(f, "null"),
             Scalar::Float32(Some(value)) => write!(f, "{}", value),
             Scalar::Float32(None) => write!(f, "null"),
             Scalar::Float64(Some(value)) => write!(f, "{}", value),
@@ -320,6 +415,10 @@ impl_scalar_from!(i8, Int8);
 impl_scalar_from!(i16, Int16);
 impl_scalar_from!(i32, Int32);
 impl_scalar_from!(i64, Int64);
+impl_scalar_from!(u8, UInt8);
+impl_scalar_from!(u16, UInt16);
+impl_scalar_from!(u32, UInt32);
+impl_scalar_from!(u64, UInt64);
 impl_scalar_from!(f32, Float32);
 impl_scalar_from!(f64, Float64);
 impl_scalar_from!(String, Utf8);

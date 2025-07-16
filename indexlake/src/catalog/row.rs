@@ -8,7 +8,7 @@ use arrow::array::{
     Array, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Float32Array, Float32Builder,
     Float64Array, Float64Builder, Int8Builder, Int16Array, Int16Builder, Int32Array, Int32Builder,
     Int64Array, Int64Builder, RecordBatch, RecordBatchOptions, StringArray, StringBuilder,
-    make_builder,
+    UInt8Builder, UInt16Builder, UInt32Builder, UInt64Builder, make_builder,
 };
 use arrow::datatypes::{DataType, SchemaRef};
 
@@ -62,6 +62,42 @@ impl Row {
             Scalar::Int64(v) => Ok(v),
             _ => Err(ILError::InternalError(format!(
                 "Expected BigInt at index {index} for row {self:?}"
+            ))),
+        }
+    }
+
+    pub fn uint8(&self, index: usize) -> ILResult<Option<u8>> {
+        match self.values[index] {
+            Scalar::UInt8(v) => Ok(v),
+            _ => Err(ILError::InternalError(format!(
+                "Expected UInt8 at index {index} for row {self:?}"
+            ))),
+        }
+    }
+
+    pub fn uint16(&self, index: usize) -> ILResult<Option<u16>> {
+        match self.values[index] {
+            Scalar::UInt16(v) => Ok(v),
+            _ => Err(ILError::InternalError(format!(
+                "Expected UInt16 at index {index} for row {self:?}"
+            ))),
+        }
+    }
+
+    pub fn uint32(&self, index: usize) -> ILResult<Option<u32>> {
+        match self.values[index] {
+            Scalar::UInt32(v) => Ok(v),
+            _ => Err(ILError::InternalError(format!(
+                "Expected UInt32 at index {index} for row {self:?}"
+            ))),
+        }
+    }
+
+    pub fn uint64(&self, index: usize) -> ILResult<Option<u64>> {
+        match self.values[index] {
+            Scalar::UInt64(v) => Ok(v),
+            _ => Err(ILError::InternalError(format!(
+                "Expected UInt64 at index {index} for row {self:?}"
             ))),
         }
     }
@@ -189,28 +225,66 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         boolean,
                         i,
-                        |v| Ok::<_, ILError>(v as bool)
+                        |v| Ok::<_, ILError>(v)
                     );
                 }
                 DataType::Int8 => {
                     builder_append!(array_builders[i], Int8Builder, field, row, int8, i, |v| {
-                        Ok::<_, ILError>(v as i8)
+                        Ok::<_, ILError>(v)
                     });
                 }
                 DataType::Int16 => {
                     builder_append!(array_builders[i], Int16Builder, field, row, int16, i, |v| {
-                        Ok::<_, ILError>(v as i16)
+                        Ok::<_, ILError>(v)
                     });
                 }
                 DataType::Int32 => {
                     builder_append!(array_builders[i], Int32Builder, field, row, int32, i, |v| {
-                        Ok::<_, ILError>(v as i32)
+                        Ok::<_, ILError>(v)
                     });
                 }
                 DataType::Int64 => {
                     builder_append!(array_builders[i], Int64Builder, field, row, int64, i, |v| {
-                        Ok::<_, ILError>(v as i64)
+                        Ok::<_, ILError>(v)
                     });
+                }
+                DataType::UInt8 => {
+                    builder_append!(array_builders[i], UInt8Builder, field, row, uint8, i, |v| {
+                        Ok::<_, ILError>(v)
+                    });
+                }
+                DataType::UInt16 => {
+                    builder_append!(
+                        array_builders[i],
+                        UInt16Builder,
+                        field,
+                        row,
+                        uint16,
+                        i,
+                        |v| { Ok::<_, ILError>(v) }
+                    );
+                }
+                DataType::UInt32 => {
+                    builder_append!(
+                        array_builders[i],
+                        UInt32Builder,
+                        field,
+                        row,
+                        uint32,
+                        i,
+                        |v| { Ok::<_, ILError>(v) }
+                    );
+                }
+                DataType::UInt64 => {
+                    builder_append!(
+                        array_builders[i],
+                        UInt64Builder,
+                        field,
+                        row,
+                        uint64,
+                        i,
+                        |v| { Ok::<_, ILError>(v) }
+                    );
                 }
                 DataType::Float32 => {
                     builder_append!(
@@ -220,7 +294,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         float32,
                         i,
-                        |v| Ok::<_, ILError>(v as f32)
+                        |v| Ok::<_, ILError>(v)
                     );
                 }
                 DataType::Float64 => {
@@ -231,7 +305,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         float64,
                         i,
-                        |v| Ok::<_, ILError>(v as f64)
+                        |v| Ok::<_, ILError>(v)
                     );
                 }
                 DataType::Utf8 => {

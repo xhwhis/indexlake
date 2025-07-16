@@ -4,7 +4,7 @@ use indexlake::{
     catalog::{Catalog, CatalogDatabase, RowStream, Transaction},
     catalog::{CatalogDataType, CatalogSchemaRef, Row, Scalar},
 };
-use log::{debug, error};
+use log::{error, trace};
 use rusqlite::OpenFlags;
 use std::path::PathBuf;
 
@@ -33,7 +33,7 @@ impl Catalog for SqliteCatalog {
     }
 
     async fn query(&self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream<'static>> {
-        debug!("sqlite query: {sql}");
+        trace!("sqlite query: {sql}");
         let conn = rusqlite::Connection::open_with_flags(
             &self.path,
             OpenFlags::SQLITE_OPEN_READ_ONLY
@@ -93,7 +93,7 @@ impl SqliteTransaction {
 #[async_trait::async_trait]
 impl Transaction for SqliteTransaction {
     async fn query(&mut self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream> {
-        debug!("sqlite txn query: {sql}");
+        trace!("sqlite txn query: {sql}");
         self.check_done()?;
         let mut stmt = self
             .conn
@@ -115,7 +115,7 @@ impl Transaction for SqliteTransaction {
     }
 
     async fn execute(&mut self, sql: &str) -> ILResult<usize> {
-        debug!("sqlite txn execute: {sql}");
+        trace!("sqlite txn execute: {sql}");
         self.check_done()?;
         self.conn
             .execute(sql, [])
@@ -123,7 +123,7 @@ impl Transaction for SqliteTransaction {
     }
 
     async fn execute_batch(&mut self, sqls: &[String]) -> ILResult<()> {
-        debug!("sqlite txn execute batch: {:?}", sqls);
+        trace!("sqlite txn execute batch: {:?}", sqls);
         self.check_done()?;
         self.conn
             .execute_batch(sqls.join(";").as_str())
@@ -131,7 +131,7 @@ impl Transaction for SqliteTransaction {
     }
 
     async fn commit(&mut self) -> ILResult<()> {
-        debug!("sqlite txn commit");
+        trace!("sqlite txn commit");
         self.check_done()?;
         self.conn
             .execute_batch("COMMIT")
@@ -141,7 +141,7 @@ impl Transaction for SqliteTransaction {
     }
 
     async fn rollback(&mut self) -> ILResult<()> {
-        debug!("sqlite txn rollback");
+        trace!("sqlite txn rollback");
         self.check_done()?;
         self.conn
             .execute_batch("ROLLBACK")
@@ -195,6 +195,30 @@ fn sqlite_row_to_row(sqlite_row: &rusqlite::Row, schema: &CatalogSchemaRef) -> I
                     .get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
                 Scalar::Int64(v)
+            }
+            CatalogDataType::UInt8 => {
+                let v: Option<u8> = sqlite_row
+                    .get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::UInt8(v)
+            }
+            CatalogDataType::UInt16 => {
+                let v: Option<u16> = sqlite_row
+                    .get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::UInt16(v)
+            }
+            CatalogDataType::UInt32 => {
+                let v: Option<u32> = sqlite_row
+                    .get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::UInt32(v)
+            }
+            CatalogDataType::UInt64 => {
+                let v: Option<f64> = sqlite_row
+                    .get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::UInt64(v.map(|v| v as u64))
             }
             CatalogDataType::Float32 => {
                 let v: Option<f32> = sqlite_row

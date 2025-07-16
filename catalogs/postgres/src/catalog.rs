@@ -6,7 +6,7 @@ use indexlake::{
     catalog::{Catalog, CatalogDatabase, RowStream, Transaction},
     catalog::{CatalogDataType, CatalogSchemaRef, Row, Scalar},
 };
-use log::{debug, error};
+use log::{error, trace};
 
 #[derive(Debug, Clone)]
 pub struct PostgresCatalog {
@@ -42,7 +42,7 @@ impl Catalog for PostgresCatalog {
     }
 
     async fn query(&self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream<'static>> {
-        debug!("postgres query: {sql}");
+        trace!("postgres query: {sql}");
         let conn = self.pool.get_owned().await.map_err(|e| {
             ILError::CatalogError(format!("failed to get postgres connection: {e}"))
         })?;
@@ -90,7 +90,7 @@ impl PostgresTransaction {
 #[async_trait::async_trait]
 impl Transaction for PostgresTransaction {
     async fn query(&mut self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream> {
-        debug!("postgres txn query: {sql}");
+        trace!("postgres txn query: {sql}");
         self.check_done()?;
 
         let pg_row_stream = self
@@ -108,7 +108,7 @@ impl Transaction for PostgresTransaction {
     }
 
     async fn execute(&mut self, sql: &str) -> ILResult<usize> {
-        debug!("postgres txn execute: {sql}");
+        trace!("postgres txn execute: {sql}");
         self.check_done()?;
         self.conn
             .execute(sql, &[])
@@ -118,7 +118,7 @@ impl Transaction for PostgresTransaction {
     }
 
     async fn execute_batch(&mut self, sqls: &[String]) -> ILResult<()> {
-        debug!("postgres txn execute batch: {:?}", sqls);
+        trace!("postgres txn execute batch: {:?}", sqls);
         self.check_done()?;
         self.conn
             .batch_execute(sqls.join(";").as_str())
@@ -127,7 +127,7 @@ impl Transaction for PostgresTransaction {
     }
 
     async fn commit(&mut self) -> ILResult<()> {
-        debug!("postgres txn commit");
+        trace!("postgres txn commit");
         self.check_done()?;
         self.conn
             .batch_execute("COMMIT")
@@ -138,7 +138,7 @@ impl Transaction for PostgresTransaction {
     }
 
     async fn rollback(&mut self) -> ILResult<()> {
-        debug!("postgres txn rollback");
+        trace!("postgres txn rollback");
         self.check_done()?;
         self.conn
             .batch_execute("ROLLBACK")
@@ -200,6 +200,30 @@ fn pg_row_to_row(
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
                 Scalar::Int64(v)
+            }
+            CatalogDataType::UInt8 => {
+                let v: Option<i16> = pg_row
+                    .try_get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::UInt8(v.map(|v| v as u8))
+            }
+            CatalogDataType::UInt16 => {
+                let v: Option<i32> = pg_row
+                    .try_get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::UInt16(v.map(|v| v as u16))
+            }
+            CatalogDataType::UInt32 => {
+                let v: Option<i64> = pg_row
+                    .try_get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::UInt32(v.map(|v| v as u32))
+            }
+            CatalogDataType::UInt64 => {
+                let v: Option<f32> = pg_row
+                    .try_get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::UInt64(v.map(|v| v as u64))
             }
             CatalogDataType::Float32 => {
                 let v: Option<f32> = pg_row

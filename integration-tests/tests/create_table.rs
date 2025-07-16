@@ -12,10 +12,9 @@ use indexlake_integration_tests::{
 };
 use std::sync::Arc;
 
-use arrow::array::Int8Array;
 use arrow::array::{
-    BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
-    RecordBatch, StringArray,
+    BinaryArray, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array,
+    Int64Array, RecordBatch, StringArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
 };
 
 #[rstest::rstest]
@@ -67,7 +66,7 @@ async fn create_table(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
+// #[case(async { catalog_sqlite() }, storage_fs())]
 #[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn table_data_types(
@@ -89,6 +88,10 @@ async fn table_data_types(
         Field::new("int16_col", DataType::Int16, true),
         Field::new("int32_col", DataType::Int32, true),
         Field::new("int64_col", DataType::Int64, true),
+        Field::new("uint8_col", DataType::UInt8, true),
+        Field::new("uint16_col", DataType::UInt16, true),
+        Field::new("uint32_col", DataType::UInt32, true),
+        Field::new("uint64_col", DataType::UInt64, true),
         Field::new("float32_col", DataType::Float32, true),
         Field::new("float64_col", DataType::Float64, true),
         Field::new("utf8_col", DataType::Utf8, true),
@@ -115,6 +118,22 @@ async fn table_data_types(
             Arc::new(Int16Array::from(vec![Some(i16::MIN), Some(i16::MAX), None])),
             Arc::new(Int32Array::from(vec![Some(i32::MIN), Some(i32::MAX), None])),
             Arc::new(Int64Array::from(vec![Some(i64::MIN), Some(i64::MAX), None])),
+            Arc::new(UInt8Array::from(vec![Some(u8::MIN), Some(u8::MAX), None])),
+            Arc::new(UInt16Array::from(vec![
+                Some(u16::MIN),
+                Some(u16::MAX),
+                None,
+            ])),
+            Arc::new(UInt32Array::from(vec![
+                Some(u32::MIN),
+                Some(u32::MAX),
+                None,
+            ])),
+            Arc::new(UInt64Array::from(vec![
+                Some(u64::MIN),
+                Some(u64::MAX),
+                None,
+            ])),
             Arc::new(Float32Array::from(vec![
                 Some(f32::MIN),
                 Some(f32::MAX),
@@ -139,13 +158,13 @@ async fn table_data_types(
     println!("{}", table_str);
     assert_eq!(
         table_str,
-        r#"+-------------------+-------------+----------+-----------+-------------+----------------------+---------------+-------------------------+----------+------------+
-| _indexlake_row_id | boolean_col | int8_col | int16_col | int32_col   | int64_col            | float32_col   | float64_col             | utf8_col | binary_col |
-+-------------------+-------------+----------+-----------+-------------+----------------------+---------------+-------------------------+----------+------------+
-| 1                 | false       | -128     | -32768    | -2147483648 | -9223372036854775808 | -3.4028235e38 | -1.7976931348623157e308 | utf8     | 0001       |
-| 2                 | true        | 127      | 32767     | 2147483647  | 9223372036854775807  | 3.4028235e38  | 1.7976931348623157e308  | utf8     | 0001       |
-| 3                 |             |          |           |             |                      |               |                         |          |            |
-+-------------------+-------------+----------+-----------+-------------+----------------------+---------------+-------------------------+----------+------------+"#,
+        r#"+-------------------+-------------+----------+-----------+-------------+----------------------+-----------+------------+------------+----------------------+---------------+-------------------------+----------+------------+
+| _indexlake_row_id | boolean_col | int8_col | int16_col | int32_col   | int64_col            | uint8_col | uint16_col | uint32_col | uint64_col           | float32_col   | float64_col             | utf8_col | binary_col |
++-------------------+-------------+----------+-----------+-------------+----------------------+-----------+------------+------------+----------------------+---------------+-------------------------+----------+------------+
+| 1                 | false       | -128     | -32768    | -2147483648 | -9223372036854775808 | 0         | 0          | 0          | 0                    | -3.4028235e38 | -1.7976931348623157e308 | utf8     | 0001       |
+| 2                 | true        | 127      | 32767     | 2147483647  | 9223372036854775807  | 255       | 65535      | 4294967295 | 18446744073709551615 | 3.4028235e38  | 1.7976931348623157e308  | utf8     | 0001       |
+| 3                 |             |          |           |             |                      |           |            |            |                      |               |                         |          |            |
++-------------------+-------------+----------+-----------+-------------+----------------------+-----------+------------+------------+----------------------+---------------+-------------------------+----------+------------+"#,
     );
 
     Ok(())

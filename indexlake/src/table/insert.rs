@@ -1,7 +1,7 @@
 use arrow::{
     array::{
         BinaryArray, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array,
-        Int64Array, RecordBatch, StringArray,
+        Int64Array, RecordBatch, StringArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
     },
     datatypes::DataType,
 };
@@ -99,6 +99,58 @@ pub(crate) fn record_batch_to_sql_values(
                 let array = any_array.downcast_ref::<Int64Array>().ok_or_else(|| {
                     ILError::InternalError(format!(
                         "Failed to downcast field {field:?} to Int64Array"
+                    ))
+                })?;
+                for v in array.iter() {
+                    column_values.push(match v {
+                        Some(v) => v.to_string(),
+                        None => "NULL".to_string(),
+                    });
+                }
+            }
+            DataType::UInt8 => {
+                let array = any_array.downcast_ref::<UInt8Array>().ok_or_else(|| {
+                    ILError::InternalError(format!(
+                        "Failed to downcast field {field:?} to UInt8Array"
+                    ))
+                })?;
+                for v in array.iter() {
+                    column_values.push(match v {
+                        Some(v) => v.to_string(),
+                        None => "NULL".to_string(),
+                    });
+                }
+            }
+            DataType::UInt16 => {
+                let array = any_array.downcast_ref::<UInt16Array>().ok_or_else(|| {
+                    ILError::InternalError(format!(
+                        "Failed to downcast field {field:?} to UInt16Array"
+                    ))
+                })?;
+                for v in array.iter() {
+                    column_values.push(match v {
+                        Some(v) => v.to_string(),
+                        None => "NULL".to_string(),
+                    });
+                }
+            }
+            DataType::UInt32 => {
+                let array = any_array.downcast_ref::<UInt32Array>().ok_or_else(|| {
+                    ILError::InternalError(format!(
+                        "Failed to downcast field {field:?} to UInt32Array"
+                    ))
+                })?;
+                for v in array.iter() {
+                    column_values.push(match v {
+                        Some(v) => v.to_string(),
+                        None => "NULL".to_string(),
+                    });
+                }
+            }
+            DataType::UInt64 => {
+                let array = any_array.downcast_ref::<UInt64Array>().ok_or_else(|| {
+                    ILError::InternalError(format!(
+                        "Failed to downcast field {field:?} to UInt64Array"
                     ))
                 })?;
                 for v in array.iter() {
