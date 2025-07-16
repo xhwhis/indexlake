@@ -3,10 +3,12 @@ use std::iter::repeat_n;
 use std::sync::Arc;
 
 use arrow::array::{
-    Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array,
-    Int32Array, Int64Array, StringArray, new_null_array,
+    Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Float32Array, Float64Array, Int8Array,
+    Int16Array, Int32Array, Int64Array, StringArray, new_null_array,
 };
-use arrow::datatypes::{DataType, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type};
+use arrow::datatypes::{
+    DataType, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type, Int64Type,
+};
 use derive_visitor::{Drive, DriveMut};
 
 use crate::{ILError, ILResult, catalog::CatalogDatabase};
@@ -14,6 +16,7 @@ use crate::{ILError, ILResult, catalog::CatalogDatabase};
 #[derive(Debug, Clone, Drive, DriveMut)]
 pub enum Scalar {
     Boolean(Option<bool>),
+    Int8(Option<i8>),
     Int16(Option<i16>),
     Int32(Option<i32>),
     Int64(Option<i64>),
@@ -27,6 +30,7 @@ impl Scalar {
     pub fn try_new_null(data_type: &DataType) -> ILResult<Self> {
         Ok(match data_type {
             DataType::Boolean => Scalar::Boolean(None),
+            DataType::Int8 => Scalar::Int8(None),
             DataType::Int16 => Scalar::Int16(None),
             DataType::Int32 => Scalar::Int32(None),
             DataType::Int64 => Scalar::Int64(None),
@@ -45,6 +49,7 @@ impl Scalar {
     pub fn is_null(&self) -> bool {
         match self {
             Scalar::Boolean(v) => v.is_none(),
+            Scalar::Int8(v) => v.is_none(),
             Scalar::Int16(v) => v.is_none(),
             Scalar::Int32(v) => v.is_none(),
             Scalar::Int64(v) => v.is_none(),
@@ -69,6 +74,8 @@ impl Scalar {
         match self {
             Scalar::Boolean(Some(value)) => value.to_string(),
             Scalar::Boolean(None) => "null".to_string(),
+            Scalar::Int8(Some(value)) => value.to_string(),
+            Scalar::Int8(None) => "null".to_string(),
             Scalar::Int16(Some(value)) => value.to_string(),
             Scalar::Int16(None) => "null".to_string(),
             Scalar::Int32(Some(value)) => value.to_string(),
@@ -93,6 +100,10 @@ impl Scalar {
     pub fn to_array_of_size(&self, size: usize) -> ILResult<ArrayRef> {
         Ok(match self {
             Scalar::Boolean(e) => Arc::new(BooleanArray::from(vec![*e; size])) as ArrayRef,
+            Scalar::Int8(e) => match e {
+                Some(value) => Arc::new(Int8Array::from_value(*value, size)),
+                None => new_null_array(&DataType::Int8, size),
+            },
             Scalar::Int16(e) => match e {
                 Some(value) => Arc::new(Int16Array::from_value(*value, size)),
                 None => new_null_array(&DataType::Int16, size),
@@ -135,6 +146,12 @@ impl Scalar {
             DataType::Boolean => {
                 let array = array.as_boolean_opt().expect("Failed to cast array");
                 Scalar::Boolean(Some(array.value(index)))
+            }
+            DataType::Int8 => {
+                let array = array
+                    .as_primitive_opt::<Int8Type>()
+                    .expect("Failed to cast array");
+                Scalar::Int8(Some(array.value(index)))
             }
             DataType::Int16 => {
                 let array = array
@@ -181,6 +198,7 @@ impl Scalar {
     pub fn data_type(&self) -> DataType {
         match self {
             Scalar::Boolean(_) => DataType::Boolean,
+            Scalar::Int8(_) => DataType::Int8,
             Scalar::Int16(_) => DataType::Int16,
             Scalar::Int32(_) => DataType::Int32,
             Scalar::Int64(_) => DataType::Int64,
@@ -197,6 +215,8 @@ impl PartialEq for Scalar {
         match (self, other) {
             (Scalar::Boolean(v1), Scalar::Boolean(v2)) => v1.eq(v2),
             (Scalar::Boolean(_), _) => false,
+            (Scalar::Int8(v1), Scalar::Int8(v2)) => v1.eq(v2),
+            (Scalar::Int8(_), _) => false,
             (Scalar::Int16(v1), Scalar::Int16(v2)) => v1.eq(v2),
             (Scalar::Int16(_), _) => false,
             (Scalar::Int32(v1), Scalar::Int32(v2)) => v1.eq(v2),
@@ -228,6 +248,8 @@ impl PartialOrd for Scalar {
         match (self, other) {
             (Scalar::Boolean(v1), Scalar::Boolean(v2)) => v1.partial_cmp(v2),
             (Scalar::Boolean(_), _) => None,
+            (Scalar::Int8(v1), Scalar::Int8(v2)) => v1.partial_cmp(v2),
+            (Scalar::Int8(_), _) => None,
             (Scalar::Int16(v1), Scalar::Int16(v2)) => v1.partial_cmp(v2),
             (Scalar::Int16(_), _) => None,
             (Scalar::Int32(v1), Scalar::Int32(v2)) => v1.partial_cmp(v2),
@@ -257,6 +279,8 @@ impl Display for Scalar {
         match self {
             Scalar::Boolean(Some(value)) => write!(f, "{}", value),
             Scalar::Boolean(None) => write!(f, "null"),
+            Scalar::Int8(Some(value)) => write!(f, "{}", value),
+            Scalar::Int8(None) => write!(f, "null"),
             Scalar::Int16(Some(value)) => write!(f, "{}", value),
             Scalar::Int16(None) => write!(f, "null"),
             Scalar::Int32(Some(value)) => write!(f, "{}", value),
@@ -292,6 +316,7 @@ macro_rules! impl_scalar_from {
 }
 
 impl_scalar_from!(bool, Boolean);
+impl_scalar_from!(i8, Int8);
 impl_scalar_from!(i16, Int16);
 impl_scalar_from!(i32, Int32);
 impl_scalar_from!(i64, Int64);

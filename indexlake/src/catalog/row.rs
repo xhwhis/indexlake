@@ -6,8 +6,9 @@ use crate::{
 };
 use arrow::array::{
     Array, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Float32Array, Float32Builder,
-    Float64Array, Float64Builder, Int16Array, Int16Builder, Int32Array, Int32Builder, Int64Array,
-    Int64Builder, RecordBatch, RecordBatchOptions, StringArray, StringBuilder, make_builder,
+    Float64Array, Float64Builder, Int8Builder, Int16Array, Int16Builder, Int32Array, Int32Builder,
+    Int64Array, Int64Builder, RecordBatch, RecordBatchOptions, StringArray, StringBuilder,
+    make_builder,
 };
 use arrow::datatypes::{DataType, SchemaRef};
 
@@ -28,6 +29,15 @@ impl Row {
             return Ok(None);
         };
         self.int64(idx)
+    }
+
+    pub fn int8(&self, index: usize) -> ILResult<Option<i8>> {
+        match self.values[index] {
+            Scalar::Int8(v) => Ok(v),
+            _ => Err(ILError::InternalError(format!(
+                "Expected Int8 at index {index} for row {self:?}"
+            ))),
+        }
     }
 
     pub fn int16(&self, index: usize) -> ILResult<Option<i16>> {
@@ -182,6 +192,11 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         |v| Ok::<_, ILError>(v as bool)
                     );
                 }
+                DataType::Int8 => {
+                    builder_append!(array_builders[i], Int8Builder, field, row, int8, i, |v| {
+                        Ok::<_, ILError>(v as i8)
+                    });
+                }
                 DataType::Int16 => {
                     builder_append!(array_builders[i], Int16Builder, field, row, int16, i, |v| {
                         Ok::<_, ILError>(v as i16)
@@ -245,7 +260,12 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         convert
                     );
                 }
-                _ => todo!(),
+                _ => {
+                    return Err(ILError::NotSupported(format!(
+                        "Not supported data type: {}",
+                        field.data_type()
+                    )));
+                }
             }
         }
     }

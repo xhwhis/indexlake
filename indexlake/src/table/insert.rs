@@ -1,7 +1,7 @@
 use arrow::{
     array::{
-        BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
-        RecordBatch, StringArray,
+        BinaryArray, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array,
+        Int64Array, RecordBatch, StringArray,
     },
     datatypes::DataType,
 };
@@ -47,6 +47,19 @@ pub(crate) fn record_batch_to_sql_values(
                 let array = any_array.downcast_ref::<BooleanArray>().ok_or_else(|| {
                     ILError::InternalError(format!(
                         "Failed to downcast field {field:?} to BooleanArray"
+                    ))
+                })?;
+                for v in array.iter() {
+                    column_values.push(match v {
+                        Some(v) => v.to_string(),
+                        None => "NULL".to_string(),
+                    });
+                }
+            }
+            DataType::Int8 => {
+                let array = any_array.downcast_ref::<Int8Array>().ok_or_else(|| {
+                    ILError::InternalError(format!(
+                        "Failed to downcast field {field:?} to Int8Array"
                     ))
                 })?;
                 for v in array.iter() {
@@ -149,7 +162,7 @@ pub(crate) fn record_batch_to_sql_values(
             }
             _ => {
                 return Err(ILError::NotSupported(format!(
-                    "Unsupported data type: {:?}",
+                    "Unsupported data type: {}",
                     field.data_type()
                 )));
             }

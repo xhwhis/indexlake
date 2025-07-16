@@ -12,6 +12,7 @@ use indexlake_integration_tests::{
 };
 use std::sync::Arc;
 
+use arrow::array::Int8Array;
 use arrow::array::{
     BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
     RecordBatch, StringArray,
@@ -84,6 +85,7 @@ async fn table_data_types(
 
     let table_schema = Arc::new(Schema::new(vec![
         Field::new("boolean_col", DataType::Boolean, true),
+        Field::new("int8_col", DataType::Int8, true),
         Field::new("int16_col", DataType::Int16, true),
         Field::new("int32_col", DataType::Int32, true),
         Field::new("int64_col", DataType::Int64, true),
@@ -109,9 +111,10 @@ async fn table_data_types(
         table_schema.clone(),
         vec![
             Arc::new(BooleanArray::from(vec![true])),
-            Arc::new(Int16Array::from(vec![1])),
-            Arc::new(Int32Array::from(vec![2])),
-            Arc::new(Int64Array::from(vec![3])),
+            Arc::new(Int8Array::from(vec![1])),
+            Arc::new(Int16Array::from(vec![2])),
+            Arc::new(Int32Array::from(vec![3])),
+            Arc::new(Int64Array::from(vec![4])),
             Arc::new(Float32Array::from(vec![1.1])),
             Arc::new(Float64Array::from(vec![2.2])),
             Arc::new(StringArray::from(vec!["utf8"])),
@@ -124,11 +127,11 @@ async fn table_data_types(
     println!("{}", table_str);
     assert_eq!(
         table_str,
-        r#"+-------------------+-------------+-----------+-----------+-----------+-------------+-------------+----------+------------+
-| _indexlake_row_id | boolean_col | int16_col | int32_col | int64_col | float32_col | float64_col | utf8_col | binary_col |
-+-------------------+-------------+-----------+-----------+-----------+-------------+-------------+----------+------------+
-| 1                 | true        | 1         | 2         | 3         | 1.1         | 2.2         | utf8     | 0001       |
-+-------------------+-------------+-----------+-----------+-----------+-------------+-------------+----------+------------+"#,
+        r#"+-------------------+-------------+----------+-----------+-----------+-----------+-------------+-------------+----------+------------+
+| _indexlake_row_id | boolean_col | int8_col | int16_col | int32_col | int64_col | float32_col | float64_col | utf8_col | binary_col |
++-------------------+-------------+----------+-----------+-----------+-----------+-------------+-------------+----------+------------+
+| 1                 | true        | 1        | 2         | 3         | 4         | 1.1         | 2.2         | utf8     | 0001       |
++-------------------+-------------+----------+-----------+-----------+-----------+-------------+-------------+----------+------------+"#,
     );
 
     Ok(())

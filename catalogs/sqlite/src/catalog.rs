@@ -166,6 +166,18 @@ fn sqlite_row_to_row(sqlite_row: &rusqlite::Row, schema: &CatalogSchemaRef) -> I
     let mut row_values = Vec::new();
     for (idx, field) in schema.columns.iter().enumerate() {
         let scalar = match field.data_type {
+            CatalogDataType::Boolean => {
+                let v: Option<bool> = sqlite_row
+                    .get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Boolean(v)
+            }
+            CatalogDataType::Int8 => {
+                let v: Option<i8> = sqlite_row
+                    .get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Int8(v)
+            }
             CatalogDataType::Int16 => {
                 let v: Option<i16> = sqlite_row
                     .get(idx)
@@ -207,12 +219,6 @@ fn sqlite_row_to_row(sqlite_row: &rusqlite::Row, schema: &CatalogSchemaRef) -> I
                     .get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
                 Scalar::Binary(v)
-            }
-            CatalogDataType::Boolean => {
-                let v: Option<bool> = sqlite_row
-                    .get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Boolean(v)
             }
         };
         if !field.nullable && scalar.is_null() {

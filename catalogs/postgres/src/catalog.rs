@@ -171,6 +171,18 @@ fn pg_row_to_row(
     let mut values = Vec::new();
     for (idx, field) in schema.columns.iter().enumerate() {
         let scalar = match field.data_type {
+            CatalogDataType::Boolean => {
+                let v: Option<bool> = pg_row
+                    .try_get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Boolean(v)
+            }
+            CatalogDataType::Int8 => {
+                let v: Option<i8> = pg_row
+                    .try_get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Int8(v)
+            }
             CatalogDataType::Int16 => {
                 let v: Option<i16> = pg_row
                     .try_get(idx)
@@ -212,12 +224,6 @@ fn pg_row_to_row(
                     .try_get(idx)
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
                 Scalar::Binary(v)
-            }
-            CatalogDataType::Boolean => {
-                let v: Option<bool> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
-                Scalar::Boolean(v)
             }
         };
         if !field.nullable && scalar.is_null() {

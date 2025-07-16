@@ -7,6 +7,7 @@ use crate::{ILError, ILResult, catalog::CatalogDatabase};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogDataType {
     Boolean,
+    Int8,
     Int16,
     Int32,
     Int64,
@@ -20,6 +21,7 @@ impl CatalogDataType {
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
         match self {
             CatalogDataType::Boolean => "BOOLEAN".to_string(),
+            CatalogDataType::Int8 => "TINYINT".to_string(),
             CatalogDataType::Int16 => "SMALLINT".to_string(),
             CatalogDataType::Int32 => "INTEGER".to_string(),
             CatalogDataType::Int64 => "BIGINT".to_string(),
@@ -42,6 +44,7 @@ impl CatalogDataType {
     pub(crate) fn from_arrow(datatype: &DataType) -> ILResult<Self> {
         match datatype {
             DataType::Boolean => Ok(CatalogDataType::Boolean),
+            DataType::Int8 => Ok(CatalogDataType::Int8),
             DataType::Int16 => Ok(CatalogDataType::Int16),
             DataType::Int32 => Ok(CatalogDataType::Int32),
             DataType::Int64 => Ok(CatalogDataType::Int64),
@@ -60,6 +63,7 @@ impl std::fmt::Display for CatalogDataType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CatalogDataType::Boolean => write!(f, "Boolean"),
+            CatalogDataType::Int8 => write!(f, "Int8"),
             CatalogDataType::Int16 => write!(f, "Int16"),
             CatalogDataType::Int32 => write!(f, "Int32"),
             CatalogDataType::Int64 => write!(f, "Int64"),
