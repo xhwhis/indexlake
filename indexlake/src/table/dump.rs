@@ -1,12 +1,7 @@
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use arrow::datatypes::SchemaRef;
-use backon::{ConstantBuilder, Retryable};
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
 use log::{debug, error};
 use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 
@@ -42,8 +37,6 @@ pub(crate) async fn try_run_dump_task(table: &Table) -> ILResult<()> {
                 return Ok(false);
             }
 
-            let inline_row_count_limit = table_config.inline_row_count_limit;
-
             let dump_task = DumpTask {
                 namespace_id,
                 table_id,
@@ -55,14 +48,9 @@ pub(crate) async fn try_run_dump_task(table: &Table) -> ILResult<()> {
                 storage: storage.clone(),
             };
 
-            let now = Instant::now();
-            dump_task.run().await?;
-            debug!(
-                "[indexlake] dump table {table_id} {inline_row_count_limit} inline rows in {} ms",
-                now.elapsed().as_millis()
-            );
+            let continue_dump = dump_task.run().await?;
 
-            Ok::<_, ILError>(true)
+            Ok::<_, ILError>(continue_dump)
         };
 
         loop {
@@ -94,16 +82,18 @@ pub(crate) struct DumpTask {
 }
 
 impl DumpTask {
-    async fn run(&self) -> ILResult<()> {
+    async fn run(&self) -> ILResult<bool> {
+        let now = Instant::now();
+
         let mut tx_helper = TransactionHelper::new(&self.catalog).await?;
         if tx_helper.insert_dump_task(self.table_id).await.is_err() {
             debug!("Table {} already has a dump task", self.table_id);
-            return Ok(());
+            return Ok(false);
         }
 
         let inline_row_count = tx_helper.count_inline_rows(self.table_id).await?;
         if inline_row_count < self.table_config.inline_row_count_limit as i64 {
-            return Ok(());
+            return Ok(false);
         }
 
         let catalog_schema = Arc::new(CatalogSchema::from_arrow(&self.table_schema)?);
@@ -202,7 +192,14 @@ impl DumpTask {
 
         tx_helper.commit().await?;
 
-        Ok(())
+        debug!(
+            "[indexlake] dump table {} {} inline rows in {} ms",
+            self.table_id,
+            self.table_config.inline_row_count_limit,
+            now.elapsed().as_millis()
+        );
+
+        Ok(true)
     }
 
     async fn write_dump_file(

@@ -62,6 +62,7 @@ pub fn setup_minio() -> DockerCompose {
     );
     docker_compose.down();
     docker_compose.up();
+    std::thread::sleep(std::time::Duration::from_secs(5));
     docker_compose
 }
 

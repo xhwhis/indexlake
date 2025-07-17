@@ -106,21 +106,35 @@ async fn process_table_scan(
     }));
 
     // Scan data files
-    // TODO parallel scan data files
-    let mut streams: Vec<RecordBatchStream> = vec![inline_stream];
     let data_file_records = catalog_helper.get_data_files(table_id).await?;
+
+    let mut streams: Vec<RecordBatchStream> = Vec::with_capacity(1 + data_file_records.len());
+    streams.push(inline_stream);
+
+    let mut handles = Vec::with_capacity(data_file_records.len());
     for data_file_record in data_file_records {
-        streams.push(
-            read_parquet_file_by_record(
-                storage,
+        let storage = storage.clone();
+        let table_schema = table_schema.clone();
+        let projection = projection.clone();
+        let filters = filters.clone();
+        let handle = tokio::spawn(async move {
+            let stream = read_parquet_file_by_record(
+                &storage,
                 &table_schema,
                 &data_file_record,
                 projection.clone(),
                 filters.clone(),
                 None,
             )
-            .await?,
-        );
+            .await?;
+            Ok::<_, ILError>(stream)
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        let stream = handle.await??;
+        streams.push(stream);
     }
 
     Ok(Box::pin(futures::stream::select_all(streams)))

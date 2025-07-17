@@ -46,3 +46,9 @@ impl From<arrow::error::ArrowError> for ILError {
         ILError::InternalError(err.to_string())
     }
 }
+
+impl From<tokio::task::JoinError> for ILError {
+    fn from(err: tokio::task::JoinError) -> Self {
+        ILError::InternalError(format!("Tokio join error: {err}"))
+    }
+}

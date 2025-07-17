@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "benchmarks",
     "catalogs/postgres",
     "catalogs/sqlite",
     "indexes/bm25",
@@ -28,6 +29,7 @@ indexlake-index-bm25 = { path = "indexes/bm25" }
 indexlake-index-btree = { path = "indexes/btree" }
 indexlake-index-hnsw = { path = "indexes/hnsw" }
 indexlake-index-rstar = { path = "indexes/rstar" }
+indexlake-integration-tests = { path = "integration-tests" }
 
 arrow = "55"
 arrow-schema = "55"
@@ -47,6 +49,7 @@ geo = "0.30"
 geozero = "0.14"
 hex = "0.4"
 log = "0.4"
+num_cpus = "1.14"
 opendal = "0.53"
 parquet = "55.1"
 rstar = "0.12"

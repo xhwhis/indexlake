@@ -208,7 +208,7 @@ pub struct TableConfig {
 impl Default for TableConfig {
     fn default() -> Self {
         Self {
-            inline_row_count_limit: 10000,
+            inline_row_count_limit: 100000,
             parquet_row_group_size: 1000,
         }
     }
