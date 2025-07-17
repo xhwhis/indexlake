@@ -89,6 +89,11 @@ impl CatalogDataType {
             DataType::Utf8 => Ok(CatalogDataType::Utf8),
             DataType::LargeUtf8 => Ok(CatalogDataType::Utf8),
             DataType::Utf8View => Ok(CatalogDataType::Utf8),
+            DataType::List(_) => Ok(CatalogDataType::Binary),
+            DataType::ListView(_) => Ok(CatalogDataType::Binary),
+            DataType::FixedSizeList(_, _) => Ok(CatalogDataType::Binary),
+            DataType::LargeList(_) => Ok(CatalogDataType::Binary),
+            DataType::LargeListView(_) => Ok(CatalogDataType::Binary),
             DataType::Decimal128(_, _) => Ok(CatalogDataType::Utf8),
             DataType::Decimal256(_, _) => Ok(CatalogDataType::Utf8),
             _ => Err(ILError::NotSupported(format!(

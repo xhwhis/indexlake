@@ -79,6 +79,8 @@ impl FieldRecord {
     }
 
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> ILResult<String> {
+        let data_type_str = serde_json::to_string(&self.data_type)
+            .map_err(|e| ILError::InternalError(format!("Failed to serialize data type: {e:?}")))?;
         let metadata_str = serde_json::to_string(&self.metadata).map_err(|e| {
             ILError::InternalError(format!("Failed to serialize field metadata: {e:?}"))
         })?;
@@ -87,10 +89,14 @@ impl FieldRecord {
             self.field_id,
             self.table_id,
             self.field_name,
-            self.data_type.to_string(),
+            data_type_str,
             self.nullable,
             metadata_str
         ))
+    }
+
+    pub(crate) fn into_field(self) -> Field {
+        Field::new(self.field_name, self.data_type, self.nullable).with_metadata(self.metadata)
     }
 
     pub(crate) fn catalog_schema() -> CatalogSchema {
@@ -102,6 +108,30 @@ impl FieldRecord {
             Column::new("nullable", CatalogDataType::Boolean, false),
             Column::new("metadata", CatalogDataType::Utf8, false),
         ])
+    }
+
+    pub(crate) fn from_row(row: &Row) -> ILResult<Self> {
+        let field_id = row.int64(0)?.expect("field_id is not null");
+        let table_id = row.int64(1)?.expect("table_id is not null");
+        let field_name = row.utf8(2)?.expect("field_name is not null");
+        let data_type_str = row.utf8(3)?.expect("data_type is not null");
+        let data_type: DataType = serde_json::from_str(&data_type_str).map_err(|e| {
+            ILError::InternalError(format!("Failed to deserialize data type: {e:?}"))
+        })?;
+        let nullable = row.boolean(4)?.expect("nullable is not null");
+        let metadata_str = row.utf8(5)?.expect("metadata is not null");
+        let metadata: HashMap<String, String> =
+            serde_json::from_str(&metadata_str).map_err(|e| {
+                ILError::InternalError(format!("Failed to deserialize field metadata: {e:?}"))
+            })?;
+        Ok(FieldRecord {
+            field_id,
+            table_id,
+            field_name: field_name.clone(),
+            data_type,
+            nullable,
+            metadata,
+        })
     }
 }
 

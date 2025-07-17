@@ -30,6 +30,7 @@ indexlake-index-hnsw = { path = "indexes/hnsw" }
 indexlake-index-rstar = { path = "indexes/rstar" }
 
 arrow = "55"
+arrow-schema = "55"
 async-trait = "0.1"
 backon = "1.5"
 bb8 = "0.9"

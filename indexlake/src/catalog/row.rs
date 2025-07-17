@@ -3,6 +3,7 @@ use std::fmt::Display;
 use crate::{
     ILError, ILResult,
     catalog::{CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME, Scalar},
+    utils::deserialize_array,
 };
 use arrow::datatypes::{DataType, SchemaRef, TimeUnit};
 use arrow::{array::*, datatypes::i256};
@@ -199,6 +200,245 @@ macro_rules! builder_append {
         match v {
             Some(v) => builder.append_value($convert(v)?),
             None => builder.append_null(),
+        }
+    }};
+}
+
+macro_rules! list_builder_append {
+    ($builder:expr, $builder_ty:ty, $field:expr, $inner_field:expr, $row:expr, $index:expr) => {{
+        let builder = $builder
+            .as_any_mut()
+            .downcast_mut::<$builder_ty>()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Failed to downcast builder to {} for {:?}",
+                    stringify!($builder_ty),
+                    $field,
+                )
+            });
+        let v = $row.binary($index).map_err(|e| {
+            ILError::InternalError(format!(
+                "Failed to get {} value for {:?}: {e:?}",
+                stringify!($value_ty),
+                $field,
+            ))
+        })?;
+
+        match v {
+            Some(v) => {
+                let values_builder = builder.values();
+                let array = deserialize_array(&v, $inner_field.clone())?;
+                match $inner_field.data_type() {
+                    DataType::Boolean => {
+                        values_builder_append!(values_builder, BooleanBuilder, array, BooleanArray);
+                    }
+                    DataType::Int8 => {
+                        values_builder_append!(values_builder, Int8Builder, array, Int8Array);
+                    }
+                    DataType::Int16 => {
+                        values_builder_append!(values_builder, Int16Builder, array, Int16Array);
+                    }
+                    DataType::Int32 => {
+                        values_builder_append!(values_builder, Int32Builder, array, Int32Array);
+                    }
+                    DataType::Int64 => {
+                        values_builder_append!(values_builder, Int64Builder, array, Int64Array);
+                    }
+                    DataType::UInt8 => {
+                        values_builder_append!(values_builder, UInt8Builder, array, UInt8Array);
+                    }
+                    DataType::UInt16 => {
+                        values_builder_append!(values_builder, UInt16Builder, array, UInt16Array);
+                    }
+                    DataType::UInt32 => {
+                        values_builder_append!(values_builder, UInt32Builder, array, UInt32Array);
+                    }
+                    DataType::UInt64 => {
+                        values_builder_append!(values_builder, UInt64Builder, array, UInt64Array);
+                    }
+                    DataType::Float32 => {
+                        values_builder_append!(values_builder, Float32Builder, array, Float32Array);
+                    }
+                    DataType::Float64 => {
+                        values_builder_append!(values_builder, Float64Builder, array, Float64Array);
+                    }
+                    DataType::Timestamp(TimeUnit::Second, _) => {
+                        values_builder_append!(
+                            values_builder,
+                            TimestampSecondBuilder,
+                            array,
+                            TimestampSecondArray
+                        );
+                    }
+                    DataType::Timestamp(TimeUnit::Millisecond, _) => {
+                        values_builder_append!(
+                            values_builder,
+                            TimestampMillisecondBuilder,
+                            array,
+                            TimestampMillisecondArray
+                        );
+                    }
+                    DataType::Timestamp(TimeUnit::Microsecond, _) => {
+                        values_builder_append!(
+                            values_builder,
+                            TimestampMicrosecondBuilder,
+                            array,
+                            TimestampMicrosecondArray
+                        );
+                    }
+                    DataType::Timestamp(TimeUnit::Nanosecond, _) => {
+                        values_builder_append!(
+                            values_builder,
+                            TimestampNanosecondBuilder,
+                            array,
+                            TimestampNanosecondArray
+                        );
+                    }
+                    DataType::Date32 => {
+                        values_builder_append!(values_builder, Date32Builder, array, Date32Array);
+                    }
+                    DataType::Date64 => {
+                        values_builder_append!(values_builder, Date64Builder, array, Date64Array);
+                    }
+                    DataType::Time32(TimeUnit::Second) => {
+                        values_builder_append!(
+                            values_builder,
+                            Time32SecondBuilder,
+                            array,
+                            Time32SecondArray
+                        );
+                    }
+                    DataType::Time32(TimeUnit::Millisecond) => {
+                        values_builder_append!(
+                            values_builder,
+                            Time32MillisecondBuilder,
+                            array,
+                            Time32MillisecondArray
+                        );
+                    }
+                    DataType::Time64(TimeUnit::Microsecond) => {
+                        values_builder_append!(
+                            values_builder,
+                            Time64MicrosecondBuilder,
+                            array,
+                            Time64MicrosecondArray
+                        );
+                    }
+                    DataType::Time64(TimeUnit::Nanosecond) => {
+                        values_builder_append!(
+                            values_builder,
+                            Time64NanosecondBuilder,
+                            array,
+                            Time64NanosecondArray
+                        );
+                    }
+                    DataType::Binary => {
+                        values_builder_append!(values_builder, BinaryBuilder, array, BinaryArray);
+                    }
+                    // TODO FixedSizeBinaryBuilder supports append_array
+                    DataType::LargeBinary => {
+                        values_builder_append!(
+                            values_builder,
+                            LargeBinaryBuilder,
+                            array,
+                            LargeBinaryArray
+                        );
+                    }
+                    DataType::Utf8 => {
+                        values_builder_append!(values_builder, StringBuilder, array, StringArray);
+                    }
+                    DataType::LargeUtf8 => {
+                        values_builder_append!(
+                            values_builder,
+                            LargeStringBuilder,
+                            array,
+                            LargeStringArray
+                        );
+                    }
+                    DataType::Decimal128(_, _) => {
+                        values_builder_append!(
+                            values_builder,
+                            Decimal128Builder,
+                            array,
+                            Decimal128Array
+                        );
+                    }
+                    DataType::Decimal256(_, _) => {
+                        values_builder_append!(
+                            values_builder,
+                            Decimal256Builder,
+                            array,
+                            Decimal256Array
+                        );
+                    }
+                    _ => {
+                        return Err(ILError::NotSupported(format!(
+                            "Not supported data type: {}",
+                            $field.data_type()
+                        )));
+                    }
+                }
+                builder.append(true);
+            }
+            None => builder.append(false),
+        }
+    }};
+}
+
+macro_rules! values_builder_append {
+    ($builder:expr, $builder_ty:ty, $array:expr, $array_ty:ty) => {{
+        let values_builder = $builder
+            .as_any_mut()
+            .downcast_mut::<$builder_ty>()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Failed to downcast values builder to {}",
+                    stringify!($builder_ty),
+                )
+            });
+
+        let array = $array.as_any().downcast_ref::<$array_ty>().ok_or_else(|| {
+            ILError::InternalError(format!(
+                "Failed to downcast inner array to {}",
+                stringify!($array_ty),
+            ))
+        })?;
+        values_builder.append_array(array);
+    }};
+}
+
+macro_rules! fixed_size_list_values_builder_append {
+    ($data:expr, $builder:expr, $values_builder_ty:ty, $inner_field:expr, $array_ty:ty, $len:expr) => {{
+        match $data {
+            Some(v) => {
+                let array = deserialize_array(&v, $inner_field.clone())?;
+                let values_builder = $builder.values();
+                values_builder_append!(values_builder, $values_builder_ty, array, $array_ty);
+                $builder.append(true);
+            }
+            None => {
+                let values_builder = $builder.values();
+                values_builder_append_nulls!(values_builder, $values_builder_ty, $len);
+                $builder.append(false);
+            }
+        }
+    }};
+}
+
+macro_rules! values_builder_append_nulls {
+    ($builder:expr, $builder_ty:ty, $count:expr) => {{
+        let values_builder = $builder
+            .as_any_mut()
+            .downcast_mut::<$builder_ty>()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Failed to downcast values builder to {}",
+                    stringify!($builder_ty),
+                )
+            });
+
+        for _ in 0..$count {
+            values_builder.append_null();
         }
     }};
 }
@@ -509,6 +749,140 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         utf8,
                         i,
                         string_convert
+                    );
+                }
+                DataType::List(inner_field) => {
+                    list_builder_append!(
+                        array_builders[i],
+                        ListBuilder<Box<dyn ArrayBuilder>>,
+                        field,
+                        inner_field,
+                        row,
+                        i
+                    );
+                }
+                DataType::FixedSizeList(inner_field, len) => {
+                    let builder = array_builders[i]
+                        .as_any_mut()
+                        .downcast_mut::<FixedSizeListBuilder<Box<dyn ArrayBuilder>>>()
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "Failed to downcast builder to FixedSizeListBuilder for {field:?}"
+                            )
+                        });
+                    let v = row.binary(i).map_err(|e| {
+                        ILError::InternalError(format!(
+                            "Failed to get binary value for {field:?}: {e:?}"
+                        ))
+                    })?;
+
+                    match inner_field.data_type() {
+                        DataType::Boolean => {
+                            fixed_size_list_values_builder_append!(
+                                v,
+                                builder,
+                                BooleanBuilder,
+                                inner_field,
+                                BooleanArray,
+                                *len
+                            );
+                        }
+                        DataType::Int8 => {
+                            fixed_size_list_values_builder_append!(
+                                v,
+                                builder,
+                                Int8Builder,
+                                inner_field,
+                                Int8Array,
+                                *len
+                            );
+                        }
+                        DataType::Int16 => {
+                            fixed_size_list_values_builder_append!(
+                                v,
+                                builder,
+                                Int16Builder,
+                                inner_field,
+                                Int16Array,
+                                *len
+                            );
+                        }
+                        DataType::Int32 => {
+                            fixed_size_list_values_builder_append!(
+                                v,
+                                builder,
+                                Int32Builder,
+                                inner_field,
+                                Int32Array,
+                                *len
+                            );
+                        }
+                        DataType::Int64 => {
+                            fixed_size_list_values_builder_append!(
+                                v,
+                                builder,
+                                Int64Builder,
+                                inner_field,
+                                Int64Array,
+                                *len
+                            );
+                        }
+                        DataType::UInt8 => {
+                            fixed_size_list_values_builder_append!(
+                                v,
+                                builder,
+                                UInt8Builder,
+                                inner_field,
+                                UInt8Array,
+                                *len
+                            );
+                        }
+                        DataType::UInt16 => {
+                            fixed_size_list_values_builder_append!(
+                                v,
+                                builder,
+                                UInt16Builder,
+                                inner_field,
+                                UInt16Array,
+                                *len
+                            );
+                        }
+                        DataType::UInt32 => {
+                            fixed_size_list_values_builder_append!(
+                                v,
+                                builder,
+                                UInt32Builder,
+                                inner_field,
+                                UInt32Array,
+                                *len
+                            );
+                        }
+                        DataType::UInt64 => {
+                            fixed_size_list_values_builder_append!(
+                                v,
+                                builder,
+                                UInt64Builder,
+                                inner_field,
+                                UInt64Array,
+                                *len
+                            );
+                        }
+                        _ => {
+                            return Err(ILError::NotSupported(format!(
+                                "Not supported data type: {}",
+                                inner_field.data_type()
+                            )));
+                        }
+                    }
+                }
+                DataType::LargeList(inner_field) => {
+                    list_builder_append!(
+                        array_builders[i],
+                        LargeListBuilder<Box<dyn ArrayBuilder>>,
+                        field,
+                        inner_field,
+                        row,
+                        i
                     );
                 }
                 DataType::Decimal128(_, _) => {

@@ -296,20 +296,10 @@ impl CatalogHelper {
             .await?;
         let mut field_map = BTreeMap::new();
         for row in rows {
-            let field_id = row.int64(0)?.expect("field_id is not null");
-            let field_name = row.utf8(2)?.expect("field_name is not null");
-            let data_type_str = row.utf8(3)?.expect("data_type is not null");
-            let data_type = data_type_str.parse::<DataType>()?;
-            let nullable = row.boolean(4)?.expect("nullable is not null");
-            let metadata_str = row.utf8(5)?.expect("metadata is not null");
-            let metadata: HashMap<String, String> =
-                serde_json::from_str(&metadata_str).map_err(|e| {
-                    ILError::InternalError(format!("Failed to deserialize field metadata: {e:?}"))
-                })?;
-            field_map.insert(
-                field_id,
-                Arc::new(Field::new(field_name, data_type, nullable).with_metadata(metadata)),
-            );
+            let field_record = FieldRecord::from_row(&row)?;
+            let field_id = field_record.field_id;
+            let field = field_record.into_field();
+            field_map.insert(field_id, Arc::new(field));
         }
         Ok(field_map)
     }

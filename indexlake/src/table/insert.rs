@@ -6,6 +6,7 @@ use arrow::{
 use crate::{
     ILError, ILResult,
     catalog::{CatalogDatabase, TransactionHelper},
+    utils::serialize_array,
 };
 
 pub(crate) async fn process_insert_into_inline_rows(
@@ -144,6 +145,61 @@ pub(crate) fn record_batch_to_sql_values(
             }
             DataType::Utf8View => {
                 extract_sql_values!(array, StringViewArray, |v: &str| format!("'{}'", v))
+            }
+            DataType::List(inner_field) => {
+                let mut sql_values = Vec::with_capacity(array.len());
+                let array = array.as_any().downcast_ref::<ListArray>().ok_or_else(|| {
+                    ILError::InternalError(format!("Failed to downcast array to ListArray"))
+                })?;
+                for v in array.iter() {
+                    sql_values.push(match v {
+                        Some(v) => {
+                            database.sql_binary_value(&serialize_array(v, inner_field.clone())?)
+                        }
+                        None => "NULL".to_string(),
+                    });
+                }
+                sql_values
+            }
+            DataType::FixedSizeList(inner_field, _len) => {
+                let mut sql_values = Vec::with_capacity(array.len());
+                let array = array
+                    .as_any()
+                    .downcast_ref::<FixedSizeListArray>()
+                    .ok_or_else(|| {
+                        ILError::InternalError(format!(
+                            "Failed to downcast array to FixedSizeListArray"
+                        ))
+                    })?;
+                for v in array.iter() {
+                    sql_values.push(match v {
+                        Some(v) => {
+                            database.sql_binary_value(&serialize_array(v, inner_field.clone())?)
+                        }
+                        None => "NULL".to_string(),
+                    });
+                }
+                sql_values
+            }
+            DataType::LargeList(inner_field) => {
+                let mut sql_values = Vec::with_capacity(array.len());
+                let array = array
+                    .as_any()
+                    .downcast_ref::<LargeListArray>()
+                    .ok_or_else(|| {
+                        ILError::InternalError(format!(
+                            "Failed to downcast array to LargeListArray"
+                        ))
+                    })?;
+                for v in array.iter() {
+                    sql_values.push(match v {
+                        Some(v) => {
+                            database.sql_binary_value(&serialize_array(v, inner_field.clone())?)
+                        }
+                        None => "NULL".to_string(),
+                    });
+                }
+                sql_values
             }
             DataType::Decimal128(_, _) => {
                 extract_sql_values!(array, Decimal128Array, |v: i128| format!("'{}'", v))
