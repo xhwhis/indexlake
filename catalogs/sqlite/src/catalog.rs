@@ -95,13 +95,12 @@ impl Transaction for SqliteTransaction {
     async fn query(&mut self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream> {
         trace!("sqlite txn query: {sql}");
         self.check_done()?;
-        let mut stmt = self
-            .conn
-            .prepare(sql)
-            .map_err(|e| ILError::CatalogError(format!("failed to prepare sqlite stmt: {e}")))?;
-        let mut sqlite_rows = stmt
-            .query([])
-            .map_err(|e| ILError::CatalogError(format!("failed to query sqlite stmt: {e}")))?;
+        let mut stmt = self.conn.prepare(sql).map_err(|e| {
+            ILError::CatalogError(format!("failed to prepare sqlite stmt: {sql} {e}"))
+        })?;
+        let mut sqlite_rows = stmt.query([]).map_err(|e| {
+            ILError::CatalogError(format!("failed to query sqlite stmt: {sql} {e}"))
+        })?;
 
         let mut rows: Vec<Row> = Vec::new();
         while let Some(sqlite_row) = sqlite_rows
@@ -119,15 +118,16 @@ impl Transaction for SqliteTransaction {
         self.check_done()?;
         self.conn
             .execute(sql, [])
-            .map_err(|e| ILError::CatalogError(format!("failed to execute sqlite stmt: {e}")))
+            .map_err(|e| ILError::CatalogError(format!("failed to execute sqlite stmt: {sql} {e}")))
     }
 
     async fn execute_batch(&mut self, sqls: &[String]) -> ILResult<()> {
         trace!("sqlite txn execute batch: {:?}", sqls);
         self.check_done()?;
-        self.conn
-            .execute_batch(sqls.join(";").as_str())
-            .map_err(|e| ILError::CatalogError(format!("failed to execute sqlite batch: {e}")))
+        let sql = sqls.join(";");
+        self.conn.execute_batch(&sql).map_err(|e| {
+            ILError::CatalogError(format!("failed to execute sqlite batch: {sql} {e}"))
+        })
     }
 
     async fn commit(&mut self) -> ILResult<()> {

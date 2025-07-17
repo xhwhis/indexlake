@@ -49,7 +49,7 @@ impl Catalog for PostgresCatalog {
         let pg_row_stream = conn
             .query_raw(sql, Vec::<String>::new())
             .await
-            .map_err(|e| ILError::CatalogError(format!("failed to query postgres: {e}")))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to query postgres: {sql} {e}")))?;
 
         let stream = pg_row_stream.map(move |row| {
             let pg_row =
@@ -97,7 +97,7 @@ impl Transaction for PostgresTransaction {
             .conn
             .query_raw(sql, Vec::<String>::new())
             .await
-            .map_err(|e| ILError::CatalogError(format!("failed to query postgres: {e}")))?;
+            .map_err(|e| ILError::CatalogError(format!("failed to query postgres: {sql} {e}")))?;
 
         let stream = pg_row_stream.map(move |row| {
             let pg_row =
@@ -114,16 +114,16 @@ impl Transaction for PostgresTransaction {
             .execute(sql, &[])
             .await
             .map(|r| r as usize)
-            .map_err(|e| ILError::CatalogError(format!("failed to execute postgres: {e}")))
+            .map_err(|e| ILError::CatalogError(format!("failed to execute postgres: {sql} {e}")))
     }
 
     async fn execute_batch(&mut self, sqls: &[String]) -> ILResult<()> {
         trace!("postgres txn execute batch: {:?}", sqls);
         self.check_done()?;
-        self.conn
-            .batch_execute(sqls.join(";").as_str())
-            .await
-            .map_err(|e| ILError::CatalogError(format!("failed to execute batch postgres: {e}")))
+        let sql = sqls.join(";");
+        self.conn.batch_execute(&sql).await.map_err(|e| {
+            ILError::CatalogError(format!("failed to execute batch postgres: {sql} {e}"))
+        })
     }
 
     async fn commit(&mut self) -> ILResult<()> {
