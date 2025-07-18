@@ -1,17 +1,18 @@
 use arrow::datatypes::Fields;
+use uuid::Uuid;
 
 use crate::{
     ILError, ILResult,
     catalog::{
         CatalogDataType, CatalogDatabase, INTERNAL_FLAG_FIELD_NAME, INTERNAL_ROW_ID_FIELD_NAME,
-        TransactionHelper,
+        TransactionHelper, inline_row_table_name,
     },
 };
 
 impl TransactionHelper {
     pub(crate) async fn create_inline_row_table(
         &mut self,
-        table_id: i64,
+        table_id: &Uuid,
         fields: &Fields,
     ) -> ILResult<()> {
         let mut columns = Vec::new();
@@ -47,7 +48,8 @@ impl TransactionHelper {
 
         self.transaction
             .execute(&format!(
-                "CREATE TABLE indexlake_inline_row_{table_id} ({})",
+                "CREATE TABLE {} ({})",
+                inline_row_table_name(table_id),
                 columns.join(", ")
             ))
             .await?;

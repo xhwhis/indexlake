@@ -8,6 +8,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
 };
+use uuid::Uuid;
 
 pub type IndexDefinationRef = Arc<IndexDefination>;
 
@@ -16,7 +17,7 @@ pub struct IndexDefination {
     pub index_id: i64,
     pub name: String,
     pub kind: String,
-    pub table_id: i64,
+    pub table_id: Uuid,
     pub table_name: String,
     pub table_schema: SchemaRef,
     pub key_columns: Vec<String>,
@@ -44,7 +45,7 @@ impl IndexDefination {
 
     pub(crate) fn from_index_record(
         index_record: &IndexRecord,
-        field_map: &BTreeMap<i64, FieldRef>,
+        field_map: &BTreeMap<Uuid, FieldRef>,
         table_name: &str,
         table_schema: &SchemaRef,
         index_kinds: &HashMap<String, Arc<dyn IndexKind>>,

@@ -1,19 +1,23 @@
+use uuid::Uuid;
+
 use crate::{
     ILError, ILResult,
     catalog::{
         DataFileRecord, FieldRecord, IndexFileRecord, IndexRecord, TableRecord, TransactionHelper,
+        inline_row_table_name,
     },
 };
 
 impl TransactionHelper {
     pub(crate) async fn insert_namespace(
         &mut self,
-        namespace_id: i64,
+        namespace_id: &Uuid,
         namespace_name: &str,
     ) -> ILResult<()> {
         self.transaction
             .execute(&format!(
-                "INSERT INTO indexlake_namespace (namespace_id, namespace_name) VALUES ({namespace_id}, '{namespace_name}')"
+                "INSERT INTO indexlake_namespace (namespace_id, namespace_name) VALUES ({}, '{namespace_name}')",
+                self.database.sql_uuid_value(namespace_id)
             ))
             .await?;
         Ok(())
@@ -26,7 +30,7 @@ impl TransactionHelper {
                 TableRecord::catalog_schema()
                     .select_items(self.database)
                     .join(", "),
-                table_record.to_sql()?
+                table_record.to_sql(self.database)?
             ))
             .await?;
         Ok(())
@@ -54,13 +58,14 @@ impl TransactionHelper {
 
     pub(crate) async fn insert_inline_rows(
         &mut self,
-        table_id: i64,
+        table_id: &Uuid,
         field_names: &[String],
         values: Vec<String>,
     ) -> ILResult<()> {
         self.transaction
             .execute(&format!(
-                "INSERT INTO indexlake_inline_row_{table_id} ({}) VALUES {}",
+                "INSERT INTO {} ({}) VALUES {}",
+                inline_row_table_name(table_id),
                 field_names
                     .iter()
                     .map(|name| self.database.sql_identifier(name))
@@ -72,10 +77,11 @@ impl TransactionHelper {
         Ok(())
     }
 
-    pub(crate) async fn insert_dump_task(&mut self, table_id: i64) -> ILResult<usize> {
+    pub(crate) async fn insert_dump_task(&mut self, table_id: &Uuid) -> ILResult<usize> {
         self.transaction
             .execute(&format!(
-                "INSERT INTO indexlake_dump_task (table_id) VALUES ({table_id})"
+                "INSERT INTO indexlake_dump_task (table_id) VALUES ({})",
+                self.database.sql_uuid_value(table_id)
             ))
             .await
     }
@@ -109,7 +115,7 @@ impl TransactionHelper {
                 IndexRecord::catalog_schema()
                     .select_items(self.database)
                     .join(", "),
-                index_record.to_sql()
+                index_record.to_sql(self.database)
             ))
             .await
     }

@@ -4,6 +4,7 @@ use arrow::datatypes::SchemaRef;
 use futures::StreamExt;
 use log::{debug, error};
 use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
+use uuid::Uuid;
 
 use crate::{
     ILError, ILResult,
@@ -12,7 +13,6 @@ use crate::{
         RowsValidity, TransactionHelper, rows_to_record_batch,
     },
     index::{IndexBuilder, IndexDefinationRef, IndexKind},
-    retry,
     storage::Storage,
     table::{Table, TableConfig},
 };
@@ -29,11 +29,11 @@ pub(crate) async fn try_run_dump_task(table: &Table) -> ILResult<()> {
     tokio::spawn(async move {
         let try_dump_fn = async || {
             let catalog_helper = CatalogHelper::new(catalog.clone());
-            let inline_row_count = catalog_helper.count_inline_rows(table_id).await?;
+            let inline_row_count = catalog_helper.count_inline_rows(&table_id).await?;
             if inline_row_count < table_config.inline_row_count_limit as i64 {
                 return Ok(false);
             }
-            if catalog_helper.dump_task_exists(table_id).await? {
+            if catalog_helper.dump_task_exists(&table_id).await? {
                 return Ok(false);
             }
 
@@ -71,8 +71,8 @@ pub(crate) async fn try_run_dump_task(table: &Table) -> ILResult<()> {
 }
 
 pub(crate) struct DumpTask {
-    namespace_id: i64,
-    table_id: i64,
+    namespace_id: Uuid,
+    table_id: Uuid,
     table_schema: SchemaRef,
     table_indexes: HashMap<String, IndexDefinationRef>,
     index_kinds: HashMap<String, Arc<dyn IndexKind>>,
@@ -86,12 +86,12 @@ impl DumpTask {
         let now = Instant::now();
 
         let mut tx_helper = TransactionHelper::new(&self.catalog).await?;
-        if tx_helper.insert_dump_task(self.table_id).await.is_err() {
+        if tx_helper.insert_dump_task(&self.table_id).await.is_err() {
             debug!("Table {} already has a dump task", self.table_id);
             return Ok(false);
         }
 
-        let inline_row_count = tx_helper.count_inline_rows(self.table_id).await?;
+        let inline_row_count = tx_helper.count_inline_rows(&self.table_id).await?;
         if inline_row_count < self.table_config.inline_row_count_limit as i64 {
             return Ok(false);
         }
@@ -99,7 +99,7 @@ impl DumpTask {
         let catalog_schema = Arc::new(CatalogSchema::from_arrow(&self.table_schema)?);
         let row_stream = tx_helper
             .scan_inline_rows(
-                self.table_id,
+                &self.table_id,
                 &catalog_schema,
                 &[],
                 Some(self.table_config.inline_row_count_limit),
@@ -108,7 +108,7 @@ impl DumpTask {
 
         let data_file_id = uuid::Uuid::now_v7();
         let relative_path =
-            DataFileRecord::build_relative_path(self.namespace_id, self.table_id, &data_file_id);
+            DataFileRecord::build_relative_path(&self.namespace_id, &self.table_id, &data_file_id);
 
         let mut index_builders = HashMap::new();
         for (index_name, index_def) in self.table_indexes.iter() {
@@ -153,8 +153,8 @@ impl DumpTask {
                 .get(index_name)
                 .ok_or_else(|| ILError::InternalError(format!("Index {index_name} not found")))?;
             let relative_path = IndexFileRecord::build_relative_path(
-                self.namespace_id,
-                self.table_id,
+                &self.namespace_id,
+                &self.table_id,
                 &data_file_id,
                 index_def.index_id,
                 index_file_id,
@@ -174,7 +174,7 @@ impl DumpTask {
         tx_helper.insert_index_files(&index_file_records).await?;
 
         let deleted_count = tx_helper
-            .delete_inline_rows_by_row_ids(self.table_id, &row_ids)
+            .delete_inline_rows_by_row_ids(&self.table_id, &row_ids)
             .await?;
         if deleted_count != row_ids.len() {
             return Err(ILError::InternalError(format!(
@@ -184,7 +184,7 @@ impl DumpTask {
             )));
         }
 
-        tx_helper.delete_dump_task(self.table_id).await?;
+        tx_helper.delete_dump_task(&self.table_id).await?;
 
         tx_helper.commit().await?;
 

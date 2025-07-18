@@ -1,14 +1,13 @@
 mod create;
 mod delete;
-mod drop;
 mod insert;
 mod query;
-mod truncate;
 mod update;
 
 use std::sync::Arc;
 
 use futures::TryStreamExt;
+use uuid::Uuid;
 
 use crate::{
     ILResult,
@@ -46,6 +45,31 @@ impl TransactionHelper {
     pub(crate) async fn rollback(&mut self) -> ILResult<()> {
         self.transaction.rollback().await
     }
+
+    pub(crate) async fn truncate_inline_row_table(&mut self, table_id: &Uuid) -> ILResult<()> {
+        match self.database {
+            CatalogDatabase::Sqlite => {
+                self.transaction
+                    .execute_batch(&[format!("DELETE FROM {}", inline_row_table_name(table_id))])
+                    .await
+            }
+            CatalogDatabase::Postgres => {
+                self.transaction
+                    .execute_batch(&[format!(
+                        "TRUNCATE TABLE {}",
+                        inline_row_table_name(table_id)
+                    )])
+                    .await
+            }
+        }
+    }
+
+    pub(crate) async fn drop_inline_row_table(&mut self, table_id: &Uuid) -> ILResult<()> {
+        self.transaction
+            .execute_batch(&[format!("DROP TABLE {}", inline_row_table_name(table_id))])
+            .await?;
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
@@ -66,4 +90,8 @@ impl CatalogHelper {
         let stream = self.catalog.query(sql, schema).await?;
         stream.try_collect::<Vec<_>>().await
     }
+}
+
+pub(crate) fn inline_row_table_name(table_id: &Uuid) -> String {
+    format!("indexlake_inline_{}", hex::encode(table_id.as_bytes()))
 }

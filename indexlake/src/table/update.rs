@@ -24,23 +24,23 @@ use crate::{
 pub(crate) async fn process_update_by_condition(
     tx_helper: &mut TransactionHelper,
     storage: Arc<Storage>,
-    table_id: i64,
+    table_id: Uuid,
     table_schema: &SchemaRef,
     set_map: HashMap<String, Scalar>,
     condition: &Expr,
     mut matched_data_file_rows: HashMap<Uuid, RecordBatchStream>,
 ) -> ILResult<()> {
     tx_helper
-        .update_inline_rows(table_id, &set_map, condition)
+        .update_inline_rows(&table_id, &set_map, condition)
         .await?;
 
-    let data_file_records = tx_helper.get_data_files(table_id).await?;
+    let data_file_records = tx_helper.get_data_files(&table_id).await?;
 
     for data_file_record in data_file_records {
         if let Some(stream) = matched_data_file_rows.get_mut(&data_file_record.data_file_id) {
             update_data_file_rows_by_matched_rows(
                 tx_helper,
-                table_id,
+                &table_id,
                 &set_map,
                 stream,
                 data_file_record,
@@ -50,7 +50,7 @@ pub(crate) async fn process_update_by_condition(
             update_data_file_rows_by_condition(
                 tx_helper,
                 &storage,
-                table_id,
+                &table_id,
                 table_schema,
                 &set_map,
                 condition,
@@ -65,7 +65,7 @@ pub(crate) async fn process_update_by_condition(
 
 pub(crate) async fn update_data_file_rows_by_matched_rows(
     tx_helper: &mut TransactionHelper,
-    table_id: i64,
+    table_id: &Uuid,
     set_map: &HashMap<String, Scalar>,
     matched_data_file_rows: &mut RecordBatchStream,
     data_file_record: DataFileRecord,
@@ -99,7 +99,7 @@ pub(crate) async fn update_data_file_rows_by_matched_rows(
 pub(crate) async fn update_data_file_rows_by_condition(
     tx_helper: &mut TransactionHelper,
     storage: &Storage,
-    table_id: i64,
+    table_id: &Uuid,
     table_schema: &SchemaRef,
     set_map: &HashMap<String, Scalar>,
     condition: &Expr,

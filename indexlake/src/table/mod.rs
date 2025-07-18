@@ -13,6 +13,7 @@ pub(crate) use insert::*;
 pub use scan::*;
 pub use search::*;
 pub(crate) use update::*;
+use uuid::Uuid;
 
 use crate::RecordBatchStream;
 use crate::catalog::{CatalogHelper, Scalar};
@@ -32,11 +33,11 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct Table {
-    pub namespace_id: i64,
+    pub namespace_id: Uuid,
     pub namespace_name: String,
-    pub table_id: i64,
+    pub table_id: Uuid,
     pub table_name: String,
-    pub field_map: BTreeMap<i64, FieldRef>,
+    pub field_map: BTreeMap<Uuid, FieldRef>,
     pub schema: SchemaRef,
     pub indexes: HashMap<String, IndexDefinationRef>,
     pub config: Arc<TableConfig>,
@@ -76,7 +77,7 @@ impl Table {
             tx_helper.commit().await?;
         } else {
             let mut tx_helper = self.transaction_helper().await?;
-            process_insert_into_inline_rows(&mut tx_helper, self.table_id, batches).await?;
+            process_insert_into_inline_rows(&mut tx_helper, &self.table_id, batches).await?;
             tx_helper.commit().await?;
 
             try_run_dump_task(self).await?;
@@ -108,7 +109,7 @@ impl Table {
         condition.check_data_type(&self.schema, &DataType::Boolean)?;
 
         let catalog_helper = CatalogHelper::new(self.catalog.clone());
-        let data_file_records = catalog_helper.get_data_files(self.table_id).await?;
+        let data_file_records = catalog_helper.get_data_files(&self.table_id).await?;
 
         let matched_data_file_rows = parallel_find_matched_data_file_rows(
             self.storage.clone(),
@@ -139,11 +140,11 @@ impl Table {
 
         if condition.only_visit_row_id_column() {
             let mut tx_helper = self.transaction_helper().await?;
-            process_delete_by_row_id_condition(&mut tx_helper, self.table_id, condition).await?;
+            process_delete_by_row_id_condition(&mut tx_helper, &self.table_id, condition).await?;
             tx_helper.commit().await?;
         } else {
             let catalog_helper = CatalogHelper::new(self.catalog.clone());
-            let data_file_records = catalog_helper.get_data_files(self.table_id).await?;
+            let data_file_records = catalog_helper.get_data_files(&self.table_id).await?;
             let matched_data_file_row_ids = parallel_find_matched_data_file_row_ids(
                 self.storage.clone(),
                 self.schema.clone(),
@@ -156,7 +157,7 @@ impl Table {
             process_delete_by_condition(
                 &mut tx_helper,
                 self.storage.clone(),
-                self.table_id,
+                &self.table_id,
                 &self.schema,
                 condition,
                 matched_data_file_row_ids,
@@ -171,7 +172,7 @@ impl Table {
     // Delete all rows in the table
     pub async fn truncate(&self) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
-        process_truncate(&mut tx_helper, self.table_id).await?;
+        process_truncate(&mut tx_helper, &self.table_id).await?;
         tx_helper.commit().await?;
         Ok(())
     }
@@ -179,13 +180,13 @@ impl Table {
     // Drop the table
     pub async fn drop(self) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
-        process_drop(&mut tx_helper, self.table_id).await?;
+        process_drop(&mut tx_helper, &self.table_id).await?;
         tx_helper.commit().await?;
         Ok(())
     }
 }
 
-async fn process_truncate(tx_helper: &mut TransactionHelper, table_id: i64) -> ILResult<()> {
+async fn process_truncate(tx_helper: &mut TransactionHelper, table_id: &Uuid) -> ILResult<()> {
     tx_helper.truncate_inline_row_table(table_id).await?;
 
     tx_helper.delete_all_data_files(table_id).await?;
@@ -194,7 +195,7 @@ async fn process_truncate(tx_helper: &mut TransactionHelper, table_id: i64) -> I
     Ok(())
 }
 
-async fn process_drop(tx_helper: &mut TransactionHelper, table_id: i64) -> ILResult<()> {
+async fn process_drop(tx_helper: &mut TransactionHelper, table_id: &Uuid) -> ILResult<()> {
     tx_helper.drop_inline_row_table(table_id).await?;
 
     tx_helper.delete_all_data_files(table_id).await?;

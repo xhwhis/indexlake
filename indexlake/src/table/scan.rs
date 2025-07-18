@@ -8,6 +8,7 @@ use arrow::{
     datatypes::{Schema, SchemaRef},
 };
 use futures::StreamExt;
+use uuid::Uuid;
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
@@ -49,7 +50,7 @@ impl Default for TableScan {
 
 pub(crate) async fn process_scan(
     catalog_helper: &CatalogHelper,
-    table_id: i64,
+    table_id: Uuid,
     table_schema: &SchemaRef,
     scan: TableScan,
     storage: Arc<Storage>,
@@ -88,7 +89,7 @@ pub(crate) async fn process_scan(
 async fn process_table_scan(
     catalog_helper: &CatalogHelper,
     storage: &Arc<Storage>,
-    table_id: i64,
+    table_id: Uuid,
     table_schema: &SchemaRef,
     projection: Option<Vec<usize>>,
     filters: Vec<Expr>,
@@ -97,7 +98,7 @@ async fn process_table_scan(
     let projected_schema = Arc::new(project_schema(table_schema, projection.as_ref())?);
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
     let row_stream = catalog_helper
-        .scan_inline_rows(table_id, &catalog_schema, &filters)
+        .scan_inline_rows(&table_id, &catalog_schema, &filters)
         .await?;
     let inline_stream = Box::pin(row_stream.chunks(1024).map(move |rows| {
         let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
@@ -106,7 +107,7 @@ async fn process_table_scan(
     }));
 
     // Scan data files
-    let data_file_records = catalog_helper.get_data_files(table_id).await?;
+    let data_file_records = catalog_helper.get_data_files(&table_id).await?;
 
     let mut streams: Vec<RecordBatchStream> = Vec::with_capacity(1 + data_file_records.len());
     streams.push(inline_stream);
@@ -169,7 +170,7 @@ async fn process_index_scan(
     )
     .await?;
 
-    let data_file_records = catalog_helper.get_data_files(table.table_id).await?;
+    let data_file_records = catalog_helper.get_data_files(&table.table_id).await?;
     let mut streams = vec![inline_rows_stream];
     for data_file_record in data_file_records {
         let stream = index_scan_data_file(
@@ -198,7 +199,7 @@ async fn index_scan_inline_rows(
     let projected_schema = Arc::new(project_schema(&table.schema, projection.as_ref())?);
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
     let row_stream = catalog_helper
-        .scan_inline_rows(table.table_id, &catalog_schema, &non_index_filters)
+        .scan_inline_rows(&table.table_id, &catalog_schema, &non_index_filters)
         .await?;
     let mut inline_stream = row_stream.chunks(1024).map(move |rows| {
         let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;

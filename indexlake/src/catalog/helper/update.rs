@@ -4,14 +4,17 @@ use uuid::Uuid;
 
 use crate::{
     ILResult,
-    catalog::{DataFileRecord, INTERNAL_FLAG_FIELD_NAME, RowsValidity, Scalar, TransactionHelper},
+    catalog::{
+        DataFileRecord, INTERNAL_FLAG_FIELD_NAME, RowsValidity, Scalar, TransactionHelper,
+        inline_row_table_name,
+    },
     expr::Expr,
 };
 
 impl TransactionHelper {
     pub(crate) async fn update_inline_rows(
         &mut self,
-        table_id: i64,
+        table_id: &Uuid,
         set_map: &HashMap<String, Scalar>,
         condition: &Expr,
     ) -> ILResult<()> {
@@ -26,7 +29,8 @@ impl TransactionHelper {
 
         self.transaction
             .execute(&format!(
-                "UPDATE indexlake_inline_row_{table_id} SET {} WHERE {} AND {INTERNAL_FLAG_FIELD_NAME} IS NULL",
+                "UPDATE {} SET {} WHERE {} AND {INTERNAL_FLAG_FIELD_NAME} IS NULL",
+                inline_row_table_name(table_id),
                 set_strs.join(", "),
                 condition.to_sql(self.database)?
             ))

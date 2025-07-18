@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::catalog::{
     CatalogHelper, DataFileRecord, FieldRecord, IndexFileRecord, IndexRecord, RowsValidity,
+    inline_row_table_name,
 };
 use crate::expr::Expr;
 use crate::{
@@ -19,27 +20,13 @@ use crate::{
 };
 
 impl TransactionHelper {
-    pub(crate) async fn get_max_namespace_id(&mut self) -> ILResult<i64> {
-        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
-            "max_namespace_id",
-            CatalogDataType::Int64,
-            true,
-        )]));
-        let rows = self
-            .query_rows("SELECT MAX(namespace_id) FROM indexlake_namespace", schema)
-            .await?;
-        if rows.is_empty() {
-            Ok(0)
-        } else {
-            let max_namespace_id = rows[0].int64(0)?;
-            Ok(max_namespace_id.unwrap_or(0))
-        }
-    }
-
-    pub(crate) async fn get_namespace_id(&mut self, namespace_name: &str) -> ILResult<Option<i64>> {
+    pub(crate) async fn get_namespace_id(
+        &mut self,
+        namespace_name: &str,
+    ) -> ILResult<Option<Uuid>> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "namespace_id",
-            CatalogDataType::Int64,
+            CatalogDataType::Uuid,
             false,
         )]));
         let rows = self
@@ -53,32 +40,14 @@ impl TransactionHelper {
         if rows.is_empty() {
             Ok(None)
         } else {
-            let namespace_id_opt = rows[0].int64(0)?;
-            assert!(namespace_id_opt.is_some());
+            let namespace_id_opt = rows[0].uuid(0)?;
             Ok(namespace_id_opt)
-        }
-    }
-
-    pub(crate) async fn get_max_table_id(&mut self) -> ILResult<i64> {
-        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
-            "max_table_id",
-            CatalogDataType::Int64,
-            true,
-        )]));
-        let rows = self
-            .query_rows("SELECT MAX(table_id) FROM indexlake_table", schema)
-            .await?;
-        if rows.is_empty() {
-            Ok(0)
-        } else {
-            let max_table_id = rows[0].int64(0)?;
-            Ok(max_table_id.unwrap_or(0))
         }
     }
 
     pub(crate) async fn table_name_exists(
         &mut self,
-        namespace_id: i64,
+        namespace_id: &Uuid,
         table_name: &str,
     ) -> ILResult<bool> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
@@ -86,31 +55,13 @@ impl TransactionHelper {
             CatalogDataType::Int64,
             false,
         )]));
-        let rows = self.query_rows(&format!("SELECT table_id FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'"), schema).await?;
+        let rows = self.query_rows(&format!("SELECT table_id FROM indexlake_table WHERE namespace_id = {} AND table_name = '{table_name}'", self.database.sql_uuid_value(namespace_id)), schema).await?;
         Ok(rows.len() > 0)
-    }
-
-    pub(crate) async fn get_max_field_id(&mut self) -> ILResult<i64> {
-        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
-            "max_field_id",
-            CatalogDataType::Int64,
-            true,
-        )]));
-
-        let rows = self
-            .query_rows("SELECT MAX(field_id) FROM indexlake_field", schema)
-            .await?;
-        if rows.is_empty() {
-            Ok(0)
-        } else {
-            let max_field_id = rows[0].int64(0)?;
-            Ok(max_field_id.unwrap_or(0))
-        }
     }
 
     pub(crate) async fn scan_inline_rows(
         &mut self,
-        table_id: i64,
+        table_id: &Uuid,
         schema: &CatalogSchemaRef,
         filters: &[Expr],
         limit: Option<usize>,
@@ -127,8 +78,9 @@ impl TransactionHelper {
         self.transaction
             .query(
                 &format!(
-                    "SELECT {}  FROM indexlake_inline_row_{table_id} WHERE {}{limit_clause}",
+                    "SELECT {}  FROM {} WHERE {}{limit_clause}",
                     schema.select_items(self.database).join(", "),
+                    inline_row_table_name(table_id),
                     filter_strs.join(" AND ")
                 ),
                 Arc::clone(schema),
@@ -138,7 +90,7 @@ impl TransactionHelper {
 
     pub(crate) async fn scan_inline_row_ids_by_flag(
         &mut self,
-        table_id: i64,
+        table_id: &Uuid,
         flag: &str,
     ) -> ILResult<Vec<i64>> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
@@ -147,7 +99,7 @@ impl TransactionHelper {
             false,
         )]));
         let rows = self.query_rows(
-            &format!("SELECT {INTERNAL_ROW_ID_FIELD_NAME} FROM indexlake_inline_row_{table_id} WHERE {INTERNAL_FLAG_FIELD_NAME} = '{flag}'"),
+            &format!("SELECT {INTERNAL_ROW_ID_FIELD_NAME} FROM {} WHERE {INTERNAL_FLAG_FIELD_NAME} = '{flag}'", inline_row_table_name(table_id)),
             schema,
         ).await?;
         let mut row_ids = Vec::with_capacity(rows.len());
@@ -157,7 +109,7 @@ impl TransactionHelper {
         Ok(row_ids)
     }
 
-    pub(crate) async fn count_inline_rows(&mut self, table_id: i64) -> ILResult<i64> {
+    pub(crate) async fn count_inline_rows(&mut self, table_id: &Uuid) -> ILResult<i64> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "count",
             CatalogDataType::Int64,
@@ -165,7 +117,7 @@ impl TransactionHelper {
         )]));
         let rows = self
             .query_rows(
-                &format!("SELECT COUNT(1) FROM indexlake_inline_row_{table_id}"),
+                &format!("SELECT COUNT(1) FROM {}", inline_row_table_name(table_id)),
                 schema,
             )
             .await?;
@@ -173,13 +125,17 @@ impl TransactionHelper {
         Ok(count)
     }
 
-    pub(crate) async fn get_data_files(&mut self, table_id: i64) -> ILResult<Vec<DataFileRecord>> {
+    pub(crate) async fn get_data_files(
+        &mut self,
+        table_id: &Uuid,
+    ) -> ILResult<Vec<DataFileRecord>> {
         let schema = Arc::new(DataFileRecord::catalog_schema());
         let rows = self
             .query_rows(
                 &format!(
-                    "SELECT {} FROM indexlake_data_file WHERE table_id = {table_id}",
-                    schema.select_items(self.database).join(", ")
+                    "SELECT {} FROM indexlake_data_file WHERE table_id = {}",
+                    schema.select_items(self.database).join(", "),
+                    self.database.sql_uuid_value(table_id),
                 ),
                 schema,
             )
@@ -193,7 +149,7 @@ impl TransactionHelper {
 
     pub(crate) async fn index_name_exists(
         &mut self,
-        table_id: i64,
+        table_id: &Uuid,
         index_name: &str,
     ) -> ILResult<bool> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
@@ -201,7 +157,7 @@ impl TransactionHelper {
             CatalogDataType::Int64,
             false,
         )]));
-        let rows = self.query_rows(&format!("SELECT index_id FROM indexlake_index WHERE table_id = {table_id} AND index_name = '{index_name}'"), schema).await?;
+        let rows = self.query_rows(&format!("SELECT index_id FROM indexlake_index WHERE table_id = {} AND index_name = '{index_name}'", self.database.sql_uuid_value(table_id)), schema).await?;
         Ok(rows.len() > 0)
     }
 
@@ -244,10 +200,10 @@ impl TransactionHelper {
 }
 
 impl CatalogHelper {
-    pub(crate) async fn get_namespace_id(&self, namespace_name: &str) -> ILResult<Option<i64>> {
+    pub(crate) async fn get_namespace_id(&self, namespace_name: &str) -> ILResult<Option<Uuid>> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "namespace_id",
-            CatalogDataType::Int64,
+            CatalogDataType::Uuid,
             false,
         )]));
         let rows = self
@@ -261,21 +217,24 @@ impl CatalogHelper {
         if rows.is_empty() {
             Ok(None)
         } else {
-            let namespace_id_opt = rows[0].int64(0)?;
-            assert!(namespace_id_opt.is_some());
+            let namespace_id_opt = rows[0].uuid(0)?;
             Ok(namespace_id_opt)
         }
     }
 
     pub(crate) async fn get_table(
         &self,
-        namespace_id: i64,
+        namespace_id: &Uuid,
         table_name: &str,
     ) -> ILResult<Option<TableRecord>> {
         let schema = Arc::new(TableRecord::catalog_schema());
         let rows = self
             .query_rows(
-                &format!("SELECT {} FROM indexlake_table WHERE namespace_id = {namespace_id} AND table_name = '{table_name}'", schema.select_items(self.catalog.database()).join(", ")),
+                &format!(
+                    "SELECT {} FROM indexlake_table WHERE namespace_id = {} AND table_name = '{table_name}'",
+                    schema.select_items(self.catalog.database()).join(", "),
+                    self.catalog.database().sql_uuid_value(namespace_id)
+                ),
                 schema,
             )
             .await?;
@@ -288,12 +247,18 @@ impl CatalogHelper {
 
     pub(crate) async fn get_table_fields(
         &self,
-        table_id: i64,
-    ) -> ILResult<BTreeMap<i64, FieldRef>> {
+        table_id: &Uuid,
+    ) -> ILResult<BTreeMap<Uuid, FieldRef>> {
         let catalog_schema = Arc::new(FieldRecord::catalog_schema());
         let rows = self
             .query_rows(
-                &format!("SELECT {} FROM indexlake_field WHERE table_id = {table_id} order by field_id asc", catalog_schema.select_items(self.catalog.database()).join(", ")),
+                &format!(
+                    "SELECT {} FROM indexlake_field WHERE table_id = {} order by field_id asc",
+                    catalog_schema
+                        .select_items(self.catalog.database())
+                        .join(", "),
+                    self.catalog.database().sql_uuid_value(table_id)
+                ),
                 catalog_schema,
             )
             .await?;
@@ -307,15 +272,16 @@ impl CatalogHelper {
         Ok(field_map)
     }
 
-    pub(crate) async fn get_table_indexes(&self, table_id: i64) -> ILResult<Vec<IndexRecord>> {
+    pub(crate) async fn get_table_indexes(&self, table_id: &Uuid) -> ILResult<Vec<IndexRecord>> {
         let catalog_schema = Arc::new(IndexRecord::catalog_schema());
         let rows = self
             .query_rows(
                 &format!(
-                    "SELECT {} FROM indexlake_index WHERE table_id = {table_id}",
+                    "SELECT {} FROM indexlake_index WHERE table_id = {}",
                     catalog_schema
                         .select_items(self.catalog.database())
-                        .join(", ")
+                        .join(", "),
+                    self.catalog.database().sql_uuid_value(table_id)
                 ),
                 catalog_schema,
             )
@@ -327,7 +293,7 @@ impl CatalogHelper {
         Ok(indexes)
     }
 
-    pub(crate) async fn count_inline_rows(&self, table_id: i64) -> ILResult<i64> {
+    pub(crate) async fn count_inline_rows(&self, table_id: &Uuid) -> ILResult<i64> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "count",
             CatalogDataType::Int64,
@@ -335,7 +301,7 @@ impl CatalogHelper {
         )]));
         let rows = self
             .query_rows(
-                &format!("SELECT COUNT(1) FROM indexlake_inline_row_{table_id}"),
+                &format!("SELECT COUNT(1) FROM {}", inline_row_table_name(table_id)),
                 schema,
             )
             .await?;
@@ -345,7 +311,7 @@ impl CatalogHelper {
 
     pub(crate) async fn scan_inline_rows(
         &self,
-        table_id: i64,
+        table_id: &Uuid,
         schema: &CatalogSchemaRef,
         filters: &[Expr],
     ) -> ILResult<RowStream<'static>> {
@@ -358,8 +324,9 @@ impl CatalogHelper {
         self.catalog
             .query(
                 &format!(
-                    "SELECT {}  FROM indexlake_inline_row_{table_id} WHERE {}",
+                    "SELECT {} FROM {} WHERE {}",
                     schema.select_items(self.catalog.database()).join(", "),
+                    inline_row_table_name(table_id),
                     filter_strs.join(" AND ")
                 ),
                 Arc::clone(schema),
@@ -369,7 +336,7 @@ impl CatalogHelper {
 
     pub(crate) async fn scan_inline_rows_by_row_ids(
         &self,
-        table_id: i64,
+        table_id: &Uuid,
         table_schema: &CatalogSchemaRef,
         row_ids: &[i64],
     ) -> ILResult<RowStream> {
@@ -379,10 +346,11 @@ impl CatalogHelper {
         self.catalog
             .query(
                 &format!(
-                    "SELECT {} FROM indexlake_inline_row_{table_id} WHERE {} IN ({})",
+                    "SELECT {} FROM {} WHERE {} IN ({})",
                     table_schema
                         .select_items(self.catalog.database())
                         .join(", "),
+                    inline_row_table_name(table_id),
                     INTERNAL_ROW_ID_FIELD_NAME,
                     row_ids
                         .iter()
@@ -395,13 +363,14 @@ impl CatalogHelper {
             .await
     }
 
-    pub(crate) async fn get_data_files(&self, table_id: i64) -> ILResult<Vec<DataFileRecord>> {
+    pub(crate) async fn get_data_files(&self, table_id: &Uuid) -> ILResult<Vec<DataFileRecord>> {
         let schema = Arc::new(DataFileRecord::catalog_schema());
         let rows = self
             .query_rows(
                 &format!(
-                    "SELECT {} FROM indexlake_data_file WHERE table_id = {table_id}",
-                    schema.select_items(self.catalog.database()).join(", ")
+                    "SELECT {} FROM indexlake_data_file WHERE table_id = {}",
+                    schema.select_items(self.catalog.database()).join(", "),
+                    self.catalog.database().sql_uuid_value(table_id)
                 ),
                 schema,
             )
@@ -457,7 +426,7 @@ impl CatalogHelper {
         }
     }
 
-    pub(crate) async fn dump_task_exists(&self, table_id: i64) -> ILResult<bool> {
+    pub(crate) async fn dump_task_exists(&self, table_id: &Uuid) -> ILResult<bool> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "table_id",
             CatalogDataType::Int64,
@@ -465,7 +434,10 @@ impl CatalogHelper {
         )]));
         let rows = self
             .query_rows(
-                &format!("SELECT table_id FROM indexlake_dump_task WHERE table_id = {table_id}"),
+                &format!(
+                    "SELECT table_id FROM indexlake_dump_task WHERE table_id = {}",
+                    self.catalog.database().sql_uuid_value(table_id)
+                ),
                 schema,
             )
             .await?;

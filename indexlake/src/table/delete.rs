@@ -15,7 +15,7 @@ use crate::{ILError, ILResult};
 pub(crate) async fn process_delete_by_condition(
     tx_helper: &mut TransactionHelper,
     storage: Arc<Storage>,
-    table_id: i64,
+    table_id: &Uuid,
     table_schema: &SchemaRef,
     condition: &Expr,
     matched_data_file_row_ids: HashMap<Uuid, HashSet<i64>>,
@@ -69,7 +69,7 @@ pub(crate) async fn delete_data_file_rows_by_condition(
 
 pub(crate) async fn process_delete_by_row_id_condition(
     tx_helper: &mut TransactionHelper,
-    table_id: i64,
+    table_id: &Uuid,
     row_id_condition: &Expr,
 ) -> ILResult<()> {
     tx_helper

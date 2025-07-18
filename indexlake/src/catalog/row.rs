@@ -7,6 +7,7 @@ use crate::{
 };
 use arrow::datatypes::{DataType, SchemaRef, TimeUnit};
 use arrow::{array::*, datatypes::i256};
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct Row {
@@ -128,6 +129,21 @@ impl Row {
     pub fn binary(&self, index: usize) -> ILResult<Option<&Vec<u8>>> {
         match &self.values[index] {
             Scalar::Binary(v) => Ok(v.as_ref()),
+            _ => Err(ILError::InternalError(format!(
+                "Expected Binary at index {index} for row {self:?}"
+            ))),
+        }
+    }
+
+    pub fn uuid(&self, index: usize) -> ILResult<Option<Uuid>> {
+        match &self.values[index] {
+            Scalar::Binary(Some(v)) => {
+                let uuid = Uuid::from_slice(v).map_err(|e| {
+                    ILError::InternalError(format!("Failed to parse UUID from binary value: {e:?}"))
+                })?;
+                Ok(Some(uuid))
+            }
+            Scalar::Binary(None) => Ok(None),
             _ => Err(ILError::InternalError(format!(
                 "Expected Binary at index {index} for row {self:?}"
             ))),

@@ -4,6 +4,7 @@ use std::{
 };
 
 use arrow::datatypes::{FieldRef, SchemaRef};
+use uuid::Uuid;
 
 use crate::{
     ILError, ILResult,
@@ -23,7 +24,7 @@ pub struct TableCreation {
 pub(crate) async fn process_create_table(
     tx_helper: &mut TransactionHelper,
     creation: TableCreation,
-) -> ILResult<i64> {
+) -> ILResult<Uuid> {
     let namespace_id = tx_helper
         .get_namespace_id(&creation.namespace_name)
         .await?
@@ -32,7 +33,7 @@ pub(crate) async fn process_create_table(
         })?;
 
     if tx_helper
-        .table_name_exists(namespace_id, &creation.table_name)
+        .table_name_exists(&namespace_id, &creation.table_name)
         .await?
     {
         return Err(ILError::InvalidInput(format!(
@@ -41,8 +42,7 @@ pub(crate) async fn process_create_table(
         )));
     }
 
-    let max_table_id = tx_helper.get_max_table_id().await?;
-    let table_id = max_table_id + 1;
+    let table_id = Uuid::now_v7();
     tx_helper
         .insert_table(&TableRecord {
             table_id,
@@ -52,17 +52,14 @@ pub(crate) async fn process_create_table(
         })
         .await?;
 
-    let max_field_id = tx_helper.get_max_field_id().await?;
-    let field_ids = (max_field_id + 1..max_field_id + 1 + creation.schema.fields.len() as i64)
-        .collect::<Vec<_>>();
     let mut field_records = Vec::new();
-    for (field_id, field) in field_ids.iter().zip(creation.schema.fields()) {
-        field_records.push(FieldRecord::new(*field_id, table_id, field));
+    for field in creation.schema.fields() {
+        field_records.push(FieldRecord::new(Uuid::now_v7(), table_id, field));
     }
     tx_helper.insert_fields(&field_records).await?;
 
     tx_helper
-        .create_inline_row_table(table_id, creation.schema.fields())
+        .create_inline_row_table(&table_id, creation.schema.fields())
         .await?;
 
     Ok(table_id)
@@ -101,7 +98,7 @@ pub(crate) async fn process_create_index(
     index.supports(&index_def)?;
 
     if tx_helper
-        .index_name_exists(table.table_id, &creation.name)
+        .index_name_exists(&table.table_id, &creation.name)
         .await?
     {
         return Err(ILError::InvalidInput(format!(
@@ -131,7 +128,10 @@ pub(crate) async fn process_create_index(
     Ok(index_id)
 }
 
-fn field_names_to_ids(field_map: &BTreeMap<i64, FieldRef>, names: &[String]) -> ILResult<Vec<i64>> {
+fn field_names_to_ids(
+    field_map: &BTreeMap<Uuid, FieldRef>,
+    names: &[String],
+) -> ILResult<Vec<Uuid>> {
     let mut field_ids = Vec::new();
     for name in names.iter() {
         let field_id_opt = field_map

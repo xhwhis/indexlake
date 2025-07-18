@@ -1,5 +1,6 @@
 use arrow::datatypes::Schema;
 use backon::ConstantBuilder;
+use uuid::Uuid;
 
 use crate::catalog::CatalogHelper;
 use crate::catalog::INTERNAL_ROW_ID_FIELD_REF;
@@ -45,57 +46,38 @@ impl LakeClient {
         &self,
         namespace_name: &str,
         if_not_exists: bool,
-    ) -> ILResult<i64> {
-        let create_namespace_fn = || async {
-            let mut tx_helper = self.transaction_helper().await?;
+    ) -> ILResult<Uuid> {
+        let mut tx_helper = self.transaction_helper().await?;
 
-            if let Some(namespace_id) = tx_helper.get_namespace_id(namespace_name).await? {
-                if if_not_exists {
-                    return Ok(namespace_id);
-                } else {
-                    return Err(ILError::InvalidInput(format!(
-                        "Namespace {namespace_name} already exists"
-                    )));
-                }
+        if let Some(namespace_id) = tx_helper.get_namespace_id(namespace_name).await? {
+            if if_not_exists {
+                return Ok(namespace_id);
+            } else {
+                return Err(ILError::InvalidInput(format!(
+                    "Namespace {namespace_name} already exists"
+                )));
             }
+        }
 
-            let namespace_id = tx_helper.get_max_namespace_id().await? + 1;
-            tx_helper
-                .insert_namespace(namespace_id, namespace_name)
-                .await?;
-            tx_helper.commit().await?;
-
-            Ok::<_, ILError>(namespace_id)
-        };
-
-        let namespace_id = create_namespace_fn
-            .retry(ConstantBuilder::default().with_delay(Duration::from_millis(100)))
-            .sleep(tokio::time::sleep)
-            .when(|e| !matches!(e, ILError::InvalidInput(_)))
+        let namespace_id = Uuid::now_v7();
+        tx_helper
+            .insert_namespace(&namespace_id, namespace_name)
             .await?;
+        tx_helper.commit().await?;
 
         Ok(namespace_id)
     }
 
-    pub async fn get_namespace_id(&self, namespace_name: &str) -> ILResult<Option<i64>> {
+    pub async fn get_namespace_id(&self, namespace_name: &str) -> ILResult<Option<Uuid>> {
         let catalog_helper = CatalogHelper::new(self.catalog.clone());
         let namespace_id = catalog_helper.get_namespace_id(namespace_name).await?;
         Ok(namespace_id)
     }
 
-    pub async fn create_table(&self, table_creation: TableCreation) -> ILResult<i64> {
-        let create_table_fn = || async {
-            let mut tx_helper = self.transaction_helper().await?;
-            let table_id = process_create_table(&mut tx_helper, table_creation.clone()).await?;
-            tx_helper.commit().await?;
-            Ok::<_, ILError>(table_id)
-        };
-
-        let table_id = create_table_fn
-            .retry(ConstantBuilder::default().with_delay(Duration::from_millis(100)))
-            .sleep(tokio::time::sleep)
-            .when(|e| !matches!(e, ILError::InvalidInput(_)))
-            .await?;
+    pub async fn create_table(&self, table_creation: TableCreation) -> ILResult<Uuid> {
+        let mut tx_helper = self.transaction_helper().await?;
+        let table_id = process_create_table(&mut tx_helper, table_creation.clone()).await?;
+        tx_helper.commit().await?;
 
         Ok(table_id)
     }
@@ -111,7 +93,7 @@ impl LakeClient {
             })?;
 
         let table_record = catalog_helper
-            .get_table(namespace_id, table_name)
+            .get_table(&namespace_id, table_name)
             .await?
             .ok_or_else(|| {
                 ILError::InvalidInput(format!(
@@ -120,7 +102,7 @@ impl LakeClient {
             })?;
 
         let field_map = catalog_helper
-            .get_table_fields(table_record.table_id)
+            .get_table_fields(&table_record.table_id)
             .await?;
 
         let mut fields = field_map.values().cloned().collect::<Vec<_>>();
@@ -129,7 +111,7 @@ impl LakeClient {
         let schema = Arc::new(Schema::new(fields));
 
         let index_records = catalog_helper
-            .get_table_indexes(table_record.table_id)
+            .get_table_indexes(&table_record.table_id)
             .await?;
         let mut indexes = HashMap::new();
         for index_record in index_records {

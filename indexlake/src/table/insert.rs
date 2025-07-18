@@ -5,6 +5,7 @@ use arrow::{
     datatypes::{DataType, TimeUnit, i256},
 };
 use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
+use uuid::Uuid;
 
 use crate::{
     ILError, ILResult,
@@ -19,7 +20,7 @@ use crate::{
 
 pub(crate) async fn process_insert_into_inline_rows(
     tx_helper: &mut TransactionHelper,
-    table_id: i64,
+    table_id: &Uuid,
     batches: &[RecordBatch],
 ) -> ILResult<()> {
     if batches.is_empty() {
@@ -51,7 +52,7 @@ pub(crate) async fn process_bypass_insert(
 ) -> ILResult<()> {
     let data_file_id = uuid::Uuid::now_v7();
     let relative_path =
-        DataFileRecord::build_relative_path(table.namespace_id, table.table_id, &data_file_id);
+        DataFileRecord::build_relative_path(&table.namespace_id, &table.table_id, &data_file_id);
     let output_file = table.storage.create_file(&relative_path).await?;
 
     let writer_properties = WriterProperties::builder()
@@ -113,8 +114,8 @@ pub(crate) async fn process_bypass_insert(
             .get(index_name)
             .ok_or_else(|| ILError::InternalError(format!("Index {index_name} not found")))?;
         let relative_path = IndexFileRecord::build_relative_path(
-            table.namespace_id,
-            table.table_id,
+            &table.namespace_id,
+            &table.table_id,
             &data_file_id,
             index_def.index_id,
             index_file_id,
@@ -162,11 +163,11 @@ pub(crate) async fn reserve_row_ids(
     }
 
     tx_helper
-        .insert_inline_rows(table.table_id, &inline_field_names, sql_values)
+        .insert_inline_rows(&table.table_id, &inline_field_names, sql_values)
         .await?;
 
     let row_ids = tx_helper
-        .scan_inline_row_ids_by_flag(table.table_id, &flag)
+        .scan_inline_row_ids_by_flag(&table.table_id, &flag)
         .await?;
     if row_ids.len() != count {
         return Err(ILError::InternalError(format!(
@@ -177,7 +178,7 @@ pub(crate) async fn reserve_row_ids(
     }
 
     tx_helper
-        .delete_inline_rows_by_flag(table.table_id, &flag)
+        .delete_inline_rows_by_flag(&table.table_id, &flag)
         .await?;
 
     Ok(row_ids)

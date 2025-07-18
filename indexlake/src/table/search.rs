@@ -61,7 +61,7 @@ pub(crate) async fn process_search(
     )
     .await?;
 
-    let data_file_records = catalog_helper.get_data_files(table.table_id).await?;
+    let data_file_records = catalog_helper.get_data_files(&table.table_id).await?;
 
     let index_id = index_def.index_id;
 
@@ -130,7 +130,7 @@ async fn search_inline_rows(
     let projected_schema = Arc::new(project_schema(&table.schema, search.projection.as_ref())?);
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
     let row_stream = catalog_helper
-        .scan_inline_rows(table.table_id, &catalog_schema, &[])
+        .scan_inline_rows(&table.table_id, &catalog_schema, &[])
         .await?;
     let mut inline_stream = row_stream.chunks(1024).map(move |rows| {
         let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
@@ -232,7 +232,7 @@ async fn read_inline_rows(
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
 
     let row_stream = catalog_helper
-        .scan_inline_rows_by_row_ids(table.table_id, &catalog_schema, &inline_row_ids)
+        .scan_inline_rows_by_row_ids(&table.table_id, &catalog_schema, &inline_row_ids)
         .await?;
     let rows: Vec<Row> = row_stream.try_collect::<Vec<_>>().await?;
     let batch = rows_to_record_batch(&projected_schema, &rows)?;
