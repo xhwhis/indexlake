@@ -310,7 +310,7 @@ async fn table_data_types(
             ])),
         ],
     )?;
-    table.insert(&record_batch).await?;
+    table.insert(&[record_batch]).await?;
 
     let table_str = full_table_scan(&table).await?;
     println!("{}", table_str);

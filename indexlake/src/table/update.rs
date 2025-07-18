@@ -86,7 +86,7 @@ pub(crate) async fn update_data_file_rows_by_matched_rows(
             })?;
         updated_row_ids.extend(row_id_array.values());
         let updated_batch = update_record_batch(&batch, set_map)?;
-        process_insert_into_inline_rows(tx_helper, table_id, &updated_batch).await?;
+        process_insert_into_inline_rows(tx_helper, table_id, &[updated_batch]).await?;
     }
     tx_helper
         .update_data_file_rows_as_invalid(data_file_record, &updated_row_ids)
@@ -140,7 +140,7 @@ pub(crate) async fn update_data_file_rows_by_condition(
 
         updated_row_ids.extend(row_id_array.values());
         let updated_batch = update_record_batch(&batch, set_map)?;
-        process_insert_into_inline_rows(tx_helper, table_id, &updated_batch).await?;
+        process_insert_into_inline_rows(tx_helper, table_id, &[updated_batch]).await?;
     }
 
     tx_helper

@@ -80,7 +80,7 @@ async fn create_bm25_index(
             ])),
         ],
     )?;
-    table.insert(&record_batch).await?;
+    table.insert(&[record_batch]).await?;
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
     let search = TableSearch {

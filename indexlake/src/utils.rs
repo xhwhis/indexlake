@@ -29,6 +29,16 @@ pub(crate) fn schema_with_row_id(schema: &Schema) -> Schema {
     Schema::new_with_metadata(fields, schema.metadata().clone())
 }
 
+pub(crate) fn schema_without_row_id(schema: &Schema) -> Schema {
+    let fields = schema
+        .fields
+        .iter()
+        .filter(|field| field.name() != INTERNAL_ROW_ID_FIELD_NAME)
+        .map(|field| field.clone())
+        .collect::<Vec<_>>();
+    Schema::new_with_metadata(fields, schema.metadata().clone())
+}
+
 pub(crate) fn record_batch_with_row_id(
     record: &RecordBatch,
     row_id_array: Int64Array,

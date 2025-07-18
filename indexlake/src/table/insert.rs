@@ -6,30 +6,38 @@ use arrow::{
 use crate::{
     ILError, ILResult,
     catalog::{CatalogDatabase, TransactionHelper},
+    table::Table,
     utils::serialize_array,
 };
 
 pub(crate) async fn process_insert_into_inline_rows(
     tx_helper: &mut TransactionHelper,
     table_id: i64,
-    record: &RecordBatch,
+    batches: &[RecordBatch],
 ) -> ILResult<()> {
-    if record.num_rows() == 0 {
+    if batches.is_empty() {
         return Ok(());
     }
-    let sql_values = record_batch_to_sql_values(&record, tx_helper.database)?;
 
-    let inline_field_names = record
-        .schema()
-        .fields()
-        .iter()
-        .map(|field| field.name().clone())
-        .collect::<Vec<_>>();
+    for batch in batches {
+        let sql_values = record_batch_to_sql_values(batch, tx_helper.database)?;
 
-    tx_helper
-        .insert_inline_rows(table_id, &inline_field_names, sql_values)
-        .await?;
+        let inline_field_names = batch
+            .schema()
+            .fields()
+            .iter()
+            .map(|field| field.name().clone())
+            .collect::<Vec<_>>();
+
+        tx_helper
+            .insert_inline_rows(table_id, &inline_field_names, sql_values)
+            .await?;
+    }
     Ok(())
+}
+
+pub(crate) async fn process_bypass_insert(table: &Table, record: &RecordBatch) -> ILResult<()> {
+    todo!()
 }
 
 macro_rules! extract_sql_values {

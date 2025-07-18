@@ -89,7 +89,7 @@ async fn create_rstar_index(
             ])),
         ],
     )?;
-    table.insert(&record_batch).await?;
+    table.insert(&[record_batch]).await?;
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
     let scan = TableScan::default().with_filters(vec![func(

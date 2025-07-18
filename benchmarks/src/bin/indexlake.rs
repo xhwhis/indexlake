@@ -38,7 +38,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let total_rows = 1000000;
     // Round up to the nearest multiple of 10
-    let num_tasks = (num_cpus::get() + 9) / 10 * 10;
+    // let num_tasks = (num_cpus::get() + 9) / 10 * 10;
+    let num_tasks = 10;
     let task_rows = total_rows / num_tasks;
     let insert_batch_size = 1000;
 
@@ -50,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut progress = 0;
             while progress < task_rows {
                 let batch = new_record_batch(insert_batch_size);
-                table.insert(&batch).await?;
+                table.insert(&[batch]).await?;
                 progress += insert_batch_size;
             }
             Ok::<_, ILError>(())

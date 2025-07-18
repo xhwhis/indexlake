@@ -39,7 +39,7 @@ pub async fn prepare_simple_testing_table(client: &LakeClient) -> ILResult<Table
             Arc::new(Int32Array::from(vec![20, 21, 22, 23])),
         ],
     )?;
-    table.insert(&record_batch).await?;
+    table.insert(&[record_batch]).await?;
     // wait for dump task to finish
     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 

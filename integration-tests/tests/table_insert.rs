@@ -64,7 +64,7 @@ async fn parallel_insert_table(
                     table_schema.clone(),
                     vec![Arc::new(Int64Array::from(chunk.to_vec()))],
                 )?;
-                table.insert(&record_batch).await?;
+                table.insert(&[record_batch]).await?;
             }
             Ok::<(), ILError>(())
         });

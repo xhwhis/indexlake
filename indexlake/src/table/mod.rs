@@ -6,7 +6,6 @@ mod scan;
 mod search;
 mod update;
 
-use backon::{ConstantBuilder, Retryable};
 pub use create::*;
 pub(crate) use delete::*;
 pub(crate) use dump::*;
@@ -16,13 +15,13 @@ pub use search::*;
 pub(crate) use update::*;
 
 use crate::RecordBatchStream;
-use crate::catalog::{CatalogHelper, CatalogSchemaRef, INTERNAL_ROW_ID_FIELD_NAME, Scalar};
-use crate::expr::{Expr, visited_columns};
-use crate::index::{IndexDefination, IndexDefinationRef, IndexKind, SearchQuery};
-use crate::utils::{has_duplicated_items, schema_with_row_id};
+use crate::catalog::{CatalogHelper, Scalar};
+use crate::expr::Expr;
+use crate::index::{IndexDefinationRef, IndexKind};
+use crate::utils::schema_without_row_id;
 use crate::{
     ILError, ILResult,
-    catalog::{Catalog, RowStream, TransactionHelper},
+    catalog::{Catalog, TransactionHelper},
     storage::Storage,
 };
 use arrow::array::RecordBatch;
@@ -30,7 +29,6 @@ use arrow::datatypes::{DataType, FieldRef, SchemaRef};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
-use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct Table {
@@ -59,17 +57,19 @@ impl Table {
         Ok(())
     }
 
-    pub async fn insert(&self, record: &RecordBatch) -> ILResult<()> {
-        let schema = schema_with_row_id(&record.schema());
-        if &schema != self.schema.as_ref() {
-            return Err(ILError::InvalidInput(format!(
-                "Schema mismatch: table schema {:?}, record batch schema {:?}",
-                self.schema, schema
-            )));
+    pub async fn insert(&self, batches: &[RecordBatch]) -> ILResult<()> {
+        let expected_schema = schema_without_row_id(&self.schema);
+        for batch in batches {
+            let batch_schema = batch.schema();
+            if batch_schema.as_ref() != &expected_schema {
+                return Err(ILError::InvalidInput(format!(
+                    "Invalid record schema: {batch_schema:?}, expected schema: {expected_schema:?}",
+                )));
+            }
         }
 
         let mut tx_helper = self.transaction_helper().await?;
-        process_insert_into_inline_rows(&mut tx_helper, self.table_id, record).await?;
+        process_insert_into_inline_rows(&mut tx_helper, self.table_id, batches).await?;
         tx_helper.commit().await?;
 
         try_run_dump_task(self).await?;

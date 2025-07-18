@@ -135,7 +135,7 @@ async fn parallel_update_different_rows_by_row_id(
 
     let record_batch =
         RecordBatch::try_new(table_schema.clone(), vec![Arc::new(Int64Array::from(data))])?;
-    table.insert(&record_batch).await?;
+    table.insert(&[record_batch]).await?;
 
     tokio::time::sleep(Duration::from_secs(5)).await;
 
@@ -221,7 +221,7 @@ async fn parallel_update_different_rows_by_condition(
         table_schema.clone(),
         vec![Arc::new(Int64Array::from(data.clone()))],
     )?;
-    table.insert(&record_batch).await?;
+    table.insert(&[record_batch]).await?;
 
     tokio::time::sleep(Duration::from_secs(5)).await;
 

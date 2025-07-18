@@ -34,11 +34,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dataset = Dataset::write(batch_reader, &table_path, Some(params)).await?;
 
     // insert data
-    let total_rows = 100000;
+    let total_rows = 1000000;
     // Round up to the nearest multiple of 10
-    let num_tasks = (num_cpus::get() + 9) / 10 * 10;
+    let num_tasks = 10;
     let task_rows = total_rows / num_tasks;
-    let insert_batch_size = 1000;
+    let insert_batch_size = 10000;
 
     let start_time = Instant::now();
     let mut handles = Vec::new();
