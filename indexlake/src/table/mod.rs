@@ -59,7 +59,9 @@ impl Table {
 
     pub async fn insert(&self, batches: &[RecordBatch]) -> ILResult<()> {
         let expected_schema = schema_without_row_id(&self.schema);
+        let mut total_rows = 0;
         for batch in batches {
+            total_rows += batch.num_rows();
             let batch_schema = batch.schema();
             if batch_schema.as_ref() != &expected_schema {
                 return Err(ILError::InvalidInput(format!(
@@ -68,11 +70,17 @@ impl Table {
             }
         }
 
-        let mut tx_helper = self.transaction_helper().await?;
-        process_insert_into_inline_rows(&mut tx_helper, self.table_id, batches).await?;
-        tx_helper.commit().await?;
+        if total_rows >= self.config.inline_row_count_limit {
+            let mut tx_helper = self.transaction_helper().await?;
+            process_bypass_insert(&mut tx_helper, self, batches, total_rows).await?;
+            tx_helper.commit().await?;
+        } else {
+            let mut tx_helper = self.transaction_helper().await?;
+            process_insert_into_inline_rows(&mut tx_helper, self.table_id, batches).await?;
+            tx_helper.commit().await?;
 
-        try_run_dump_task(self).await?;
+            try_run_dump_task(self).await?;
+        }
 
         Ok(())
     }

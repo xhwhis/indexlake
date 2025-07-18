@@ -301,7 +301,7 @@ async fn index_scan_data_file(
     index_filter_assignment: &HashMap<String, Vec<usize>>,
 ) -> ILResult<RecordBatchStream> {
     let index_file_records = catalog_helper
-        .get_index_files_by_data_file_id(data_file_record.data_file_id)
+        .get_index_files_by_data_file_id(&data_file_record.data_file_id)
         .await?;
     let index_file_records_map = index_file_records
         .iter()

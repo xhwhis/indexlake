@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let table_name = "test_table";
     let table_config = TableConfig {
-        inline_row_count_limit: 100000,
+        inline_row_count_limit: 10000,
         parquet_row_group_size: 1000,
     };
     let table_creation = TableCreation {
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let num_tasks = (num_cpus::get() + 9) / 10 * 10;
     let num_tasks = 10;
     let task_rows = total_rows / num_tasks;
-    let insert_batch_size = 1000;
+    let insert_batch_size = 10000;
 
     let start_time = Instant::now();
     let mut handles = Vec::new();

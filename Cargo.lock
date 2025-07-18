@@ -4093,6 +4093,7 @@ dependencies = [
  "log",
  "opendal",
  "parquet",
+ "rand 0.9.1",
  "serde",
  "serde_json",
  "tokio",
@@ -4118,10 +4119,8 @@ dependencies = [
  "indexlake-integration-tests",
  "lance",
  "lance-core",
- "lance-datafusion",
  "lance-index",
  "lance-io",
- "lance-linalg",
  "lance-table",
  "num_cpus",
  "tokio",
@@ -4138,6 +4137,7 @@ dependencies = [
  "indexlake",
  "log",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -5663,6 +5663,7 @@ dependencies = [
  "postgres-protocol",
  "serde",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]

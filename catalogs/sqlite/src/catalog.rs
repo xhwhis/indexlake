@@ -244,6 +244,12 @@ fn sqlite_row_to_row(sqlite_row: &rusqlite::Row, schema: &CatalogSchemaRef) -> I
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
                 Scalar::Binary(v)
             }
+            CatalogDataType::Uuid => {
+                let v: Option<Vec<u8>> = sqlite_row
+                    .get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Binary(v)
+            }
         };
         if !field.nullable && scalar.is_null() {
             return Err(ILError::CatalogError(format!(

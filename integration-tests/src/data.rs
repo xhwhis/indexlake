@@ -35,11 +35,21 @@ pub async fn prepare_simple_testing_table(client: &LakeClient) -> ILResult<Table
     let record_batch = RecordBatch::try_new(
         table_schema.clone(),
         vec![
-            Arc::new(StringArray::from(vec!["Alice", "Bob", "Charlie", "David"])),
-            Arc::new(Int32Array::from(vec![20, 21, 22, 23])),
+            Arc::new(StringArray::from(vec!["Alice", "Bob"])),
+            Arc::new(Int32Array::from(vec![20, 21])),
         ],
     )?;
     table.insert(&[record_batch]).await?;
+
+    let record_batch = RecordBatch::try_new(
+        table_schema.clone(),
+        vec![
+            Arc::new(StringArray::from(vec!["Charlie", "David"])),
+            Arc::new(Int32Array::from(vec![22, 23])),
+        ],
+    )?;
+    table.insert(&[record_batch]).await?;
+
     // wait for dump task to finish
     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 

@@ -249,6 +249,12 @@ fn pg_row_to_row(
                     .map_err(|e| ILError::CatalogError(e.to_string()))?;
                 Scalar::Binary(v)
             }
+            CatalogDataType::Uuid => {
+                let v: Option<uuid::Uuid> = pg_row
+                    .try_get(idx)
+                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                Scalar::Binary(v.map(|v| v.as_bytes().to_vec()))
+            }
         };
         if !field.nullable && scalar.is_null() {
             return Err(ILError::CatalogError(format!(

@@ -9,6 +9,7 @@ use arrow::{
 };
 use futures::StreamExt;
 use tokio::task::JoinHandle;
+use uuid::Uuid;
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
@@ -27,7 +28,7 @@ pub(crate) async fn process_update_by_condition(
     table_schema: &SchemaRef,
     set_map: HashMap<String, Scalar>,
     condition: &Expr,
-    mut matched_data_file_rows: HashMap<i64, RecordBatchStream>,
+    mut matched_data_file_rows: HashMap<Uuid, RecordBatchStream>,
 ) -> ILResult<()> {
     tx_helper
         .update_inline_rows(table_id, &set_map, condition)
@@ -88,6 +89,7 @@ pub(crate) async fn update_data_file_rows_by_matched_rows(
         let updated_batch = update_record_batch(&batch, set_map)?;
         process_insert_into_inline_rows(tx_helper, table_id, &[updated_batch]).await?;
     }
+    // TODO parallel update bug
     tx_helper
         .update_data_file_rows_as_invalid(data_file_record, &updated_row_ids)
         .await?;
@@ -154,13 +156,13 @@ pub(crate) async fn parallel_find_matched_data_file_rows(
     table_schema: SchemaRef,
     condition: Expr,
     data_file_records: Vec<DataFileRecord>,
-) -> ILResult<HashMap<i64, RecordBatchStream>> {
+) -> ILResult<HashMap<Uuid, RecordBatchStream>> {
     let mut handles = Vec::new();
     for data_file_record in data_file_records {
         let storage = storage.clone();
         let table_schema = table_schema.clone();
         let condition = condition.clone();
-        let handle: JoinHandle<ILResult<(i64, RecordBatchStream)>> = tokio::spawn(async move {
+        let handle: JoinHandle<ILResult<(Uuid, RecordBatchStream)>> = tokio::spawn(async move {
             let mut stream = if condition.only_visit_row_id_column() {
                 read_parquet_file_by_record_and_row_id_condition(
                     &storage,

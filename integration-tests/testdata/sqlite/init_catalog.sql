@@ -24,7 +24,7 @@ CREATE TABLE indexlake_dump_task (
 );
 
 CREATE TABLE indexlake_data_file (
-    data_file_id BIGINT PRIMARY KEY,
+    data_file_id BLOB PRIMARY KEY,
     table_id BIGINT NOT NULL,
     relative_path VARCHAR NOT NULL,
     file_size_bytes BIGINT NOT NULL,
@@ -45,6 +45,6 @@ CREATE TABLE indexlake_index_file (
     index_file_id BIGINT PRIMARY KEY,
     table_id BIGINT NOT NULL,
     index_id BIGINT NOT NULL,
-    data_file_id BIGINT NOT NULL,
+    data_file_id BLOB NOT NULL,
     relative_path VARCHAR NOT NULL
 );

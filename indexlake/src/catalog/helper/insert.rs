@@ -121,7 +121,10 @@ impl TransactionHelper {
         if index_files.is_empty() {
             return Ok(0);
         }
-        let values = index_files.iter().map(|r| r.to_sql()).collect::<Vec<_>>();
+        let values = index_files
+            .iter()
+            .map(|r| r.to_sql(self.database))
+            .collect::<Vec<_>>();
         self.transaction
             .execute(&format!(
                 "INSERT INTO indexlake_index_file ({}) VALUES {}",

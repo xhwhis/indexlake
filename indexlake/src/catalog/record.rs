@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use arrow::datatypes::{DataType, Field};
 use parquet::arrow::arrow_reader::RowSelection;
+use uuid::Uuid;
 
 use crate::{
     ILError, ILResult,
@@ -137,7 +138,7 @@ impl FieldRecord {
 
 #[derive(Debug, Clone)]
 pub(crate) struct DataFileRecord {
-    pub(crate) data_file_id: i64,
+    pub(crate) data_file_id: Uuid,
     pub(crate) table_id: i64,
     pub(crate) relative_path: String,
     pub(crate) file_size_bytes: i64,
@@ -150,7 +151,7 @@ impl DataFileRecord {
         let validity_sql = database.sql_binary_value(&self.validity.to_bytes());
         format!(
             "({}, {}, '{}', {}, {}, {})",
-            self.data_file_id,
+            database.sql_uuid_value(&self.data_file_id),
             self.table_id,
             self.relative_path,
             self.file_size_bytes,
@@ -161,7 +162,7 @@ impl DataFileRecord {
 
     pub(crate) fn catalog_schema() -> CatalogSchema {
         CatalogSchema::new(vec![
-            Column::new("data_file_id", CatalogDataType::Int64, false),
+            Column::new("data_file_id", CatalogDataType::Uuid, false),
             Column::new("table_id", CatalogDataType::Int64, false),
             Column::new("relative_path", CatalogDataType::Utf8, false),
             Column::new("file_size_bytes", CatalogDataType::Int64, false),
@@ -170,17 +171,23 @@ impl DataFileRecord {
         ])
     }
 
-    pub(crate) fn build_relative_path(namespace_id: i64, table_id: i64) -> String {
+    pub(crate) fn build_relative_path(
+        namespace_id: i64,
+        table_id: i64,
+        data_file_id: &Uuid,
+    ) -> String {
         format!(
             "{}/{}/{}.parquet",
             namespace_id,
             table_id,
-            uuid::Uuid::new_v4().to_string()
+            data_file_id.to_string()
         )
     }
 
     pub(crate) fn from_row(row: &Row) -> ILResult<Self> {
-        let data_file_id = row.int64(0)?.expect("data_file_id is not null");
+        let data_file_id_bytes = row.binary(0)?.expect("data_file_id is not null");
+        let data_file_id = Uuid::from_slice(&data_file_id_bytes)
+            .map_err(|e| ILError::InternalError(format!("Invalid data file id: {e:?}")))?;
         let table_id = row.int64(1)?.expect("table_id is not null");
         let relative_path = row.utf8(2)?.expect("relative_path is not null").to_string();
         let file_size_bytes = row.int64(3)?.expect("file_size_bytes is not null");
@@ -360,15 +367,19 @@ pub(crate) struct IndexFileRecord {
     pub(crate) index_file_id: i64,
     pub(crate) table_id: i64,
     pub(crate) index_id: i64,
-    pub(crate) data_file_id: i64,
+    pub(crate) data_file_id: Uuid,
     pub(crate) relative_path: String,
 }
 
 impl IndexFileRecord {
-    pub(crate) fn to_sql(&self) -> String {
+    pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
         format!(
             "({}, {}, {}, {}, '{}')",
-            self.index_file_id, self.table_id, self.index_id, self.data_file_id, self.relative_path
+            self.index_file_id,
+            self.table_id,
+            self.index_id,
+            database.sql_uuid_value(&self.data_file_id),
+            self.relative_path
         )
     }
 
@@ -377,7 +388,7 @@ impl IndexFileRecord {
             Column::new("index_file_id", CatalogDataType::Int64, false),
             Column::new("table_id", CatalogDataType::Int64, false),
             Column::new("index_id", CatalogDataType::Int64, false),
-            Column::new("data_file_id", CatalogDataType::Int64, false),
+            Column::new("data_file_id", CatalogDataType::Uuid, false),
             Column::new("relative_path", CatalogDataType::Utf8, false),
         ])
     }
@@ -385,13 +396,17 @@ impl IndexFileRecord {
     pub(crate) fn build_relative_path(
         namespace_id: i64,
         table_id: i64,
-        data_file_id: i64,
+        data_file_id: &Uuid,
         index_id: i64,
         index_file_id: i64,
     ) -> String {
         format!(
             "{}/{}/{}-{}-{}.index",
-            namespace_id, table_id, data_file_id, index_id, index_file_id
+            namespace_id,
+            table_id,
+            data_file_id.to_string(),
+            index_id,
+            index_file_id
         )
     }
 
@@ -399,7 +414,9 @@ impl IndexFileRecord {
         let index_file_id = row.int64(0)?.expect("index_file_id is not null");
         let table_id = row.int64(1)?.expect("table_id is not null");
         let index_id = row.int64(2)?.expect("index_id is not null");
-        let data_file_id = row.int64(3)?.expect("data_file_id is not null");
+        let data_file_id_bytes = row.binary(3)?.expect("data_file_id is not null");
+        let data_file_id = Uuid::from_slice(&data_file_id_bytes)
+            .map_err(|e| ILError::InternalError(format!("Invalid data file id: {e:?}")))?;
         let relative_path = row.utf8(4)?.expect("relative_path is not null").to_string();
         Ok(Self {
             index_file_id,

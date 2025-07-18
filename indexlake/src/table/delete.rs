@@ -5,6 +5,7 @@ use arrow::array::{AsArray, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Int64Type, Schema, SchemaRef};
 use futures::StreamExt;
 use tokio::task::JoinHandle;
+use uuid::Uuid;
 
 use crate::catalog::{DataFileRecord, INTERNAL_ROW_ID_FIELD_REF, TransactionHelper};
 use crate::expr::Expr;
@@ -17,7 +18,7 @@ pub(crate) async fn process_delete_by_condition(
     table_id: i64,
     table_schema: &SchemaRef,
     condition: &Expr,
-    matched_data_file_row_ids: HashMap<i64, HashSet<i64>>,
+    matched_data_file_row_ids: HashMap<Uuid, HashSet<i64>>,
 ) -> ILResult<()> {
     // Directly delete inline rows
     tx_helper
@@ -97,7 +98,7 @@ pub(crate) async fn process_delete_by_row_id_condition(
         }
 
         tx_helper
-            .update_data_file_validity(data_file_record.data_file_id, &data_file_record.validity)
+            .update_data_file_validity(&data_file_record.data_file_id, &data_file_record.validity)
             .await?;
     }
     Ok(())
@@ -108,7 +109,7 @@ pub(crate) async fn parallel_find_matched_data_file_row_ids(
     table_schema: SchemaRef,
     condition: Expr,
     data_file_records: Vec<DataFileRecord>,
-) -> ILResult<HashMap<i64, HashSet<i64>>> {
+) -> ILResult<HashMap<Uuid, HashSet<i64>>> {
     condition.check_data_type(&table_schema, &DataType::Boolean)?;
 
     let mut handles = Vec::new();
@@ -117,7 +118,7 @@ pub(crate) async fn parallel_find_matched_data_file_row_ids(
         let table_schema = table_schema.clone();
         let condition = condition.clone();
 
-        let handle: JoinHandle<ILResult<(i64, HashSet<i64>)>> = tokio::spawn(async move {
+        let handle: JoinHandle<ILResult<(Uuid, HashSet<i64>)>> = tokio::spawn(async move {
             let matched_row_ids = find_matched_row_ids_from_parquet_file(
                 &storage,
                 &table_schema,

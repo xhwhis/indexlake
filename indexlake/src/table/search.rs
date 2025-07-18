@@ -8,6 +8,7 @@ use arrow::{
     compute::SortOptions,
 };
 use futures::{StreamExt, TryStreamExt};
+use uuid::Uuid;
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
@@ -68,7 +69,7 @@ pub(crate) async fn process_search(
     for data_file_record in data_file_records.iter() {
         let data_file_id = data_file_record.data_file_id;
         let index_file_record = catalog_helper
-            .get_index_file_by_index_id_and_data_file_id(index_id, data_file_id)
+            .get_index_file_by_index_id_and_data_file_id(index_id, &data_file_id)
             .await?
             .ok_or(ILError::IndexError(format!(
                 "Index file not found for index {index_id} and data file {data_file_id}"
@@ -175,7 +176,7 @@ async fn search_index_file(
 
 fn merge_search_index_entries(
     inline_search_entries: SearchIndexEntries,
-    index_file_search_entries: HashMap<i64, SearchIndexEntries>,
+    index_file_search_entries: HashMap<Uuid, SearchIndexEntries>,
     limit: Option<usize>,
 ) -> ILResult<Vec<(RowIdScore, RowLocation)>> {
     let mut row_id_score_locations = Vec::new();
@@ -212,7 +213,7 @@ fn merge_search_index_entries(
 #[derive(Debug)]
 enum RowLocation {
     Inline,
-    DataFile(i64),
+    DataFile(Uuid),
 }
 
 async fn read_inline_rows(

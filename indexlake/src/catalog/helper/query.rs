@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::{DataType, Field, FieldRef};
+use uuid::Uuid;
 
 use crate::catalog::{
     CatalogHelper, DataFileRecord, FieldRecord, IndexFileRecord, IndexRecord, RowsValidity,
@@ -10,7 +11,8 @@ use crate::expr::Expr;
 use crate::{
     ILError, ILResult,
     catalog::{
-        CatalogDataType, CatalogSchema, CatalogSchemaRef, Column, INTERNAL_ROW_ID_FIELD_NAME, Row,
+        CatalogDataType, CatalogSchema, CatalogSchemaRef, Column, INTERNAL_FLAG_FIELD_NAME,
+        INTERNAL_ROW_ID_FIELD_NAME, Row,
     },
     catalog::{RowStream, TableRecord, TransactionHelper},
     table::TableConfig,
@@ -113,28 +115,46 @@ impl TransactionHelper {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> ILResult<RowStream> {
-        let where_clause = if filters.is_empty() {
-            "".to_string()
-        } else {
-            let filters_str = filters
-                .iter()
-                .map(|f| f.to_sql(self.database))
-                .collect::<Result<Vec<_>, _>>()?
-                .join(" AND ");
-            format!(" WHERE {filters_str}")
-        };
+        let mut filter_strs = filters
+            .iter()
+            .map(|f| f.to_sql(self.database))
+            .collect::<Result<Vec<_>, _>>()?;
+        filter_strs.push(format!("{INTERNAL_FLAG_FIELD_NAME} IS NULL"));
+
         let limit_clause = limit
             .map(|limit| format!(" LIMIT {limit}"))
             .unwrap_or_default();
         self.transaction
             .query(
                 &format!(
-                    "SELECT {}  FROM indexlake_inline_row_{table_id}{where_clause}{limit_clause}",
-                    schema.select_items(self.database).join(", ")
+                    "SELECT {}  FROM indexlake_inline_row_{table_id} WHERE {}{limit_clause}",
+                    schema.select_items(self.database).join(", "),
+                    filter_strs.join(" AND ")
                 ),
                 Arc::clone(schema),
             )
             .await
+    }
+
+    pub(crate) async fn scan_inline_row_ids_by_flag(
+        &mut self,
+        table_id: i64,
+        flag: &str,
+    ) -> ILResult<Vec<i64>> {
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
+            "row_id",
+            CatalogDataType::Int64,
+            false,
+        )]));
+        let rows = self.query_rows(
+            &format!("SELECT {INTERNAL_ROW_ID_FIELD_NAME} FROM indexlake_inline_row_{table_id} WHERE {INTERNAL_FLAG_FIELD_NAME} = '{flag}'"),
+            schema,
+        ).await?;
+        let mut row_ids = Vec::with_capacity(rows.len());
+        for row in rows {
+            row_ids.push(row.int64(0)?.expect("row_id is not null"));
+        }
+        Ok(row_ids)
     }
 
     pub(crate) async fn count_inline_rows(&mut self, table_id: i64) -> ILResult<i64> {
@@ -151,23 +171,6 @@ impl TransactionHelper {
             .await?;
         let count = rows[0].int64(0)?.expect("count is not null");
         Ok(count)
-    }
-
-    pub(crate) async fn get_max_data_file_id(&mut self) -> ILResult<i64> {
-        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
-            "max_data_file_id",
-            CatalogDataType::Int64,
-            true,
-        )]));
-        let rows = self
-            .query_rows("SELECT MAX(data_file_id) FROM indexlake_data_file", schema)
-            .await?;
-        if rows.is_empty() {
-            Ok(0)
-        } else {
-            let max_table_id = rows[0].int64(0)?;
-            Ok(max_table_id.unwrap_or(0))
-        }
     }
 
     pub(crate) async fn get_data_files(&mut self, table_id: i64) -> ILResult<Vec<DataFileRecord>> {
@@ -346,21 +349,18 @@ impl CatalogHelper {
         schema: &CatalogSchemaRef,
         filters: &[Expr],
     ) -> ILResult<RowStream<'static>> {
-        let where_clause = if filters.is_empty() {
-            "".to_string()
-        } else {
-            let filters_str = filters
-                .iter()
-                .map(|f| f.to_sql(self.catalog.database()))
-                .collect::<Result<Vec<_>, _>>()?
-                .join(" AND ");
-            format!(" WHERE {filters_str}")
-        };
+        let mut filter_strs = filters
+            .iter()
+            .map(|f| f.to_sql(self.catalog.database()))
+            .collect::<Result<Vec<_>, _>>()?;
+        filter_strs.push(format!("{INTERNAL_FLAG_FIELD_NAME} IS NULL"));
+
         self.catalog
             .query(
                 &format!(
-                    "SELECT {}  FROM indexlake_inline_row_{table_id}{where_clause}",
-                    schema.select_items(self.catalog.database()).join(", ")
+                    "SELECT {}  FROM indexlake_inline_row_{table_id} WHERE {}",
+                    schema.select_items(self.catalog.database()).join(", "),
+                    filter_strs.join(" AND ")
                 ),
                 Arc::clone(schema),
             )
@@ -415,14 +415,15 @@ impl CatalogHelper {
 
     pub(crate) async fn get_index_files_by_data_file_id(
         &self,
-        data_file_id: i64,
+        data_file_id: &Uuid,
     ) -> ILResult<Vec<IndexFileRecord>> {
         let schema = Arc::new(IndexFileRecord::catalog_schema());
         let rows = self
             .query_rows(
                 &format!(
-                    "SELECT {} FROM indexlake_index_file WHERE data_file_id = {data_file_id}",
-                    schema.select_items(self.catalog.database()).join(", ")
+                    "SELECT {} FROM indexlake_index_file WHERE data_file_id = {}",
+                    schema.select_items(self.catalog.database()).join(", "),
+                    self.catalog.database().sql_uuid_value(data_file_id)
                 ),
                 schema,
             )
@@ -437,13 +438,14 @@ impl CatalogHelper {
     pub(crate) async fn get_index_file_by_index_id_and_data_file_id(
         &self,
         index_id: i64,
-        data_file_id: i64,
+        data_file_id: &Uuid,
     ) -> ILResult<Option<IndexFileRecord>> {
         let schema = Arc::new(IndexFileRecord::catalog_schema());
         let rows = self.query_rows(
             &format!(
-                "SELECT {} FROM indexlake_index_file WHERE index_id = {index_id} AND data_file_id = {data_file_id}",
-                schema.select_items(self.catalog.database()).join(", ")
+                "SELECT {} FROM indexlake_index_file WHERE index_id = {index_id} AND data_file_id = {}",
+                schema.select_items(self.catalog.database()).join(", "),
+                self.catalog.database().sql_uuid_value(data_file_id)
             ),
             schema,
         )

@@ -2,7 +2,10 @@ use arrow::datatypes::Fields;
 
 use crate::{
     ILError, ILResult,
-    catalog::{CatalogDataType, CatalogDatabase, INTERNAL_ROW_ID_FIELD_NAME, TransactionHelper},
+    catalog::{
+        CatalogDataType, CatalogDatabase, INTERNAL_FLAG_FIELD_NAME, INTERNAL_ROW_ID_FIELD_NAME,
+        TransactionHelper,
+    },
 };
 
 impl TransactionHelper {
@@ -26,6 +29,7 @@ impl TransactionHelper {
                 ));
             }
         }
+
         for field in fields {
             columns.push(format!(
                 "{} {} {}",
@@ -38,6 +42,9 @@ impl TransactionHelper {
                 },
             ));
         }
+
+        columns.push(format!("{} VARCHAR DEFAULT NULL", INTERNAL_FLAG_FIELD_NAME));
+
         self.transaction
             .execute(&format!(
                 "CREATE TABLE indexlake_inline_row_{table_id} ({})",

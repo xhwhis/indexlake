@@ -33,6 +33,8 @@ pub static INTERNAL_ROW_ID_FIELD_REF: LazyLock<FieldRef> = LazyLock::new(|| {
     ))
 });
 
+pub static INTERNAL_FLAG_FIELD_NAME: &str = "_indexlake_flag";
+
 #[async_trait::async_trait]
 pub trait Catalog: Debug + Send + Sync {
     fn database(&self) -> CatalogDatabase;

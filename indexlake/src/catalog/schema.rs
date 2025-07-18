@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use arrow::datatypes::{DataType, Schema, TimeUnit};
+use uuid::Uuid;
 
 use crate::{ILError, ILResult, catalog::CatalogDatabase};
 
@@ -19,6 +20,7 @@ pub enum CatalogDataType {
     Float64,
     Utf8,
     Binary,
+    Uuid,
 }
 
 impl CatalogDataType {
@@ -60,6 +62,10 @@ impl CatalogDataType {
             CatalogDataType::Binary => match database {
                 CatalogDatabase::Sqlite => "BLOB",
                 CatalogDatabase::Postgres => "BYTEA",
+            },
+            CatalogDataType::Uuid => match database {
+                CatalogDatabase::Sqlite => "BLOB",
+                CatalogDatabase::Postgres => "UUID",
             },
         }
     }
@@ -119,6 +125,7 @@ impl std::fmt::Display for CatalogDataType {
             CatalogDataType::Float64 => write!(f, "Float64"),
             CatalogDataType::Utf8 => write!(f, "Utf8"),
             CatalogDataType::Binary => write!(f, "Binary"),
+            CatalogDataType::Uuid => write!(f, "Uuid"),
         }
     }
 }
@@ -178,5 +185,32 @@ impl CatalogSchema {
             .iter()
             .map(|f| database.sql_identifier(&f.name))
             .collect::<Vec<_>>()
+    }
+
+    pub fn placeholder_sql_values(&self, database: CatalogDatabase) -> Vec<String> {
+        let mut values = Vec::with_capacity(self.columns.len());
+        for col in self.columns.iter() {
+            if col.nullable {
+                values.push(format!("NULL"));
+            } else {
+                match col.data_type {
+                    CatalogDataType::Boolean => values.push(format!("FALSE")),
+                    CatalogDataType::Int8 => values.push(format!("0")),
+                    CatalogDataType::Int16 => values.push(format!("0")),
+                    CatalogDataType::Int32 => values.push(format!("0")),
+                    CatalogDataType::Int64 => values.push(format!("0")),
+                    CatalogDataType::UInt8 => values.push(format!("0")),
+                    CatalogDataType::UInt16 => values.push(format!("0")),
+                    CatalogDataType::UInt32 => values.push(format!("0")),
+                    CatalogDataType::UInt64 => values.push(format!("0")),
+                    CatalogDataType::Float32 => values.push(format!("0.0")),
+                    CatalogDataType::Float64 => values.push(format!("0.0")),
+                    CatalogDataType::Utf8 => values.push(format!("''")),
+                    CatalogDataType::Binary => values.push(database.sql_binary_value(&[0u8])),
+                    CatalogDataType::Uuid => values.push(database.sql_uuid_value(&Uuid::nil())),
+                }
+            }
+        }
+        values
     }
 }

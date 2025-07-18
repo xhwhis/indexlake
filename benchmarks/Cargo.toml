@@ -6,6 +6,10 @@ homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+deltalake = ["dep:delta_kernel", "dep:deltalake", "dep:deltalake-aws"]
+lance = ["dep:lance", "dep:lance-core", "dep:lance-index", "dep:lance-io", "dep:lance-table"]
+
 [dependencies]
 indexlake = { workspace = true }
 indexlake-catalog-postgres = { workspace = true }
@@ -16,17 +20,15 @@ indexlake-index-rstar = { workspace = true }
 indexlake-integration-tests = { workspace = true }
 
 arrow = { workspace = true }
-delta_kernel = { version = "0.13.0", features = ["arrow-conversion"] }
-deltalake = { version = "0.27.0", features = ["datafusion"] }
-deltalake-aws = { version = "0.10.0", default-features = false }
+delta_kernel = { version = "0.13.0", features = ["arrow-conversion"], optional = true }
+deltalake = { version = "0.27.0", features = ["datafusion"], optional = true }
+deltalake-aws = { version = "0.10.0", default-features = false, optional = true }
 futures = { workspace = true }
-lance = "0.31.1"
-lance-core = "0.31.1"
-lance-datafusion = "0.31.1"
-lance-index = { version = "0.31.1", features = ["tokenizer-jieba"] }
-lance-io = "0.31.1"
-lance-linalg = "0.31.1"
-lance-table = "0.31.1"
+lance = { version = "0.31.1", optional = true }
+lance-core = { version = "0.31.1", optional = true }
+lance-index = { version = "0.31.1", features = ["tokenizer-jieba"], optional = true }
+lance-io = { version = "0.31.1", optional = true }
+lance-table = { version = "0.31.1", optional = true }
 tokio = { workspace = true, features = ["full"] }
 num_cpus = { workspace = true }
 
@@ -37,7 +39,9 @@ path = "src/bin/indexlake.rs"
 [[bin]]
 name = "deltalake"
 path = "src/bin/deltalake.rs"
+required-features = ["deltalake"]
 
 [[bin]]
 name = "lance"
 path = "src/bin/lance.rs"
+required-features = ["lance"]

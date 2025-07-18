@@ -1,8 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
+use uuid::Uuid;
+
 use crate::{
     ILResult,
-    catalog::{DataFileRecord, RowsValidity, Scalar, TransactionHelper},
+    catalog::{DataFileRecord, INTERNAL_FLAG_FIELD_NAME, RowsValidity, Scalar, TransactionHelper},
     expr::Expr,
 };
 
@@ -24,7 +26,7 @@ impl TransactionHelper {
 
         self.transaction
             .execute(&format!(
-                "UPDATE indexlake_inline_row_{table_id} SET {} WHERE {}",
+                "UPDATE indexlake_inline_row_{table_id} SET {} WHERE {} AND {INTERNAL_FLAG_FIELD_NAME} IS NULL",
                 set_strs.join(", "),
                 condition.to_sql(self.database)?
             ))
@@ -35,12 +37,17 @@ impl TransactionHelper {
 
     pub(crate) async fn update_data_file_validity(
         &mut self,
-        data_file_id: i64,
+        data_file_id: &Uuid,
         validity: &RowsValidity,
     ) -> ILResult<usize> {
         let validity_bytes = validity.to_bytes();
         let validity_sql = self.database.sql_binary_value(&validity_bytes);
-        self.transaction.execute(&format!("UPDATE indexlake_data_file SET validity = {validity_sql} WHERE data_file_id = {data_file_id}")).await
+        self.transaction
+            .execute(&format!(
+                "UPDATE indexlake_data_file SET validity = {validity_sql} WHERE data_file_id = {}",
+                self.database.sql_uuid_value(data_file_id)
+            ))
+            .await
     }
 
     pub(crate) async fn update_data_file_rows_as_invalid(
@@ -57,7 +64,7 @@ impl TransactionHelper {
                 *valid = false;
             }
         }
-        self.update_data_file_validity(data_file_record.data_file_id, &data_file_record.validity)
+        self.update_data_file_validity(&data_file_record.data_file_id, &data_file_record.validity)
             .await
     }
 }

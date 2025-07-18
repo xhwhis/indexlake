@@ -1,3 +1,5 @@
+use uuid::Uuid;
+
 #[derive(Debug, Clone, Copy)]
 pub enum CatalogDatabase {
     Sqlite,
@@ -16,6 +18,13 @@ impl CatalogDatabase {
         match self {
             CatalogDatabase::Sqlite => format!("X'{}'", hex::encode(value)),
             CatalogDatabase::Postgres => format!("E'\\\\x{}'", hex::encode(value)),
+        }
+    }
+
+    pub fn sql_uuid_value(&self, value: &Uuid) -> String {
+        match self {
+            CatalogDatabase::Sqlite => self.sql_binary_value(value.as_bytes()),
+            CatalogDatabase::Postgres => format!("'{}'", value.to_string()),
         }
     }
 }

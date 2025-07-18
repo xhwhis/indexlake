@@ -1,13 +1,20 @@
+use std::collections::HashMap;
+
 use arrow::{
     array::*,
     datatypes::{DataType, TimeUnit, i256},
 };
+use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 
 use crate::{
     ILError, ILResult,
-    catalog::{CatalogDatabase, TransactionHelper},
+    catalog::{
+        CatalogDatabase, CatalogSchema, DataFileRecord, INTERNAL_FLAG_FIELD_NAME,
+        INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, RowsValidity, TransactionHelper,
+    },
+    retry,
     table::Table,
-    utils::serialize_array,
+    utils::{record_batch_with_row_id, schema_without_row_id, serialize_array},
 };
 
 pub(crate) async fn process_insert_into_inline_rows(
@@ -36,8 +43,144 @@ pub(crate) async fn process_insert_into_inline_rows(
     Ok(())
 }
 
-pub(crate) async fn process_bypass_insert(table: &Table, record: &RecordBatch) -> ILResult<()> {
-    todo!()
+pub(crate) async fn process_bypass_insert(
+    tx_helper: &mut TransactionHelper,
+    table: &Table,
+    batches: &[RecordBatch],
+    total_rows: usize,
+) -> ILResult<()> {
+    let data_file_id = uuid::Uuid::now_v7();
+    let relative_path =
+        DataFileRecord::build_relative_path(table.namespace_id, table.table_id, &data_file_id);
+    let output_file = table.storage.create_file(&relative_path).await?;
+
+    let writer_properties = WriterProperties::builder()
+        .set_max_row_group_size(table.config.parquet_row_group_size)
+        .build();
+    let mut arrow_writer =
+        AsyncArrowWriter::try_new(output_file, table.schema.clone(), Some(writer_properties))?;
+
+    let reserved_row_ids = reserve_row_ids(tx_helper, table, total_rows).await?;
+
+    let mut index_builders = HashMap::new();
+    for (index_name, index_def) in table.indexes.iter() {
+        let index_kind = table.index_kinds.get(&index_def.kind).ok_or_else(|| {
+            ILError::InternalError(format!("Index kind {} not found", index_def.kind))
+        })?;
+        let index_builder = index_kind.builder(index_def)?;
+        index_builders.insert(index_name.clone(), index_builder);
+    }
+
+    let mut idx = 0;
+    for batch in batches {
+        let row_ids = &reserved_row_ids[idx..idx + batch.num_rows()];
+        let row_id_array = Int64Array::from_iter(row_ids.iter().copied());
+        let batch = record_batch_with_row_id(batch, row_id_array)?;
+
+        arrow_writer.write(&batch).await?;
+        for (_, builder) in index_builders.iter_mut() {
+            builder.append(&batch)?;
+        }
+
+        idx += batch.num_rows();
+    }
+
+    let file_size_bytes = arrow_writer.bytes_written();
+    arrow_writer.close().await?;
+
+    tx_helper
+        .insert_data_files(&[DataFileRecord {
+            data_file_id,
+            table_id: table.table_id,
+            relative_path: relative_path.clone(),
+            file_size_bytes: file_size_bytes as i64,
+            record_count: total_rows as i64,
+            validity: RowsValidity {
+                validity: reserved_row_ids
+                    .iter()
+                    .map(|id| (*id, true))
+                    .collect::<Vec<_>>(),
+            },
+        }])
+        .await?;
+
+    // update index files
+    let mut index_file_id = tx_helper.get_max_index_file_id().await? + 1;
+    let mut index_file_records = Vec::new();
+    for (index_name, index_builder) in index_builders.iter_mut() {
+        let index_def = table
+            .indexes
+            .get(index_name)
+            .ok_or_else(|| ILError::InternalError(format!("Index {index_name} not found")))?;
+        let relative_path = IndexFileRecord::build_relative_path(
+            table.namespace_id,
+            table.table_id,
+            &data_file_id,
+            index_def.index_id,
+            index_file_id,
+        );
+        let output_file = table.storage.create_file(&relative_path).await?;
+        index_builder.write_file(output_file).await?;
+        index_file_records.push(IndexFileRecord {
+            index_file_id,
+            table_id: table.table_id,
+            index_id: index_def.index_id,
+            data_file_id,
+            relative_path,
+        });
+        index_file_id += 1;
+    }
+
+    tx_helper.insert_index_files(&index_file_records).await?;
+
+    Ok(())
+}
+
+pub(crate) async fn reserve_row_ids(
+    tx_helper: &mut TransactionHelper,
+    table: &Table,
+    count: usize,
+) -> ILResult<Vec<i64>> {
+    let batch_schema = schema_without_row_id(&table.schema);
+    let catalog_schema = CatalogSchema::from_arrow(&batch_schema)?;
+
+    let mut inline_field_names = batch_schema
+        .fields()
+        .iter()
+        .filter(|field| field.name() != INTERNAL_ROW_ID_FIELD_NAME)
+        .map(|field| field.name().clone())
+        .collect::<Vec<_>>();
+    inline_field_names.push(INTERNAL_FLAG_FIELD_NAME.to_string());
+
+    let flag = format!("placeholder_{}", uuid::Uuid::new_v4());
+
+    let mut sql_values = Vec::with_capacity(count);
+    for _ in 0..count {
+        let mut placeholder_values = catalog_schema.placeholder_sql_values(tx_helper.database);
+        placeholder_values.push(format!("'{flag}'"));
+        sql_values.push(format!("({})", placeholder_values.join(", ")));
+    }
+
+    tx_helper
+        .insert_inline_rows(table.table_id, &inline_field_names, sql_values)
+        .await?;
+
+    let row_ids = tx_helper
+        .scan_inline_row_ids_by_flag(table.table_id, &flag)
+        .await?;
+    if row_ids.len() != count {
+        return Err(ILError::InternalError(format!(
+            "Failed to reserve row ids: expected {} rows, got {}",
+            count,
+            row_ids.len()
+        )));
+    }
+
+    tx_helper
+        .delete_inline_rows_by_flag(table.table_id, &flag)
+        .await?;
+
+    Ok(row_ids)
 }
 
 macro_rules! extract_sql_values {

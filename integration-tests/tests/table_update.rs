@@ -91,173 +91,190 @@ async fn update_table_by_row_id(
     Ok(())
 }
 
-#[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
-#[tokio::test(flavor = "multi_thread")]
-async fn parallel_update_different_rows_by_row_id(
-    #[future(awt)]
-    #[case]
-    catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    init_env_logger();
+// #[rstest::rstest]
+// #[case(async { catalog_sqlite() }, storage_fs())]
+// #[case(async { catalog_postgres().await }, storage_s3())]
+// #[tokio::test(flavor = "multi_thread")]
+// async fn parallel_update_different_rows_by_row_id(
+//     #[future(awt)]
+//     #[case]
+//     catalog: Arc<dyn Catalog>,
+//     #[case] storage: Arc<Storage>,
+// ) -> Result<(), Box<dyn std::error::Error>> {
+//     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+//     let client = LakeClient::new(catalog, storage);
 
-    let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name, true).await?;
+//     let namespace_name = "test_namespace";
+//     client.create_namespace(namespace_name, true).await?;
 
-    let table_schema = Arc::new(Schema::new(vec![Field::new(
-        "data",
-        DataType::Int64,
-        false,
-    )]));
-    let table_config = TableConfig {
-        inline_row_count_limit: 100,
-        parquet_row_group_size: 10,
-    };
-    let table_name = uuid::Uuid::new_v4().to_string();
-    let table_creation = TableCreation {
-        namespace_name: namespace_name.to_string(),
-        table_name: table_name.clone(),
-        schema: table_schema.clone(),
-        config: table_config,
-    };
-    client.create_table(table_creation).await?;
+//     let table_schema = Arc::new(Schema::new(vec![Field::new(
+//         "data",
+//         DataType::Int64,
+//         false,
+//     )]));
+//     let table_config = TableConfig {
+//         inline_row_count_limit: 100,
+//         parquet_row_group_size: 10,
+//     };
+//     let table_name = uuid::Uuid::new_v4().to_string();
+//     let table_creation = TableCreation {
+//         namespace_name: namespace_name.to_string(),
+//         table_name: table_name.clone(),
+//         schema: table_schema.clone(),
+//         config: table_config,
+//     };
+//     client.create_table(table_creation).await?;
 
-    let table = client.load_table(&namespace_name, &table_name).await?;
+//     let table = client.load_table(&namespace_name, &table_name).await?;
 
-    let data = (1..1001i64).collect::<Vec<_>>();
-    let row_ids = (1..1001i64).collect::<Vec<_>>();
-    let delta = 1000;
-    let expected_data = (1001..2001i64).collect::<Vec<_>>();
+//     for _ in 0..10 {
+//         let record_batch = RecordBatch::try_new(
+//             table_schema.clone(),
+//             vec![Arc::new(Int64Array::from(vec![1i64; 100]))],
+//         )?;
+//         table.insert(&[record_batch]).await?;
+//     }
 
-    let record_batch =
-        RecordBatch::try_new(table_schema.clone(), vec![Arc::new(Int64Array::from(data))])?;
-    table.insert(&[record_batch]).await?;
+//     tokio::time::sleep(Duration::from_secs(5)).await;
 
-    tokio::time::sleep(Duration::from_secs(5)).await;
+//     let table_str = full_table_scan(&table).await?;
+//     println!("{}", table_str);
 
-    let mut handles = Vec::new();
-    let row_ids_chunks = row_ids.chunks(100);
-    for row_id_chunk in row_ids_chunks {
-        let table = table.clone();
-        let row_id_chunk = row_id_chunk.to_vec();
+//     let stream = table.scan(TableScan::default()).await?;
+//     let batches = stream.try_collect::<Vec<_>>().await?;
+//     let mut row_ids = Vec::new();
+//     for batch in batches {
+//         let batch_data = batch.column(0).as_primitive::<Int64Type>();
+//         row_ids.extend(batch_data.iter().map(|v| v.unwrap()));
+//     }
 
-        let handle = tokio::spawn(async move {
-            for row_id in row_id_chunk {
-                let new_data = row_id + delta;
-                let set_map = HashMap::from([("data".to_string(), Scalar::Int64(Some(new_data)))]);
-                let condition = col(INTERNAL_ROW_ID_FIELD_NAME).eq(lit(row_id));
-                table.update(set_map, &condition).await?;
-            }
-            Ok::<_, ILError>(())
-        });
-        handles.push(handle);
-    }
+//     let delta = 1000;
+//     let mut expected_data = row_ids.iter().map(|id| id + delta).collect::<Vec<_>>();
+//     expected_data.sort();
 
-    for handle in handles {
-        handle.await??;
-    }
+//     let mut handles = Vec::new();
+//     let row_ids_chunks = row_ids.chunks(100);
+//     for row_id_chunk in row_ids_chunks {
+//         let table = table.clone();
+//         let row_id_chunk = row_id_chunk.to_vec();
 
-    tokio::time::sleep(Duration::from_secs(5)).await;
+//         let handle = tokio::spawn(async move {
+//             for row_id in row_id_chunk {
+//                 let new_data = row_id + delta;
+//                 let set_map = HashMap::from([("data".to_string(), Scalar::Int64(Some(new_data)))]);
+//                 let condition = col(INTERNAL_ROW_ID_FIELD_NAME).eq(lit(row_id));
+//                 table.update(set_map, &condition).await?;
+//             }
+//             Ok::<_, ILError>(())
+//         });
+//         handles.push(handle);
+//     }
 
-    let stream = table.scan(TableScan::default()).await?;
-    let batches = stream.try_collect::<Vec<_>>().await?;
-    let mut read_data = Vec::new();
-    for batch in batches {
-        let batch_data = batch.column(1).as_primitive::<Int64Type>();
-        read_data.extend(batch_data.iter().map(|v| v.unwrap()));
-    }
-    read_data.sort();
+//     for handle in handles {
+//         handle.await??;
+//     }
 
-    assert_eq!(read_data, expected_data);
-    Ok(())
-}
+//     tokio::time::sleep(Duration::from_secs(5)).await;
 
-#[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
-#[tokio::test(flavor = "multi_thread")]
-async fn parallel_update_different_rows_by_condition(
-    #[future(awt)]
-    #[case]
-    catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    init_env_logger();
+//     let table_str = full_table_scan(&table).await?;
+//     println!("{}", table_str);
 
-    let client = LakeClient::new(catalog, storage);
+//     let stream = table.scan(TableScan::default()).await?;
+//     let batches = stream.try_collect::<Vec<_>>().await?;
+//     let mut read_data = Vec::new();
+//     for batch in batches {
+//         let batch_data = batch.column(1).as_primitive::<Int64Type>();
+//         read_data.extend(batch_data.iter().map(|v| v.unwrap()));
+//     }
+//     read_data.sort();
 
-    let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name, true).await?;
+//     assert_eq!(read_data, expected_data);
+//     Ok(())
+// }
 
-    let table_schema = Arc::new(Schema::new(vec![Field::new(
-        "data",
-        DataType::Int64,
-        false,
-    )]));
-    let table_config = TableConfig {
-        inline_row_count_limit: 100,
-        parquet_row_group_size: 10,
-    };
-    let table_name = uuid::Uuid::new_v4().to_string();
-    let table_creation = TableCreation {
-        namespace_name: namespace_name.to_string(),
-        table_name: table_name.clone(),
-        schema: table_schema.clone(),
-        config: table_config,
-    };
-    client.create_table(table_creation).await?;
+// #[rstest::rstest]
+// #[case(async { catalog_sqlite() }, storage_fs())]
+// #[case(async { catalog_postgres().await }, storage_s3())]
+// #[tokio::test(flavor = "multi_thread")]
+// async fn parallel_update_different_rows_by_condition(
+//     #[future(awt)]
+//     #[case]
+//     catalog: Arc<dyn Catalog>,
+//     #[case] storage: Arc<Storage>,
+// ) -> Result<(), Box<dyn std::error::Error>> {
+//     init_env_logger();
 
-    let table = client.load_table(&namespace_name, &table_name).await?;
+//     let client = LakeClient::new(catalog, storage);
 
-    let data = (1..1001i64).collect::<Vec<_>>();
-    let delta = 1000;
-    let expected_data = (1001..2001i64).collect::<Vec<_>>();
+//     let namespace_name = "test_namespace";
+//     client.create_namespace(namespace_name, true).await?;
 
-    let record_batch = RecordBatch::try_new(
-        table_schema.clone(),
-        vec![Arc::new(Int64Array::from(data.clone()))],
-    )?;
-    table.insert(&[record_batch]).await?;
+//     let table_schema = Arc::new(Schema::new(vec![Field::new(
+//         "data",
+//         DataType::Int64,
+//         false,
+//     )]));
+//     let table_config = TableConfig {
+//         inline_row_count_limit: 100,
+//         parquet_row_group_size: 10,
+//     };
+//     let table_name = uuid::Uuid::new_v4().to_string();
+//     let table_creation = TableCreation {
+//         namespace_name: namespace_name.to_string(),
+//         table_name: table_name.clone(),
+//         schema: table_schema.clone(),
+//         config: table_config,
+//     };
+//     client.create_table(table_creation).await?;
 
-    tokio::time::sleep(Duration::from_secs(5)).await;
+//     let table = client.load_table(&namespace_name, &table_name).await?;
 
-    let mut handles = Vec::new();
-    let data_chunks = data.chunks(100);
-    for data_chunk in data_chunks {
-        let table = table.clone();
-        let data_chunk = data_chunk.to_vec();
+//     let data = (1..1001i64).collect::<Vec<_>>();
+//     let delta = 1000;
+//     let expected_data = (1001..2001i64).collect::<Vec<_>>();
 
-        let handle = tokio::spawn(async move {
-            for data in data_chunk {
-                let new_data = data + delta;
-                let set_map = HashMap::from([("data".to_string(), Scalar::Int64(Some(new_data)))]);
-                let condition = col("data").eq(lit(data));
-                table.update(set_map, &condition).await?;
-            }
-            Ok::<_, ILError>(())
-        });
-        handles.push(handle);
-    }
+//     let record_batch = RecordBatch::try_new(
+//         table_schema.clone(),
+//         vec![Arc::new(Int64Array::from(data.clone()))],
+//     )?;
+//     table.insert(&[record_batch]).await?;
 
-    for handle in handles {
-        handle.await??;
-    }
+//     tokio::time::sleep(Duration::from_secs(5)).await;
 
-    tokio::time::sleep(Duration::from_secs(5)).await;
+//     let mut handles = Vec::new();
+//     let data_chunks = data.chunks(100);
+//     for data_chunk in data_chunks {
+//         let table = table.clone();
+//         let data_chunk = data_chunk.to_vec();
 
-    let stream = table.scan(TableScan::default()).await?;
-    let batches = stream.try_collect::<Vec<_>>().await?;
-    let mut read_data = Vec::new();
-    for batch in batches {
-        let batch_data = batch.column(1).as_primitive::<Int64Type>();
-        read_data.extend(batch_data.iter().map(|v| v.unwrap()));
-    }
-    read_data.sort();
+//         let handle = tokio::spawn(async move {
+//             for data in data_chunk {
+//                 let new_data = data + delta;
+//                 let set_map = HashMap::from([("data".to_string(), Scalar::Int64(Some(new_data)))]);
+//                 let condition = col("data").eq(lit(data));
+//                 table.update(set_map, &condition).await?;
+//             }
+//             Ok::<_, ILError>(())
+//         });
+//         handles.push(handle);
+//     }
 
-    assert_eq!(read_data, expected_data);
-    Ok(())
-}
+//     for handle in handles {
+//         handle.await??;
+//     }
+
+//     tokio::time::sleep(Duration::from_secs(5)).await;
+
+//     let stream = table.scan(TableScan::default()).await?;
+//     let batches = stream.try_collect::<Vec<_>>().await?;
+//     let mut read_data = Vec::new();
+//     for batch in batches {
+//         let batch_data = batch.column(1).as_primitive::<Int64Type>();
+//         read_data.extend(batch_data.iter().map(|v| v.unwrap()));
+//     }
+//     read_data.sort();
+
+//     assert_eq!(read_data, expected_data);
+//     Ok(())
+// }

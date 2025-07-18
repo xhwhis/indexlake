@@ -1,6 +1,6 @@
 use crate::{
     ILResult,
-    catalog::{INTERNAL_ROW_ID_FIELD_NAME, TransactionHelper},
+    catalog::{INTERNAL_FLAG_FIELD_NAME, INTERNAL_ROW_ID_FIELD_NAME, TransactionHelper},
     expr::Expr,
 };
 
@@ -30,8 +30,20 @@ impl TransactionHelper {
     ) -> ILResult<usize> {
         self.transaction
             .execute(&format!(
-                "DELETE FROM indexlake_inline_row_{table_id} WHERE {}",
+                "DELETE FROM indexlake_inline_row_{table_id} WHERE {} AND {INTERNAL_FLAG_FIELD_NAME} IS NULL",
                 condition.to_sql(self.database)?
+            ))
+            .await
+    }
+
+    pub(crate) async fn delete_inline_rows_by_flag(
+        &mut self,
+        table_id: i64,
+        flag: &str,
+    ) -> ILResult<usize> {
+        self.transaction
+            .execute(&format!(
+                "DELETE FROM indexlake_inline_row_{table_id} WHERE {INTERNAL_FLAG_FIELD_NAME} = '{flag}'"
             ))
             .await
     }

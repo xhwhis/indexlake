@@ -138,13 +138,16 @@ macro_rules! retry {
             if retry_count > 3 {
                 break result;
             }
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            use rand::Rng;
+            let rand = rand::rng().random_range(50..100u64);
+            tokio::time::sleep(std::time::Duration::from_millis(rand)).await;
         }
     }};
 }
 
 #[cfg(test)]
 mod tests {
+
     use crate::utils::has_duplicated_items;
 
     #[test]
