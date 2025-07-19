@@ -69,7 +69,7 @@ pub(crate) async fn process_search(
     for data_file_record in data_file_records.iter() {
         let data_file_id = data_file_record.data_file_id;
         let index_file_record = catalog_helper
-            .get_index_file_by_index_id_and_data_file_id(index_id, &data_file_id)
+            .get_index_file_by_index_id_and_data_file_id(&index_id, &data_file_id)
             .await?
             .ok_or(ILError::IndexError(format!(
                 "Index file not found for index {index_id} and data file {data_file_id}"

@@ -145,19 +145,18 @@ impl DumpTask {
             }])
             .await?;
 
-        let mut index_file_id = tx_helper.get_max_index_file_id().await? + 1;
         let mut index_file_records = Vec::new();
         for (index_name, index_builder) in index_builders.iter_mut() {
             let index_def = self
                 .table_indexes
                 .get(index_name)
                 .ok_or_else(|| ILError::InternalError(format!("Index {index_name} not found")))?;
+
+            let index_file_id = uuid::Uuid::now_v7();
             let relative_path = IndexFileRecord::build_relative_path(
                 &self.namespace_id,
                 &self.table_id,
-                &data_file_id,
-                index_def.index_id,
-                index_file_id,
+                &index_file_id,
             );
             let output_file = self.storage.create_file(&relative_path).await?;
             index_builder.write_file(output_file).await?;
@@ -168,7 +167,6 @@ impl DumpTask {
                 data_file_id,
                 relative_path,
             });
-            index_file_id += 1;
         }
 
         tx_helper.insert_index_files(&index_file_records).await?;

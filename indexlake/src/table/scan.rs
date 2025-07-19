@@ -341,7 +341,7 @@ async fn index_scan_data_file(
 async fn filter_index_files_row_ids(
     table: &Table,
     filters: &[Expr],
-    index_file_records: &HashMap<i64, &IndexFileRecord>,
+    index_file_records: &HashMap<Uuid, &IndexFileRecord>,
     index_filter_assignment: &HashMap<String, Vec<usize>>,
 ) -> ILResult<HashSet<i64>> {
     let mut filter_index_entries_list = Vec::new();

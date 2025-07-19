@@ -304,7 +304,7 @@ impl RowsValidity {
 
 #[derive(Debug, Clone)]
 pub(crate) struct IndexRecord {
-    pub(crate) index_id: i64,
+    pub(crate) index_id: Uuid,
     pub(crate) index_name: String,
     pub(crate) index_kind: String,
     pub(crate) table_id: Uuid,
@@ -322,7 +322,7 @@ impl IndexRecord {
             .join(",");
         format!(
             "({}, '{}', '{}', {}, '{}', '{}')",
-            self.index_id,
+            database.sql_uuid_value(&self.index_id),
             self.index_name,
             self.index_kind,
             database.sql_uuid_value(&self.table_id),
@@ -333,7 +333,7 @@ impl IndexRecord {
 
     pub(crate) fn catalog_schema() -> CatalogSchema {
         CatalogSchema::new(vec![
-            Column::new("index_id", CatalogDataType::Int64, false),
+            Column::new("index_id", CatalogDataType::Uuid, false),
             Column::new("index_name", CatalogDataType::Utf8, false),
             Column::new("index_kind", CatalogDataType::Utf8, false),
             Column::new("table_id", CatalogDataType::Uuid, false),
@@ -343,7 +343,7 @@ impl IndexRecord {
     }
 
     pub(crate) fn from_row(row: &Row) -> ILResult<Self> {
-        let index_id = row.int64(0)?.expect("index_id is not null");
+        let index_id = row.uuid(0)?.expect("index_id is not null");
         let index_name = row.utf8(1)?.expect("index_name is not null");
         let table_id = row.uuid(2)?.expect("table_id is not null");
         let kind = row.utf8(3)?.expect("kind is not null");
@@ -366,9 +366,9 @@ impl IndexRecord {
 }
 
 pub(crate) struct IndexFileRecord {
-    pub(crate) index_file_id: i64,
+    pub(crate) index_file_id: Uuid,
     pub(crate) table_id: Uuid,
-    pub(crate) index_id: i64,
+    pub(crate) index_id: Uuid,
     pub(crate) data_file_id: Uuid,
     pub(crate) relative_path: String,
 }
@@ -377,9 +377,9 @@ impl IndexFileRecord {
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
         format!(
             "({}, {}, {}, {}, '{}')",
-            self.index_file_id,
-            self.table_id,
-            self.index_id,
+            database.sql_uuid_value(&self.index_file_id),
+            database.sql_uuid_value(&self.table_id),
+            database.sql_uuid_value(&self.index_id),
             database.sql_uuid_value(&self.data_file_id),
             self.relative_path
         )
@@ -387,9 +387,9 @@ impl IndexFileRecord {
 
     pub(crate) fn catalog_schema() -> CatalogSchema {
         CatalogSchema::new(vec![
-            Column::new("index_file_id", CatalogDataType::Int64, false),
+            Column::new("index_file_id", CatalogDataType::Uuid, false),
             Column::new("table_id", CatalogDataType::Uuid, false),
-            Column::new("index_id", CatalogDataType::Int64, false),
+            Column::new("index_id", CatalogDataType::Uuid, false),
             Column::new("data_file_id", CatalogDataType::Uuid, false),
             Column::new("relative_path", CatalogDataType::Utf8, false),
         ])
@@ -398,24 +398,20 @@ impl IndexFileRecord {
     pub(crate) fn build_relative_path(
         namespace_id: &Uuid,
         table_id: &Uuid,
-        data_file_id: &Uuid,
-        index_id: i64,
-        index_file_id: i64,
+        index_file_id: &Uuid,
     ) -> String {
         format!(
-            "{}/{}/{}-{}-{}.index",
+            "{}/{}/{}.index",
             namespace_id.to_string(),
             table_id.to_string(),
-            data_file_id.to_string(),
-            index_id,
-            index_file_id
+            index_file_id.to_string()
         )
     }
 
     pub(crate) fn from_row(row: &Row) -> ILResult<Self> {
-        let index_file_id = row.int64(0)?.expect("index_file_id is not null");
+        let index_file_id = row.uuid(0)?.expect("index_file_id is not null");
         let table_id = row.uuid(1)?.expect("table_id is not null");
-        let index_id = row.int64(2)?.expect("index_id is not null");
+        let index_id = row.uuid(2)?.expect("index_id is not null");
         let data_file_id = row.uuid(3)?.expect("data_file_id is not null");
         let relative_path = row.utf8(4)?.expect("relative_path is not null").to_string();
         Ok(Self {

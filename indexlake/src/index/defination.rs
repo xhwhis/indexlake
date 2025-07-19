@@ -14,7 +14,7 @@ pub type IndexDefinationRef = Arc<IndexDefination>;
 
 #[derive(Debug, Clone)]
 pub struct IndexDefination {
-    pub index_id: i64,
+    pub index_id: Uuid,
     pub name: String,
     pub kind: String,
     pub table_id: Uuid,

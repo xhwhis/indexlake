@@ -177,26 +177,6 @@ impl TransactionHelper {
             Ok(max_index_id.unwrap_or(0))
         }
     }
-
-    pub(crate) async fn get_max_index_file_id(&mut self) -> ILResult<i64> {
-        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
-            "max_index_file_id",
-            CatalogDataType::Int64,
-            true,
-        )]));
-        let rows = self
-            .query_rows(
-                "SELECT MAX(index_file_id) FROM indexlake_index_file",
-                schema,
-            )
-            .await?;
-        if rows.is_empty() {
-            Ok(0)
-        } else {
-            let max_index_file_id = rows[0].int64(0)?;
-            Ok(max_index_file_id.unwrap_or(0))
-        }
-    }
 }
 
 impl CatalogHelper {
@@ -406,19 +386,21 @@ impl CatalogHelper {
 
     pub(crate) async fn get_index_file_by_index_id_and_data_file_id(
         &self,
-        index_id: i64,
+        index_id: &Uuid,
         data_file_id: &Uuid,
     ) -> ILResult<Option<IndexFileRecord>> {
         let schema = Arc::new(IndexFileRecord::catalog_schema());
-        let rows = self.query_rows(
-            &format!(
-                "SELECT {} FROM indexlake_index_file WHERE index_id = {index_id} AND data_file_id = {}",
-                schema.select_items(self.catalog.database()).join(", "),
-                self.catalog.database().sql_uuid_value(data_file_id)
-            ),
-            schema,
-        )
-        .await?;
+        let rows = self
+            .query_rows(
+                &format!(
+                    "SELECT {} FROM indexlake_index_file WHERE index_id = {} AND data_file_id = {}",
+                    schema.select_items(self.catalog.database()).join(", "),
+                    self.catalog.database().sql_uuid_value(index_id),
+                    self.catalog.database().sql_uuid_value(data_file_id)
+                ),
+                schema,
+            )
+            .await?;
         if rows.is_empty() {
             Ok(None)
         } else {

@@ -77,9 +77,8 @@ pub(crate) async fn process_create_index(
     tx_helper: &mut TransactionHelper,
     table: &mut Table,
     creation: IndexCreation,
-) -> ILResult<i64> {
-    let index_id = tx_helper.get_max_index_id().await? + 1;
-
+) -> ILResult<Uuid> {
+    let index_id = Uuid::now_v7();
     let index_def = IndexDefination {
         index_id,
         name: creation.name.clone(),

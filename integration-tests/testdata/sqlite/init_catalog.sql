@@ -33,7 +33,7 @@ CREATE TABLE indexlake_data_file (
 );
 
 CREATE TABLE indexlake_index (
-    index_id BIGINT PRIMARY KEY,
+    index_id BLOB PRIMARY KEY,
     table_id BLOB NOT NULL,
     index_name VARCHAR NOT NULL,
     index_kind VARCHAR NOT NULL,
@@ -42,9 +42,9 @@ CREATE TABLE indexlake_index (
 );
 
 CREATE TABLE indexlake_index_file (
-    index_file_id BIGINT PRIMARY KEY,
+    index_file_id BLOB PRIMARY KEY,
     table_id BLOB NOT NULL,
-    index_id BIGINT NOT NULL,
+    index_id BLOB NOT NULL,
     data_file_id BLOB NOT NULL,
     relative_path VARCHAR NOT NULL
 );

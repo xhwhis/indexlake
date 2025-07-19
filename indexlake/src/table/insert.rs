@@ -106,19 +106,18 @@ pub(crate) async fn process_bypass_insert(
         .await?;
 
     // update index files
-    let mut index_file_id = tx_helper.get_max_index_file_id().await? + 1;
     let mut index_file_records = Vec::new();
     for (index_name, index_builder) in index_builders.iter_mut() {
         let index_def = table
             .indexes
             .get(index_name)
             .ok_or_else(|| ILError::InternalError(format!("Index {index_name} not found")))?;
+
+        let index_file_id = Uuid::now_v7();
         let relative_path = IndexFileRecord::build_relative_path(
             &table.namespace_id,
             &table.table_id,
-            &data_file_id,
-            index_def.index_id,
-            index_file_id,
+            &index_file_id,
         );
         let output_file = table.storage.create_file(&relative_path).await?;
         index_builder.write_file(output_file).await?;
@@ -129,7 +128,6 @@ pub(crate) async fn process_bypass_insert(
             data_file_id,
             relative_path,
         });
-        index_file_id += 1;
     }
 
     tx_helper.insert_index_files(&index_file_records).await?;
