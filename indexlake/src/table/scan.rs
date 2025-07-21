@@ -5,7 +5,7 @@ use std::{
 
 use arrow::{
     array::{Int32Array, Int64Array},
-    datatypes::{Schema, SchemaRef},
+    datatypes::SchemaRef,
 };
 use futures::StreamExt;
 use uuid::Uuid;
@@ -15,7 +15,7 @@ use crate::{
     catalog::{
         CatalogHelper, CatalogSchema, DataFileRecord, IndexFileRecord, rows_to_record_batch,
     },
-    expr::{Expr, merge_filters, split_conjunction_filters},
+    expr::{Expr, split_conjunction_filters},
     index::{IndexDefinationRef, IndexKind},
     storage::{Storage, read_parquet_file_by_record},
     table::Table,
@@ -26,6 +26,7 @@ use crate::{
 pub struct TableScan {
     pub projection: Option<Vec<usize>>,
     pub filters: Vec<Expr>,
+    pub batch_size: Option<usize>,
 }
 
 impl TableScan {
@@ -44,6 +45,7 @@ impl Default for TableScan {
         Self {
             projection: None,
             filters: vec![],
+            batch_size: None,
         }
     }
 }
@@ -52,37 +54,23 @@ pub(crate) async fn process_scan(
     catalog_helper: &CatalogHelper,
     table_id: Uuid,
     table_schema: &SchemaRef,
-    scan: TableScan,
+    mut scan: TableScan,
     storage: Arc<Storage>,
     table: &Table,
 ) -> ILResult<RecordBatchStream> {
     let filters = split_conjunction_filters(scan.filters.clone());
+    scan.filters = filters;
 
     let index_filter_assignment =
-        assign_index_filters(&table.indexes, &table.index_kinds, &filters)?;
+        assign_index_filters(&table.indexes, &table.index_kinds, &scan.filters)?;
 
     if index_filter_assignment
         .values()
         .any(|filters| filters.len() > 0)
     {
-        process_index_scan(
-            catalog_helper,
-            table,
-            scan.projection,
-            &filters,
-            index_filter_assignment,
-        )
-        .await
+        process_index_scan(catalog_helper, table, scan, index_filter_assignment).await
     } else {
-        process_table_scan(
-            catalog_helper,
-            &storage,
-            table_id,
-            table_schema,
-            scan.projection,
-            filters,
-        )
-        .await
+        process_table_scan(catalog_helper, &storage, table_id, table_schema, scan).await
     }
 }
 
@@ -91,16 +79,16 @@ async fn process_table_scan(
     storage: &Arc<Storage>,
     table_id: Uuid,
     table_schema: &SchemaRef,
-    projection: Option<Vec<usize>>,
-    filters: Vec<Expr>,
+    scan: TableScan,
 ) -> ILResult<RecordBatchStream> {
     // Scan inline rows
-    let projected_schema = Arc::new(project_schema(table_schema, projection.as_ref())?);
+    let projected_schema = Arc::new(project_schema(table_schema, scan.projection.as_ref())?);
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
     let row_stream = catalog_helper
-        .scan_inline_rows(&table_id, &catalog_schema, &filters)
+        .scan_inline_rows(&table_id, &catalog_schema, &scan.filters)
         .await?;
-    let inline_stream = Box::pin(row_stream.chunks(1024).map(move |rows| {
+    let batch_size = scan.batch_size.unwrap_or(1024);
+    let inline_stream = Box::pin(row_stream.chunks(batch_size).map(move |rows| {
         let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
         let batch = rows_to_record_batch(&projected_schema, &rows)?;
         Ok(batch)
@@ -116,8 +104,8 @@ async fn process_table_scan(
     for data_file_record in data_file_records {
         let storage = storage.clone();
         let table_schema = table_schema.clone();
-        let projection = projection.clone();
-        let filters = filters.clone();
+        let projection = scan.projection.clone();
+        let filters = scan.filters.clone();
         let handle = tokio::spawn(async move {
             let stream = read_parquet_file_by_record(
                 &storage,
@@ -126,6 +114,7 @@ async fn process_table_scan(
                 projection.clone(),
                 filters.clone(),
                 None,
+                scan.batch_size,
             )
             .await?;
             Ok::<_, ILError>(stream)
@@ -144,11 +133,11 @@ async fn process_table_scan(
 async fn process_index_scan(
     catalog_helper: &CatalogHelper,
     table: &Table,
-    projection: Option<Vec<usize>>,
-    filters: &[Expr],
+    scan: TableScan,
     index_filter_assignment: HashMap<String, Vec<usize>>,
 ) -> ILResult<RecordBatchStream> {
-    let non_index_filters = filters
+    let non_index_filters = scan
+        .filters
         .iter()
         .enumerate()
         .filter(|(idx, _)| {
@@ -163,8 +152,7 @@ async fn process_index_scan(
     let inline_rows_stream = index_scan_inline_rows(
         catalog_helper,
         table,
-        projection.clone(),
-        filters,
+        &scan,
         &index_filter_assignment,
         &non_index_filters,
     )
@@ -176,8 +164,7 @@ async fn process_index_scan(
         let stream = index_scan_data_file(
             catalog_helper,
             table,
-            projection.clone(),
-            filters,
+            &scan,
             &data_file_record,
             &index_filter_assignment,
         )
@@ -191,17 +178,17 @@ async fn process_index_scan(
 async fn index_scan_inline_rows(
     catalog_helper: &CatalogHelper,
     table: &Table,
-    projection: Option<Vec<usize>>,
-    filters: &[Expr],
+    scan: &TableScan,
     index_filter_assignment: &HashMap<String, Vec<usize>>,
     non_index_filters: &[Expr],
 ) -> ILResult<RecordBatchStream> {
-    let projected_schema = Arc::new(project_schema(&table.schema, projection.as_ref())?);
+    let projected_schema = Arc::new(project_schema(&table.schema, scan.projection.as_ref())?);
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
     let row_stream = catalog_helper
         .scan_inline_rows(&table.table_id, &catalog_schema, &non_index_filters)
         .await?;
-    let mut inline_stream = row_stream.chunks(1024).map(move |rows| {
+    let batch_size = scan.batch_size.unwrap_or(1024);
+    let mut inline_stream = row_stream.chunks(batch_size).map(move |rows| {
         let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
         let batch = rows_to_record_batch(&projected_schema, &rows)?;
         Ok::<_, ILError>(batch)
@@ -242,7 +229,7 @@ async fn index_scan_inline_rows(
 
         let filters = filter_indices
             .iter()
-            .map(|idx| filters[*idx].clone())
+            .map(|idx| scan.filters[*idx].clone())
             .collect::<Vec<_>>();
 
         let filter_index_entries = index.filter(&filters).await?;
@@ -296,8 +283,7 @@ async fn index_scan_inline_rows(
 async fn index_scan_data_file(
     catalog_helper: &CatalogHelper,
     table: &Table,
-    projection: Option<Vec<usize>>,
-    filters: &[Expr],
+    scan: &TableScan,
     data_file_record: &DataFileRecord,
     index_filter_assignment: &HashMap<String, Vec<usize>>,
 ) -> ILResult<RecordBatchStream> {
@@ -310,13 +296,14 @@ async fn index_scan_data_file(
         .collect::<HashMap<_, _>>();
     let row_ids = filter_index_files_row_ids(
         table,
-        filters,
+        &scan.filters,
         &index_file_records_map,
         &index_filter_assignment,
     )
     .await?;
 
-    let left_filters = filters
+    let left_filters = scan
+        .filters
         .iter()
         .enumerate()
         .filter(|(idx, _)| {
@@ -331,9 +318,10 @@ async fn index_scan_data_file(
         &table.storage,
         &table.schema,
         &data_file_record,
-        projection,
+        scan.projection.clone(),
         left_filters,
         Some(&row_ids),
+        scan.batch_size,
     )
     .await
 }
