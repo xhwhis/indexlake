@@ -59,6 +59,7 @@ pub enum Expr {
     Function(Function),
     Like(Like),
     Cast(Cast),
+    Negative(Box<Expr>),
 }
 
 impl Expr {
@@ -132,6 +133,15 @@ impl Expr {
                 let value = cast.expr.eval(batch)?;
                 value.cast_to(&cast.cast_type, cast.cast_options.as_ref())
             }
+            Expr::Negative(expr) => match expr.eval(batch)? {
+                ColumnarValue::Array(array) => {
+                    let result = arrow::compute::kernels::numeric::neg_wrapping(array.as_ref())?;
+                    Ok(ColumnarValue::Array(result))
+                }
+                ColumnarValue::Scalar(scalar) => {
+                    Ok(ColumnarValue::Scalar(scalar.arithmetic_negate()?))
+                }
+            },
         }
     }
 
@@ -180,6 +190,7 @@ impl Expr {
             Expr::Function(function) => Ok(function.return_type.clone()),
             Expr::Like(_) => Ok(DataType::Boolean),
             Expr::Cast(cast) => Ok(cast.cast_type.clone()),
+            Expr::Negative(expr) => expr.data_type(schema),
         }
     }
 
@@ -213,6 +224,7 @@ impl Expr {
                     catalog_datatype.to_sql(database)
                 ))
             }
+            Expr::Negative(expr) => Ok(format!("-{}", expr.to_sql(database)?)),
         }
     }
 
@@ -254,6 +266,7 @@ impl std::fmt::Display for Expr {
             ),
             Expr::Like(like) => write!(f, "{}", like),
             Expr::Cast(cast) => write!(f, "CAST({} AS {})", cast.expr, cast.cast_type),
+            Expr::Negative(expr) => write!(f, "-{}", expr),
         }
     }
 }

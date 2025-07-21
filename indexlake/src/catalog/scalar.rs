@@ -290,6 +290,27 @@ impl Scalar {
         let cast_arr = arrow::compute::cast_with_options(&scalar_array, target_type, cast_options)?;
         Self::try_from_array(&cast_arr, 0)
     }
+
+    pub fn arithmetic_negate(&self) -> ILResult<Self> {
+        use arrow::array::ArrowNativeTypeOp;
+        match self {
+            Scalar::Int8(None)
+            | Scalar::Int16(None)
+            | Scalar::Int32(None)
+            | Scalar::Int64(None)
+            | Scalar::Float32(None)
+            | Scalar::Float64(None) => Ok(self.clone()),
+            Scalar::Float64(Some(v)) => Ok(Scalar::Float64(Some(-v))),
+            Scalar::Float32(Some(v)) => Ok(Scalar::Float32(Some(-v))),
+            Scalar::Int8(Some(v)) => Ok(Scalar::Int8(Some(v.neg_checked()?))),
+            Scalar::Int16(Some(v)) => Ok(Scalar::Int16(Some(v.neg_checked()?))),
+            Scalar::Int32(Some(v)) => Ok(Scalar::Int32(Some(v.neg_checked()?))),
+            Scalar::Int64(Some(v)) => Ok(Scalar::Int64(Some(v.neg_checked()?))),
+            _ => Err(ILError::InvalidInput(format!(
+                "Can not run arithmetic negative on scalar value {self:?}",
+            ))),
+        }
+    }
 }
 
 impl PartialEq for Scalar {
