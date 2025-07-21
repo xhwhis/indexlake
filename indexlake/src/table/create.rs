@@ -1,15 +1,17 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
 };
 
 use arrow::datatypes::{FieldRef, SchemaRef};
+use futures::StreamExt;
 use uuid::Uuid;
 
 use crate::{
     ILError, ILResult,
-    catalog::{FieldRecord, IndexRecord, TableRecord, TransactionHelper},
+    catalog::{FieldRecord, IndexFileRecord, IndexRecord, TableRecord, TransactionHelper},
     index::{IndexDefination, IndexParams},
+    storage::read_parquet_file_by_record,
     table::{Table, TableConfig},
 };
 
@@ -90,11 +92,11 @@ pub(crate) async fn process_create_index(
         params: creation.params.clone(),
     };
 
-    let index = table
+    let index_kind = table
         .index_kinds
         .get(&creation.kind)
         .ok_or_else(|| ILError::InvalidInput(format!("Index kind {} not found", creation.kind)))?;
-    index.supports(&index_def)?;
+    index_kind.supports(&index_def)?;
 
     if tx_helper
         .index_name_exists(&table.table_id, &creation.name)
@@ -119,10 +121,57 @@ pub(crate) async fn process_create_index(
         })
         .await?;
 
-    // TODO create index file
+    let index_def_ref = Arc::new(index_def);
     table
         .indexes
-        .insert(creation.name.clone(), Arc::new(index_def));
+        .insert(creation.name.clone(), index_def_ref.clone());
+
+    // create index file
+    let mut projection = vec![0];
+    for col in creation.key_columns {
+        let idx = table.schema.index_of(&col)?;
+        projection.push(idx);
+    }
+    projection.sort();
+
+    let data_file_records = tx_helper.get_data_files(&table.table_id).await?;
+
+    let mut index_file_records = Vec::new();
+    for data_file_record in data_file_records {
+        let mut index_builder = index_kind.builder(&index_def_ref)?;
+        let mut stream = read_parquet_file_by_record(
+            &table.storage,
+            &table.schema,
+            &data_file_record,
+            Some(projection.clone()),
+            vec![],
+            None,
+            None,
+        )
+        .await?;
+        while let Some(batch) = stream.next().await {
+            let batch = batch?;
+            index_builder.append(&batch)?;
+        }
+
+        let index_file_id = Uuid::now_v7();
+        let relative_path = IndexFileRecord::build_relative_path(
+            &table.namespace_id,
+            &table.table_id,
+            &index_file_id,
+        );
+        let output_file = table.storage.create_file(&relative_path).await?;
+        index_builder.write_file(output_file).await?;
+        index_file_records.push(IndexFileRecord {
+            index_file_id,
+            table_id: table.table_id,
+            index_id,
+            data_file_id: data_file_record.data_file_id,
+            relative_path,
+        });
+    }
+
+    tx_helper.insert_index_files(&index_file_records).await?;
 
     Ok(index_id)
 }

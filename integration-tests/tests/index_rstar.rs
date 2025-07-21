@@ -27,7 +27,7 @@ use indexlake_integration_tests::utils::table_scan;
 #[case(async { catalog_sqlite() }, storage_fs())]
 #[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
-async fn create_rstar_index(
+async fn create_rstar_index_on_existing_table(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
@@ -59,16 +59,6 @@ async fn create_rstar_index(
     client.create_table(table_creation).await?;
     let mut table = client.load_table(&namespace_name, &table_name).await?;
 
-    let index_creation = IndexCreation {
-        name: "rstar_index".to_string(),
-        kind: RStarIndexKind.kind().to_string(),
-        key_columns: vec!["geom".to_string()],
-        params: Arc::new(RStarIndexParams {
-            wkb_dialect: WkbDialect::Wkb,
-        }),
-    };
-    table.create_index(index_creation.clone()).await?;
-
     let record_batch = RecordBatch::try_new(
         table_schema.clone(),
         vec![
@@ -91,6 +81,16 @@ async fn create_rstar_index(
     )?;
     table.insert(&[record_batch]).await?;
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+    let index_creation = IndexCreation {
+        name: "rstar_index".to_string(),
+        kind: RStarIndexKind.kind().to_string(),
+        key_columns: vec!["geom".to_string()],
+        params: Arc::new(RStarIndexParams {
+            wkb_dialect: WkbDialect::Wkb,
+        }),
+    };
+    table.create_index(index_creation).await?;
 
     let scan = TableScan::default().with_filters(vec![func(
         "intersects",
