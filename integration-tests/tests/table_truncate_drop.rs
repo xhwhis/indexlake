@@ -55,8 +55,8 @@ async fn drop_table(
 
     let client = LakeClient::new(catalog, storage);
 
-    let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name, true).await?;
+    let namespace_name = uuid::Uuid::new_v4().to_string();
+    client.create_namespace(&namespace_name, true).await?;
 
     let table_schema = Arc::new(Schema::new(vec![
         Field::new("id", DataType::Int64, false),
@@ -64,14 +64,14 @@ async fn drop_table(
     ]));
     let table_name = uuid::Uuid::new_v4().to_string();
     let table_creation = TableCreation {
-        namespace_name: namespace_name.to_string(),
+        namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: TableConfig::default(),
     };
     client.create_table(table_creation.clone()).await?;
 
-    let table = client.load_table(namespace_name, &table_name).await?;
+    let table = client.load_table(&namespace_name, &table_name).await?;
 
     let record_batch = RecordBatch::try_new(
         table_schema.clone(),
@@ -87,13 +87,13 @@ async fn drop_table(
     table.drop().await?;
     assert!(
         client
-            .load_table(namespace_name, &table_name)
+            .load_table(&namespace_name, &table_name)
             .await
             .is_err()
     );
 
     client.create_table(table_creation).await?;
-    let table = client.load_table(namespace_name, &table_name).await?;
+    let table = client.load_table(&namespace_name, &table_name).await?;
     table.insert(&[record_batch]).await?;
     let table_str = full_table_scan(&table).await?;
     println!("{}", table_str);

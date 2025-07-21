@@ -160,23 +160,6 @@ impl TransactionHelper {
         let rows = self.query_rows(&format!("SELECT index_id FROM indexlake_index WHERE table_id = {} AND index_name = '{index_name}'", self.database.sql_uuid_value(table_id)), schema).await?;
         Ok(rows.len() > 0)
     }
-
-    pub(crate) async fn get_max_index_id(&mut self) -> ILResult<i64> {
-        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
-            "max_index_id",
-            CatalogDataType::Int64,
-            true,
-        )]));
-        let rows = self
-            .query_rows("SELECT MAX(index_id) FROM indexlake_index", schema)
-            .await?;
-        if rows.is_empty() {
-            Ok(0)
-        } else {
-            let max_index_id = rows[0].int64(0)?;
-            Ok(max_index_id.unwrap_or(0))
-        }
-    }
 }
 
 impl CatalogHelper {

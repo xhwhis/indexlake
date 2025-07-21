@@ -38,7 +38,7 @@ async fn create_rstar_index(
     let mut client = LakeClient::new(catalog, storage);
     client.register_index_kind(Arc::new(RStarIndexKind))?;
 
-    let namespace_name = "test_namespace";
+    let namespace_name = uuid::Uuid::new_v4().to_string();
     client.create_namespace(&namespace_name, true).await?;
 
     let table_schema = Arc::new(Schema::new(vec![
@@ -49,15 +49,15 @@ async fn create_rstar_index(
         inline_row_count_limit: 3,
         parquet_row_group_size: 2,
     };
-    let table_name = "create_rstar_index";
+    let table_name = uuid::Uuid::new_v4().to_string();
     let table_creation = TableCreation {
-        namespace_name: namespace_name.to_string(),
-        table_name: table_name.to_string(),
+        namespace_name: namespace_name.clone(),
+        table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: table_config,
     };
     client.create_table(table_creation).await?;
-    let mut table = client.load_table(&namespace_name, table_name).await?;
+    let mut table = client.load_table(&namespace_name, &table_name).await?;
 
     let index_creation = IndexCreation {
         name: "rstar_index".to_string(),

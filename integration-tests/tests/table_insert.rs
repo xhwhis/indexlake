@@ -31,8 +31,8 @@ async fn parallel_insert_table(
 
     let client = LakeClient::new(catalog, storage);
 
-    let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name, true).await?;
+    let namespace_name = uuid::Uuid::new_v4().to_string();
+    client.create_namespace(&namespace_name, true).await?;
 
     let table_schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
     let table_name = uuid::Uuid::new_v4().to_string();
@@ -41,13 +41,13 @@ async fn parallel_insert_table(
         parquet_row_group_size: 10,
     };
     let table_creation = TableCreation {
-        namespace_name: namespace_name.to_string(),
-        table_name: table_name.to_string(),
+        namespace_name: namespace_name.clone(),
+        table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: table_config,
     };
     client.create_table(table_creation).await?;
-    let table = client.load_table(namespace_name, &table_name).await?;
+    let table = client.load_table(&namespace_name, &table_name).await?;
 
     let data = (0..1000i64).collect::<Vec<_>>();
     let data_chunks = data.chunks(100);
@@ -105,8 +105,8 @@ async fn bypass_insert_table(
 
     let client = LakeClient::new(catalog, storage);
 
-    let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name, true).await?;
+    let namespace_name = uuid::Uuid::new_v4().to_string();
+    client.create_namespace(&namespace_name, true).await?;
 
     let table_schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
     let table_name = uuid::Uuid::new_v4().to_string();
@@ -115,13 +115,13 @@ async fn bypass_insert_table(
         parquet_row_group_size: 2,
     };
     let table_creation = TableCreation {
-        namespace_name: namespace_name.to_string(),
-        table_name: table_name.to_string(),
+        namespace_name: namespace_name.clone(),
+        table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: table_config,
     };
     client.create_table(table_creation).await?;
-    let table = client.load_table(namespace_name, &table_name).await?;
+    let table = client.load_table(&namespace_name, &table_name).await?;
 
     let batch = RecordBatch::try_new(
         table_schema.clone(),

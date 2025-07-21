@@ -10,8 +10,8 @@ use indexlake::{
 };
 
 pub async fn prepare_simple_testing_table(client: &LakeClient) -> ILResult<Table> {
-    let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name, true).await?;
+    let namespace_name = uuid::Uuid::new_v4().to_string();
+    client.create_namespace(&namespace_name, true).await?;
 
     let table_schema = Arc::new(Schema::new(vec![
         Field::new("name", DataType::Utf8, false),
@@ -23,7 +23,7 @@ pub async fn prepare_simple_testing_table(client: &LakeClient) -> ILResult<Table
     };
     let table_name = uuid::Uuid::new_v4().to_string();
     let table_creation = TableCreation {
-        namespace_name: namespace_name.to_string(),
+        namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: table_config,
