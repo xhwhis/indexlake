@@ -7,6 +7,7 @@ use arrow::array::{
     Int16Array, Int32Array, Int64Array, StringArray, UInt8Array, UInt16Array, UInt32Array,
     UInt64Array, new_null_array,
 };
+use arrow::compute::CastOptions;
 use arrow::datatypes::{
     DataType, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type,
     UInt16Type, UInt32Type, UInt64Type,
@@ -278,6 +279,16 @@ impl Scalar {
             Scalar::Utf8(_) => DataType::Utf8,
             Scalar::Binary(_) => DataType::Binary,
         }
+    }
+
+    pub fn cast_to(
+        &self,
+        target_type: &DataType,
+        cast_options: &CastOptions<'static>,
+    ) -> ILResult<Self> {
+        let scalar_array = self.to_array_of_size(1)?;
+        let cast_arr = arrow::compute::cast_with_options(&scalar_array, target_type, cast_options)?;
+        Self::try_from_array(&cast_arr, 0)
     }
 }
 

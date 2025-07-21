@@ -16,18 +16,28 @@ use std::sync::Arc;
 use arrow::{
     array::{ArrayRef, AsArray, BooleanArray, RecordBatch},
     buffer::BooleanBuffer,
+    compute::CastOptions,
     datatypes::{DataType, Schema},
     error::ArrowError,
+    util::display::{DurationFormat, FormatOptions},
 };
-use parquet::arrow::{ArrowSchemaConverter, ProjectionMask, arrow_reader::ArrowPredicate};
+use parquet::arrow::{ProjectionMask, arrow_reader::ArrowPredicate};
 
 use derive_visitor::{Drive, DriveMut};
 
 use crate::{
     ILError, ILResult,
-    catalog::{CatalogDatabase, INTERNAL_ROW_ID_FIELD_NAME, Row, Scalar},
+    catalog::{CatalogDataType, CatalogDatabase, INTERNAL_ROW_ID_FIELD_NAME, Scalar},
     expr::like::Like,
 };
+
+pub const DEFAULT_CAST_OPTIONS: CastOptions<'static> = CastOptions {
+    safe: false,
+    format_options: DEFAULT_FORMAT_OPTIONS,
+};
+
+pub const DEFAULT_FORMAT_OPTIONS: FormatOptions<'static> =
+    FormatOptions::new().with_duration_format(DurationFormat::Pretty);
 
 /// Represents logical expressions such as `A + 1`
 #[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
@@ -48,6 +58,7 @@ pub enum Expr {
     InList(InList),
     Function(Function),
     Like(Like),
+    Cast(Cast),
 }
 
 impl Expr {
@@ -116,7 +127,11 @@ impl Expr {
             Expr::Function(_) => Err(ILError::InvalidInput(
                 "Function can only be used for index".to_string(),
             )),
-            Expr::Like(like_expr) => like_expr.eval(batch),
+            Expr::Like(like) => like.eval(batch),
+            Expr::Cast(cast) => {
+                let value = cast.expr.eval(batch)?;
+                value.cast_to(&cast.cast_type, cast.cast_options.as_ref())
+            }
         }
     }
 
@@ -163,7 +178,8 @@ impl Expr {
             Expr::IsNotNull(_) => Ok(DataType::Boolean),
             Expr::InList(_) => Ok(DataType::Boolean),
             Expr::Function(function) => Ok(function.return_type.clone()),
-            Expr::Like(like_expr) => like_expr.data_type(),
+            Expr::Like(_) => Ok(DataType::Boolean),
+            Expr::Cast(cast) => Ok(cast.cast_type.clone()),
         }
     }
 
@@ -187,7 +203,16 @@ impl Expr {
             Expr::Function(_) => Err(ILError::InvalidInput(
                 "Function can only be used for index".to_string(),
             )),
-            Expr::Like(like_expr) => like_expr.to_sql(database),
+            Expr::Like(like) => like.to_sql(database),
+            Expr::Cast(cast) => {
+                let catalog_datatype = CatalogDataType::from_arrow(&cast.cast_type)?;
+                let expr_sql = cast.expr.to_sql(database)?;
+                Ok(format!(
+                    "CAST({} AS {})",
+                    expr_sql,
+                    catalog_datatype.to_sql(database)
+                ))
+            }
         }
     }
 
@@ -227,7 +252,8 @@ impl std::fmt::Display for Expr {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Expr::Like(like_expr) => write!(f, "{}", like_expr),
+            Expr::Like(like) => write!(f, "{}", like),
+            Expr::Cast(cast) => write!(f, "CAST({} AS {})", cast.expr, cast.cast_type),
         }
     }
 }
@@ -291,6 +317,17 @@ pub struct Function {
     pub return_type: DataType,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Drive, DriveMut)]
+pub struct Cast {
+    /// The expression being cast
+    pub expr: Box<Expr>,
+    /// The `DataType` the expression will yield
+    #[drive(skip)]
+    pub cast_type: DataType,
+    #[drive(skip)]
+    pub cast_options: Option<CastOptions<'static>>,
+}
+
 #[derive(Clone, Debug)]
 pub enum ColumnarValue {
     /// Array of values
@@ -305,5 +342,21 @@ impl ColumnarValue {
             ColumnarValue::Array(array) => array,
             ColumnarValue::Scalar(scalar) => scalar.to_array_of_size(num_rows)?,
         })
+    }
+
+    pub fn cast_to(
+        &self,
+        cast_type: &DataType,
+        cast_options: Option<&CastOptions<'static>>,
+    ) -> ILResult<ColumnarValue> {
+        let cast_options = cast_options.cloned().unwrap_or(DEFAULT_CAST_OPTIONS);
+        match self {
+            ColumnarValue::Array(array) => Ok(ColumnarValue::Array(
+                arrow::compute::kernels::cast::cast_with_options(array, cast_type, &cast_options)?,
+            )),
+            ColumnarValue::Scalar(scalar) => Ok(ColumnarValue::Scalar(
+                scalar.cast_to(cast_type, &cast_options)?,
+            )),
+        }
     }
 }

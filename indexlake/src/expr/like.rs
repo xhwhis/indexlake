@@ -62,11 +62,6 @@ impl Like {
         }
     }
 
-    #[allow(unused)]
-    pub fn data_type(&self) -> ILResult<DataType> {
-        Ok(DataType::Boolean)
-    }
-
     /// Operator name
     fn op_name(&self) -> &str {
         match (self.negated, self.case_insensitive) {
