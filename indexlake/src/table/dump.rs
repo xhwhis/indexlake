@@ -132,19 +132,6 @@ impl DumpTask {
             )));
         }
 
-        tx_helper
-            .insert_data_files(&[DataFileRecord {
-                data_file_id,
-                table_id: self.table_id,
-                relative_path: relative_path.clone(),
-                file_size_bytes: file_size_bytes as i64,
-                record_count: row_ids.len() as i64,
-                validity: RowsValidity {
-                    validity: row_ids.iter().map(|id| (*id, true)).collect::<Vec<_>>(),
-                },
-            }])
-            .await?;
-
         let mut index_file_records = Vec::new();
         for (index_name, index_builder) in index_builders.iter_mut() {
             let index_def = self
@@ -168,6 +155,19 @@ impl DumpTask {
                 relative_path,
             });
         }
+
+        tx_helper
+            .insert_data_files(&[DataFileRecord {
+                data_file_id,
+                table_id: self.table_id,
+                relative_path: relative_path.clone(),
+                file_size_bytes: file_size_bytes as i64,
+                record_count: row_ids.len() as i64,
+                validity: RowsValidity {
+                    validity: row_ids.iter().map(|id| (*id, true)).collect::<Vec<_>>(),
+                },
+            }])
+            .await?;
 
         tx_helper.insert_index_files(&index_file_records).await?;
 

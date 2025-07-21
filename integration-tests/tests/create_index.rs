@@ -1,3 +1,4 @@
+use arrow::datatypes::{DataType, Field, Schema};
 use indexlake::{LakeClient, catalog::Catalog, index::IndexKind, storage::Storage};
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, data::prepare_simple_testing_table, init_env_logger,
@@ -5,7 +6,7 @@ use indexlake_integration_tests::{
 };
 use std::sync::Arc;
 
-use indexlake::table::IndexCreation;
+use indexlake::table::{IndexCreation, TableConfig, TableCreation};
 use indexlake_index_btree::{BTreeIndexKind, BTreeIndexParams};
 
 #[rstest::rstest]
@@ -23,7 +24,23 @@ async fn duplicated_index_name(
     let mut client = LakeClient::new(catalog, storage);
     client.register_index_kind(Arc::new(BTreeIndexKind))?;
 
-    let mut table = prepare_simple_testing_table(&client).await?;
+    let namespace_name = uuid::Uuid::new_v4().to_string();
+    client.create_namespace(&namespace_name, true).await?;
+
+    let table_schema = Arc::new(Schema::new(vec![
+        Field::new("name", DataType::Utf8, false),
+        Field::new("age", DataType::Int32, false),
+    ]));
+    let table_name = uuid::Uuid::new_v4().to_string();
+    let table_creation = TableCreation {
+        namespace_name: namespace_name.clone(),
+        table_name: table_name.clone(),
+        schema: table_schema.clone(),
+        config: TableConfig::default(),
+    };
+    client.create_table(table_creation).await?;
+
+    let mut table = client.load_table(&namespace_name, &table_name).await?;
 
     let index_creation = IndexCreation {
         name: "test_index".to_string(),

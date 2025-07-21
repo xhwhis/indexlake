@@ -9,4 +9,5 @@ repository.workspace = true
 [dependencies]
 indexlake = { workspace = true }
 
+async-trait = { workspace = true }
 datafusion = { workspace = true }

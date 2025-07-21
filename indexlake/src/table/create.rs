@@ -81,7 +81,7 @@ pub(crate) async fn process_create_index(
     creation: IndexCreation,
 ) -> ILResult<Uuid> {
     let index_id = Uuid::now_v7();
-    let index_def = IndexDefination {
+    let index_def = Arc::new(IndexDefination {
         index_id,
         name: creation.name.clone(),
         kind: creation.kind.clone(),
@@ -90,7 +90,7 @@ pub(crate) async fn process_create_index(
         table_schema: table.schema.clone(),
         key_columns: creation.key_columns.clone(),
         params: creation.params.clone(),
-    };
+    });
 
     let index_kind = table
         .index_kinds
@@ -108,28 +108,10 @@ pub(crate) async fn process_create_index(
         )));
     }
 
-    let key_field_ids = field_names_to_ids(&table.field_map, &creation.key_columns)?;
-
-    tx_helper
-        .insert_index(&IndexRecord {
-            index_id,
-            index_name: creation.name.clone(),
-            index_kind: creation.kind.clone(),
-            table_id: table.table_id,
-            key_field_ids,
-            params: creation.params.encode()?,
-        })
-        .await?;
-
-    let index_def_ref = Arc::new(index_def);
-    table
-        .indexes
-        .insert(creation.name.clone(), index_def_ref.clone());
-
     // create index file
     let mut projection = vec![0];
-    for col in creation.key_columns {
-        let idx = table.schema.index_of(&col)?;
+    for col in creation.key_columns.iter() {
+        let idx = table.schema.index_of(col)?;
         projection.push(idx);
     }
     projection.sort();
@@ -138,7 +120,7 @@ pub(crate) async fn process_create_index(
 
     let mut index_file_records = Vec::new();
     for data_file_record in data_file_records {
-        let mut index_builder = index_kind.builder(&index_def_ref)?;
+        let mut index_builder = index_kind.builder(&index_def)?;
         let mut stream = read_parquet_file_by_record(
             &table.storage,
             &table.schema,
@@ -172,6 +154,23 @@ pub(crate) async fn process_create_index(
     }
 
     tx_helper.insert_index_files(&index_file_records).await?;
+
+    let key_field_ids = field_names_to_ids(&table.field_map, &creation.key_columns)?;
+
+    tx_helper
+        .insert_index(&IndexRecord {
+            index_id,
+            index_name: creation.name.clone(),
+            index_kind: creation.kind.clone(),
+            table_id: table.table_id,
+            key_field_ids,
+            params: creation.params.encode()?,
+        })
+        .await?;
+
+    table
+        .indexes
+        .insert(creation.name.clone(), index_def.clone());
 
     Ok(index_id)
 }
