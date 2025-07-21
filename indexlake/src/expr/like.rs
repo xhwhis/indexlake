@@ -9,10 +9,10 @@ use crate::{
 
 #[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
 pub struct Like {
-    negated: bool,
-    case_insensitive: bool,
-    expr: Box<Expr>,
-    pattern: Box<Expr>,
+    pub negated: bool,
+    pub case_insensitive: bool,
+    pub expr: Box<Expr>,
+    pub pattern: Box<Expr>,
 }
 
 impl Like {

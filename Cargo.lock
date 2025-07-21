@@ -4159,6 +4159,8 @@ dependencies = [
  "async-trait",
  "datafusion 47.0.0",
  "indexlake",
+ "log",
+ "tokio",
 ]
 
 [[package]]

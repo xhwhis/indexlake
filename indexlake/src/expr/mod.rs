@@ -8,6 +8,7 @@ mod visitor;
 pub use binary::*;
 pub use builder::*;
 pub use compute::*;
+pub use like::*;
 pub use utils::*;
 pub use visitor::*;
 
@@ -28,7 +29,6 @@ use derive_visitor::{Drive, DriveMut};
 use crate::{
     ILError, ILResult,
     catalog::{CatalogDataType, CatalogDatabase, INTERNAL_ROW_ID_FIELD_NAME, Scalar},
-    expr::like::Like,
 };
 
 pub const DEFAULT_CAST_OPTIONS: CastOptions<'static> = CastOptions {

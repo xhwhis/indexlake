@@ -100,6 +100,17 @@ impl Table {
         Ok(batch_stream)
     }
 
+    pub async fn count(&self) -> ILResult<usize> {
+        let catalog_helper = CatalogHelper::new(self.catalog.clone());
+        let inline_row_count = catalog_helper.count_inline_rows(&self.table_id).await? as usize;
+        let data_file_records = catalog_helper.get_data_files(&self.table_id).await?;
+        let data_file_row_count: usize = data_file_records
+            .iter()
+            .map(|record| record.validity.valid_row_count())
+            .sum();
+        Ok(inline_row_count + data_file_row_count)
+    }
+
     pub async fn search(&self, search: TableSearch) -> ILResult<RecordBatchStream> {
         let batch_stream = process_search(self, search).await?;
         Ok(batch_stream)
@@ -183,6 +194,27 @@ impl Table {
         process_drop(&mut tx_helper, &self.table_id).await?;
         tx_helper.commit().await?;
         Ok(())
+    }
+
+    pub fn supports_filter(&self, filter: &Expr) -> ILResult<bool> {
+        match filter {
+            Expr::Function(_) => {
+                for (_, index_def) in &self.indexes {
+                    let index_kind =
+                        self.index_kinds
+                            .get(&index_def.kind)
+                            .ok_or(ILError::InvalidInput(format!(
+                                "Index kind {} not found",
+                                index_def.kind
+                            )))?;
+                    if index_kind.supports_filter(index_def, filter)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            _ => Ok(true),
+        }
     }
 }
 
