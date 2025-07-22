@@ -9,7 +9,7 @@ use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
 use indexlake::expr::{col, lit};
 use indexlake::table::TableScan;
 use indexlake::table::{TableConfig, TableCreation};
-use indexlake::{LakeClient, catalog::Catalog, catalog::Scalar, storage::Storage};
+use indexlake::{Client, catalog::Catalog, catalog::Scalar, storage::Storage};
 use indexlake_integration_tests::data::prepare_simple_testing_table;
 use indexlake_integration_tests::utils::full_table_scan;
 use indexlake_integration_tests::{
@@ -31,7 +31,7 @@ async fn update_table_by_condition(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client).await?;
 
     let set_map = HashMap::from([("age".to_string(), Scalar::Int32(Some(30)))]);
@@ -67,7 +67,7 @@ async fn update_table_by_row_id(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client).await?;
 
     let set_map = HashMap::from([("age".to_string(), Scalar::Int32(Some(30)))]);

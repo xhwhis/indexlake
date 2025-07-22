@@ -3,15 +3,14 @@ use arrow::{
     datatypes::{DataType, Field, Schema},
 };
 use indexlake::{
-    LakeClient,
+    Client,
     catalog::Catalog,
     index::IndexKind,
     storage::Storage,
     table::{TableConfig, TableCreation, TableScan},
 };
 use indexlake_integration_tests::{
-    catalog_postgres, catalog_sqlite, data::prepare_simple_testing_table, init_env_logger,
-    storage_fs, storage_s3,
+    catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
 use std::sync::Arc;
 
@@ -35,8 +34,8 @@ async fn create_rstar_index_on_existing_table(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let mut client = LakeClient::new(catalog, storage);
-    client.register_index_kind(Arc::new(RStarIndexKind))?;
+    let mut client = Client::new(catalog, storage);
+    client.register_index_kind(Arc::new(RStarIndexKind));
 
     let namespace_name = uuid::Uuid::new_v4().to_string();
     client.create_namespace(&namespace_name, true).await?;

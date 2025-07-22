@@ -5,11 +5,11 @@ use arrow::{
     datatypes::{DataType, Field, Schema},
 };
 use indexlake::{
-    ILResult, LakeClient,
+    Client, ILResult,
     table::{Table, TableConfig, TableCreation},
 };
 
-pub async fn prepare_simple_testing_table(client: &LakeClient) -> ILResult<Table> {
+pub async fn prepare_simple_testing_table(client: &Client) -> ILResult<Table> {
     let namespace_name = uuid::Uuid::new_v4().to_string();
     client.create_namespace(&namespace_name, true).await?;
 

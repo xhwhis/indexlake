@@ -4,7 +4,7 @@ use arrow::datatypes::{DataType, Field, Schema};
 use futures::TryStreamExt;
 use indexlake::table::TableScan;
 use indexlake::{
-    LakeClient,
+    Client,
     catalog::Catalog,
     storage::Storage,
     table::{TableConfig, TableCreation},
@@ -28,7 +28,7 @@ async fn truncate_table(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client).await?;
 
     table.truncate().await?;
@@ -53,7 +53,7 @@ async fn drop_table(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
 
     let namespace_name = uuid::Uuid::new_v4().to_string();
     client.create_namespace(&namespace_name, true).await?;

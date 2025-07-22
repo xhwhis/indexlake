@@ -1,6 +1,6 @@
 use indexlake::expr::{col, lit};
 use indexlake::table::TableScan;
-use indexlake::{LakeClient, catalog::Catalog, storage::Storage};
+use indexlake::{Client, catalog::Catalog, storage::Storage};
 use indexlake_integration_tests::data::prepare_simple_testing_table;
 use indexlake_integration_tests::utils::table_scan;
 use indexlake_integration_tests::{
@@ -20,7 +20,7 @@ async fn scan_with_projection(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client).await?;
 
     let scan = TableScan::default().with_projection(Some(vec![0, 2]));
@@ -53,7 +53,7 @@ async fn scan_with_filters(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client).await?;
 
     let scan = TableScan::default()

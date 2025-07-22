@@ -1,4 +1,4 @@
-use indexlake::{LakeClient, catalog::Catalog, storage::Storage};
+use indexlake::{Client, catalog::Catalog, storage::Storage};
 use indexlake_integration_tests::{catalog_postgres, catalog_sqlite, storage_fs, storage_s3};
 use std::sync::Arc;
 
@@ -12,7 +12,7 @@ async fn create_namespace(
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
 
     let namespace_name = uuid::Uuid::new_v4().to_string();
     let expected_namespace_id = client.create_namespace(&namespace_name, false).await?;
@@ -36,7 +36,7 @@ async fn duplicated_namespace_name(
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
 
     let namespace_name = "duplicated_namespace_name";
     client.create_namespace(namespace_name, false).await?;

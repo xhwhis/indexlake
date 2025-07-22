@@ -12,13 +12,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
-pub struct LakeClient {
+pub struct Client {
     pub catalog: Arc<dyn Catalog>,
     pub storage: Arc<Storage>,
     pub index_kinds: HashMap<String, Arc<dyn IndexKind>>,
 }
 
-impl LakeClient {
+impl Client {
     pub fn new(catalog: Arc<dyn Catalog>, storage: Arc<Storage>) -> Self {
         Self {
             catalog,
@@ -31,10 +31,9 @@ impl LakeClient {
         TransactionHelper::new(&self.catalog).await
     }
 
-    pub fn register_index_kind(&mut self, index_kind: Arc<dyn IndexKind>) -> ILResult<()> {
+    pub fn register_index_kind(&mut self, index_kind: Arc<dyn IndexKind>) {
         self.index_kinds
             .insert(index_kind.kind().to_string(), index_kind);
-        Ok(())
     }
 
     pub async fn create_namespace(

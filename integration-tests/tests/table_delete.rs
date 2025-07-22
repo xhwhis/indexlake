@@ -1,6 +1,6 @@
 use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
 use indexlake::expr::{col, lit};
-use indexlake::{LakeClient, catalog::Catalog, storage::Storage};
+use indexlake::{Client, catalog::Catalog, storage::Storage};
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
@@ -19,7 +19,7 @@ async fn delete_table_by_condition(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client).await?;
 
     let condition = col("age").gt(lit(21i32));
@@ -52,7 +52,7 @@ async fn delete_table_by_row_id(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client).await?;
 
     let condition = col(INTERNAL_ROW_ID_FIELD_NAME).eq(lit(1i64));

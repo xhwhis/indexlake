@@ -5,7 +5,7 @@ use indexlake::ILError;
 use indexlake::table::TableConfig;
 use indexlake::table::TableCreation;
 use indexlake::table::TableScan;
-use indexlake::{LakeClient, catalog::Catalog};
+use indexlake::{Client, catalog::Catalog};
 use indexlake_benchmarks::data::{arrow_table_schema, new_record_batch};
 use indexlake_integration_tests::init_env_logger;
 use indexlake_integration_tests::{catalog_postgres, storage_s3};
@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let catalog = catalog_postgres().await;
     let storage = storage_s3();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
 
     let namespace_name = "test_namespace";
     client.create_namespace(namespace_name, true).await?;

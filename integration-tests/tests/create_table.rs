@@ -2,7 +2,7 @@ use arrow::array::*;
 use arrow::datatypes::*;
 use indexlake::catalog::INTERNAL_ROW_ID_FIELD_REF;
 use indexlake::{
-    LakeClient,
+    Client,
     catalog::Catalog,
     storage::Storage,
     table::{TableConfig, TableCreation},
@@ -26,7 +26,7 @@ async fn create_table(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
 
     let namespace_name = uuid::Uuid::new_v4().to_string();
     let expected_namespace_id = client.create_namespace(&namespace_name, true).await?;
@@ -74,7 +74,7 @@ async fn table_data_types(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
 
     let namespace_name = uuid::Uuid::new_v4().to_string();
     client.create_namespace(&namespace_name, true).await?;
@@ -340,7 +340,7 @@ async fn duplicated_table_name(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
 
     let namespace_name = uuid::Uuid::new_v4().to_string();
     client.create_namespace(&namespace_name, true).await?;

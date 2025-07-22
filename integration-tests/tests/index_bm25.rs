@@ -3,7 +3,7 @@ use arrow::{
     datatypes::{DataType, Field, Schema},
 };
 use indexlake::{
-    LakeClient,
+    Client,
     catalog::Catalog,
     index::IndexKind,
     storage::Storage,
@@ -32,8 +32,8 @@ async fn create_bm25_index(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let mut client = LakeClient::new(catalog, storage);
-    client.register_index_kind(Arc::new(BM25IndexKind))?;
+    let mut client = Client::new(catalog, storage);
+    client.register_index_kind(Arc::new(BM25IndexKind));
 
     let namespace_name = uuid::Uuid::new_v4().to_string();
     client.create_namespace(&namespace_name, true).await?;

@@ -1,7 +1,7 @@
 use arrow::util::pretty::pretty_format_batches;
 use datafusion::prelude::SessionContext;
 use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
-use indexlake::{LakeClient, catalog::Catalog, storage::Storage};
+use indexlake::{Client, catalog::Catalog, storage::Storage};
 use indexlake_datafusion::IndexLakeTable;
 use indexlake_integration_tests::data::prepare_simple_testing_table;
 use indexlake_integration_tests::utils::sort_record_batches;
@@ -22,7 +22,7 @@ async fn datafusion_full_scan(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client).await?;
 
     let df_table = IndexLakeTable::new(Arc::new(table));
@@ -60,7 +60,7 @@ async fn datafusion_scan_with_projection(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client).await?;
 
     let df_table = IndexLakeTable::new(Arc::new(table));
@@ -100,7 +100,7 @@ async fn datafusion_scan_with_filters(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client).await?;
 
     let df_table = IndexLakeTable::new(Arc::new(table));
@@ -138,7 +138,7 @@ async fn datafusion_scan_with_limit(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let client = LakeClient::new(catalog, storage);
+    let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client).await?;
 
     let df_table = IndexLakeTable::new(Arc::new(table));

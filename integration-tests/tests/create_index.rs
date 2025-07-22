@@ -1,5 +1,5 @@
 use arrow::datatypes::{DataType, Field, Schema};
-use indexlake::{LakeClient, catalog::Catalog, index::IndexKind, storage::Storage};
+use indexlake::{Client, catalog::Catalog, index::IndexKind, storage::Storage};
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, data::prepare_simple_testing_table, init_env_logger,
     storage_fs, storage_s3,
@@ -21,8 +21,8 @@ async fn duplicated_index_name(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let mut client = LakeClient::new(catalog, storage);
-    client.register_index_kind(Arc::new(BTreeIndexKind))?;
+    let mut client = Client::new(catalog, storage);
+    client.register_index_kind(Arc::new(BTreeIndexKind));
 
     let namespace_name = uuid::Uuid::new_v4().to_string();
     client.create_namespace(&namespace_name, true).await?;
@@ -69,8 +69,8 @@ async fn unsupported_index_kind(
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
-    let mut client = LakeClient::new(catalog, storage);
-    client.register_index_kind(Arc::new(BTreeIndexKind))?;
+    let mut client = Client::new(catalog, storage);
+    client.register_index_kind(Arc::new(BTreeIndexKind));
 
     let mut table = prepare_simple_testing_table(&client).await?;
 
