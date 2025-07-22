@@ -3,12 +3,13 @@ mod parquet;
 mod s3;
 
 pub use fs::*;
+pub use opendal::services::S3Config;
 pub use parquet::*;
 pub use s3::*;
 
 use std::path::PathBuf;
 
-use opendal::{Operator, services::S3Config};
+use opendal::Operator;
 
 use crate::{
     ILError, ILResult,

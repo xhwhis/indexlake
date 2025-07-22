@@ -3485,7 +3485,6 @@ dependencies = [
  "arrow",
  "arrow-schema",
  "async-trait",
- "backon",
  "bytes",
  "comfy-table",
  "derive-visitor",

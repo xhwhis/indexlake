@@ -1,5 +1,4 @@
 use arrow::datatypes::Schema;
-use backon::ConstantBuilder;
 use uuid::Uuid;
 
 use crate::catalog::CatalogHelper;
@@ -7,14 +6,10 @@ use crate::catalog::INTERNAL_ROW_ID_FIELD_REF;
 use crate::catalog::TransactionHelper;
 use crate::index::IndexDefination;
 use crate::index::IndexKind;
-use crate::retry;
 use crate::table::{Table, TableCreation, process_create_table};
 use crate::{ILError, ILResult, catalog::Catalog, storage::Storage};
-use backon::ExponentialBuilder;
-use backon::Retryable;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct LakeClient {
