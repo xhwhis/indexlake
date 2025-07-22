@@ -1,16 +1,20 @@
-use datafusion::logical_expr::Operator;
+use datafusion::common::DFSchema;
+use datafusion::logical_expr::{ExprSchemable, Operator};
 use datafusion::{common::ScalarValue, error::DataFusionError, prelude::Expr};
 use indexlake::catalog::Scalar as ILScalar;
 use indexlake::expr::BinaryOp as ILOperator;
 use indexlake::expr::Expr as ILExpr;
 
-pub fn datafusion_expr_to_indexlake_expr(expr: &Expr) -> Result<ILExpr, DataFusionError> {
+pub fn datafusion_expr_to_indexlake_expr(
+    expr: &Expr,
+    schema: &DFSchema,
+) -> Result<ILExpr, DataFusionError> {
     match expr {
         Expr::Column(col) => Ok(ILExpr::Column(col.name.clone())),
-        Expr::Literal(lit) => Ok(ILExpr::Literal(datafusion_scalar_to_indexlake_scalar(lit)?)),
+        Expr::Literal(lit, _) => Ok(ILExpr::Literal(datafusion_scalar_to_indexlake_scalar(lit)?)),
         Expr::BinaryExpr(binary) => {
-            let left = Box::new(datafusion_expr_to_indexlake_expr(&binary.left)?);
-            let right = Box::new(datafusion_expr_to_indexlake_expr(&binary.right)?);
+            let left = Box::new(datafusion_expr_to_indexlake_expr(&binary.left, schema)?);
+            let right = Box::new(datafusion_expr_to_indexlake_expr(&binary.right, schema)?);
             let op = datafusion_operator_to_indexlake_operator(&binary.op)?;
             Ok(ILExpr::BinaryExpr(indexlake::expr::BinaryExpr {
                 left,
@@ -19,23 +23,23 @@ pub fn datafusion_expr_to_indexlake_expr(expr: &Expr) -> Result<ILExpr, DataFusi
             }))
         }
         Expr::Not(expr) => {
-            let expr = Box::new(datafusion_expr_to_indexlake_expr(expr)?);
+            let expr = Box::new(datafusion_expr_to_indexlake_expr(expr, schema)?);
             Ok(ILExpr::Not(expr))
         }
         Expr::IsNull(expr) => {
-            let expr = Box::new(datafusion_expr_to_indexlake_expr(expr)?);
+            let expr = Box::new(datafusion_expr_to_indexlake_expr(expr, schema)?);
             Ok(ILExpr::IsNull(expr))
         }
         Expr::IsNotNull(expr) => {
-            let expr = Box::new(datafusion_expr_to_indexlake_expr(expr)?);
+            let expr = Box::new(datafusion_expr_to_indexlake_expr(expr, schema)?);
             Ok(ILExpr::IsNotNull(expr))
         }
         Expr::InList(in_list) => {
-            let expr = Box::new(datafusion_expr_to_indexlake_expr(&in_list.expr)?);
+            let expr = Box::new(datafusion_expr_to_indexlake_expr(&in_list.expr, schema)?);
             let list = in_list
                 .list
                 .iter()
-                .map(|expr| datafusion_expr_to_indexlake_expr(expr))
+                .map(|expr| datafusion_expr_to_indexlake_expr(expr, schema))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(ILExpr::InList(indexlake::expr::InList {
                 expr,
@@ -44,8 +48,8 @@ pub fn datafusion_expr_to_indexlake_expr(expr: &Expr) -> Result<ILExpr, DataFusi
             }))
         }
         Expr::Like(like) => {
-            let expr = Box::new(datafusion_expr_to_indexlake_expr(&like.expr)?);
-            let pattern = Box::new(datafusion_expr_to_indexlake_expr(&like.pattern)?);
+            let expr = Box::new(datafusion_expr_to_indexlake_expr(&like.expr, schema)?);
+            let pattern = Box::new(datafusion_expr_to_indexlake_expr(&like.pattern, schema)?);
             Ok(ILExpr::Like(indexlake::expr::Like {
                 expr,
                 pattern,
@@ -54,7 +58,7 @@ pub fn datafusion_expr_to_indexlake_expr(expr: &Expr) -> Result<ILExpr, DataFusi
             }))
         }
         Expr::Cast(cast) => {
-            let expr = Box::new(datafusion_expr_to_indexlake_expr(&cast.expr)?);
+            let expr = Box::new(datafusion_expr_to_indexlake_expr(&cast.expr, schema)?);
             Ok(ILExpr::Cast(indexlake::expr::Cast {
                 expr,
                 cast_type: cast.data_type.clone(),
@@ -62,8 +66,27 @@ pub fn datafusion_expr_to_indexlake_expr(expr: &Expr) -> Result<ILExpr, DataFusi
             }))
         }
         Expr::Negative(expr) => {
-            let expr = Box::new(datafusion_expr_to_indexlake_expr(expr)?);
+            let expr = Box::new(datafusion_expr_to_indexlake_expr(expr, schema)?);
             Ok(ILExpr::Negative(expr))
+        }
+        Expr::ScalarFunction(func) => {
+            let mut arg_types = Vec::with_capacity(func.args.len());
+            for arg in func.args.iter() {
+                let (data_type, _) = arg.data_type_and_nullable(schema)?;
+                arg_types.push(data_type);
+            }
+            let args = func
+                .args
+                .iter()
+                .map(|arg| datafusion_expr_to_indexlake_expr(arg, schema))
+                .collect::<Result<Vec<_>, _>>()?;
+            let name = func.name().to_string();
+            let return_type = func.func.return_type(&arg_types)?;
+            Ok(ILExpr::Function(indexlake::expr::Function {
+                name,
+                args,
+                return_type,
+            }))
         }
         _ => Err(DataFusionError::NotImplemented(format!(
             "Unsupported expr: {expr}"

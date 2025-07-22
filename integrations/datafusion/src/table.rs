@@ -3,21 +3,27 @@ use std::sync::Arc;
 use datafusion::{
     arrow::datatypes::SchemaRef,
     catalog::{Session, TableProvider},
-    common::{Statistics, stats::Precision},
+    common::{DFSchema, Statistics, stats::Precision},
     datasource::TableType,
     error::DataFusionError,
     logical_expr::{TableProviderFilterPushDown, dml::InsertOp},
     physical_plan::ExecutionPlan,
     prelude::Expr,
 };
-use indexlake::table::Table;
+use indexlake::table::{Table, TableScan};
 use log::warn;
 
-use crate::datafusion_expr_to_indexlake_expr;
+use crate::{IndexLakeScanExec, datafusion_expr_to_indexlake_expr};
 
 #[derive(Debug)]
 pub struct IndexLakeTable {
-    table: Table,
+    table: Arc<Table>,
+}
+
+impl IndexLakeTable {
+    pub fn new(table: Arc<Table>) -> Self {
+        Self { table }
+    }
 }
 
 #[async_trait::async_trait]
@@ -36,21 +42,33 @@ impl TableProvider for IndexLakeTable {
 
     async fn scan(
         &self,
-        state: &dyn Session,
+        _state: &dyn Session,
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
         limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        todo!()
+        let df_schema = DFSchema::try_from(self.table.schema.clone())?;
+        let il_filters = filters
+            .iter()
+            .map(|f| datafusion_expr_to_indexlake_expr(f, &df_schema))
+            .collect::<Result<Vec<_>, _>>()?;
+        let scan = TableScan {
+            projection: projection.cloned(),
+            filters: il_filters,
+            batch_size: None,
+        };
+        let exec = IndexLakeScanExec::try_new(self.table.clone(), scan, limit)?;
+        Ok(Arc::new(exec))
     }
 
     fn supports_filters_pushdown(
         &self,
         filters: &[&Expr],
     ) -> Result<Vec<TableProviderFilterPushDown>, DataFusionError> {
+        let df_schema = DFSchema::try_from(self.table.schema.clone())?;
         let mut supports = Vec::with_capacity(filters.len());
         for filter in filters {
-            let Ok(il_expr) = datafusion_expr_to_indexlake_expr(filter) else {
+            let Ok(il_expr) = datafusion_expr_to_indexlake_expr(filter, &df_schema) else {
                 supports.push(TableProviderFilterPushDown::Unsupported);
                 continue;
             };

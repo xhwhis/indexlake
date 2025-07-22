@@ -11,5 +11,6 @@ indexlake = { workspace = true }
 
 async-trait = { workspace = true }
 datafusion = { workspace = true }
+futures = { workspace = true }
 log = { workspace = true }
 tokio = { workspace = true }
