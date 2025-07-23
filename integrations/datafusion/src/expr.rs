@@ -62,7 +62,6 @@ pub fn datafusion_expr_to_indexlake_expr(
             Ok(ILExpr::Cast(indexlake::expr::Cast {
                 expr,
                 cast_type: cast.data_type.clone(),
-                cast_options: None,
             }))
         }
         Expr::Negative(expr) => {

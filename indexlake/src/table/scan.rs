@@ -8,6 +8,7 @@ use arrow::{
     datatypes::SchemaRef,
 };
 use futures::StreamExt;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
@@ -22,7 +23,7 @@ use crate::{
     utils::project_schema,
 };
 
-#[derive(Debug, Clone, derive_with::With)]
+#[derive(Debug, Clone, derive_with::With, Serialize, Deserialize)]
 pub struct TableScan {
     pub projection: Option<Vec<usize>>,
     pub filters: Vec<Expr>,

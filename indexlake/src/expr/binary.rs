@@ -6,6 +6,7 @@ use arrow::{
     error::ArrowError,
 };
 use derive_visitor::{Drive, DriveMut};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     ILError, ILResult,
@@ -13,7 +14,7 @@ use crate::{
     expr::{ColumnarValue, Expr},
 };
 
-#[derive(Debug, Clone, Copy, Drive, DriveMut, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Drive, DriveMut, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BinaryOp {
     /// Expressions are equal
     Eq,
@@ -64,7 +65,7 @@ impl std::fmt::Display for BinaryOp {
 }
 
 /// Binary expression
-#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
+#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BinaryExpr {
     /// Left-hand side of the expression
     pub left: Box<Expr>,

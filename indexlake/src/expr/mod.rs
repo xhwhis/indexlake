@@ -12,6 +12,7 @@ pub use like::*;
 pub use utils::*;
 pub use visitor::*;
 
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use arrow::{
@@ -40,7 +41,7 @@ pub const DEFAULT_FORMAT_OPTIONS: FormatOptions<'static> =
     FormatOptions::new().with_duration_format(DurationFormat::Pretty);
 
 /// Represents logical expressions such as `A + 1`
-#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
+#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Expr {
     /// A named reference
     Column(String),
@@ -131,7 +132,7 @@ impl Expr {
             Expr::Like(like) => like.eval(batch),
             Expr::Cast(cast) => {
                 let value = cast.expr.eval(batch)?;
-                value.cast_to(&cast.cast_type, cast.cast_options.as_ref())
+                value.cast_to(&cast.cast_type, None)
             }
             Expr::Negative(expr) => match expr.eval(batch)? {
                 ColumnarValue::Array(array) => {
@@ -312,7 +313,7 @@ impl ArrowPredicate for ExprPredicate {
 }
 
 /// InList expression
-#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
+#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InList {
     /// The expression to compare
     pub expr: Box<Expr>,
@@ -322,7 +323,7 @@ pub struct InList {
     pub negated: bool,
 }
 
-#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
+#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Function {
     pub name: String,
     pub args: Vec<Expr>,
@@ -330,15 +331,16 @@ pub struct Function {
     pub return_type: DataType,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Drive, DriveMut)]
+#[derive(Debug, Clone, PartialEq, Eq, Drive, DriveMut, Serialize, Deserialize)]
 pub struct Cast {
     /// The expression being cast
     pub expr: Box<Expr>,
     /// The `DataType` the expression will yield
     #[drive(skip)]
     pub cast_type: DataType,
-    #[drive(skip)]
-    pub cast_options: Option<CastOptions<'static>>,
+    // TODO wait https://github.com/apache/arrow-rs/pull/7981
+    // #[drive(skip)]
+    // pub cast_options: Option<CastOptions<'static>>,
 }
 
 #[derive(Clone, Debug)]

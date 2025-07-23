@@ -13,10 +13,11 @@ use arrow::datatypes::{
     UInt16Type, UInt32Type, UInt64Type,
 };
 use derive_visitor::{Drive, DriveMut};
+use serde::{Deserialize, Serialize};
 
 use crate::{ILError, ILResult, catalog::CatalogDatabase};
 
-#[derive(Debug, Clone, Drive, DriveMut)]
+#[derive(Debug, Clone, Drive, DriveMut, Serialize, Deserialize)]
 pub enum Scalar {
     Boolean(Option<bool>),
     Int8(Option<i8>),
