@@ -20,9 +20,9 @@ use log::error;
 
 #[derive(Debug)]
 pub struct IndexLakeScanExec {
-    table: Arc<Table>,
-    scan: TableScan,
-    limit: Option<usize>,
+    pub table: Arc<Table>,
+    pub scan: TableScan,
+    pub limit: Option<usize>,
     properties: PlanProperties,
 }
 
