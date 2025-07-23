@@ -6,6 +6,7 @@ mod scan;
 mod search;
 mod update;
 
+use arrow_schema::Schema;
 pub use create::*;
 pub(crate) use delete::*;
 pub(crate) use dump::*;
@@ -65,12 +66,7 @@ impl Table {
         let mut total_rows = 0;
         for batch in batches {
             total_rows += batch.num_rows();
-            let batch_schema = batch.schema();
-            if batch_schema.as_ref() != &expected_schema {
-                return Err(ILError::InvalidInput(format!(
-                    "Invalid record schema: {batch_schema:?}, expected schema: {expected_schema:?}",
-                )));
-            }
+            check_insert_batch_schema(batch.schema_ref(), &expected_schema)?;
         }
 
         if total_rows >= self.config.inline_row_count_limit {
@@ -300,4 +296,29 @@ impl Default for TableConfig {
             parquet_row_group_size: 1000,
         }
     }
+}
+
+fn check_insert_batch_schema(batch_schema: &Schema, expected_schema: &Schema) -> ILResult<()> {
+    if batch_schema.fields().len() != expected_schema.fields().len() {
+        return Err(ILError::InvalidInput(format!(
+            "Invalid record schema: {batch_schema:?}, expected schema: {expected_schema:?}",
+        )));
+    }
+
+    for (table_field, batch_field) in expected_schema
+        .fields()
+        .iter()
+        .zip(batch_schema.fields().iter())
+    {
+        if table_field.name() != batch_field.name()
+            || table_field.data_type() != batch_field.data_type()
+            || table_field.is_nullable() != batch_field.is_nullable()
+        {
+            return Err(ILError::InvalidInput(format!(
+                "Invalid record schema: {batch_schema:?}, expected schema: {expected_schema:?}",
+            )));
+        }
+    }
+
+    Ok(())
 }
