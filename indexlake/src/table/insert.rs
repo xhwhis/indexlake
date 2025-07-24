@@ -11,9 +11,8 @@ use crate::{
     ILError, ILResult,
     catalog::{
         CatalogDatabase, CatalogSchema, DataFileRecord, INTERNAL_FLAG_FIELD_NAME,
-        INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, RowsValidity, TransactionHelper,
+        INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, TransactionHelper,
     },
-    retry,
     table::Table,
     utils::{record_batch_with_row_id, schema_without_row_id, serialize_array},
 };
@@ -96,12 +95,8 @@ pub(crate) async fn process_bypass_insert(
             relative_path: relative_path.clone(),
             file_size_bytes: file_size_bytes as i64,
             record_count: total_rows as i64,
-            validity: RowsValidity {
-                validity: reserved_row_ids
-                    .iter()
-                    .map(|id| (*id, true))
-                    .collect::<Vec<_>>(),
-            },
+            row_ids: reserved_row_ids,
+            validity: vec![true; total_rows],
         }])
         .await?;
 

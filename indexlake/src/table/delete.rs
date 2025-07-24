@@ -79,7 +79,7 @@ pub(crate) async fn process_delete_by_row_id_condition(
     let data_file_records = tx_helper.get_data_files(table_id).await?;
     for mut data_file_record in data_file_records {
         // We need row index to update validity, so we need to get all row ids
-        let row_ids = data_file_record.validity.row_ids();
+        let row_ids = data_file_record.row_ids;
         let row_id_array = Int64Array::from(row_ids);
 
         let batch = RecordBatch::try_new(
@@ -92,7 +92,7 @@ pub(crate) async fn process_delete_by_row_id_condition(
             if let Some(v) = v
                 && v
             {
-                data_file_record.validity.validity[i].1 = false;
+                data_file_record.validity[i] = false;
             }
         }
 

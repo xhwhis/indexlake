@@ -10,7 +10,7 @@ use crate::{
     ILError, ILResult,
     catalog::{
         Catalog, CatalogHelper, CatalogSchema, DataFileRecord, IndexFileRecord, RowStream,
-        RowsValidity, TransactionHelper, rows_to_record_batch,
+        TransactionHelper, rows_to_record_batch,
     },
     index::{IndexBuilder, IndexDefinationRef, IndexKind},
     storage::Storage,
@@ -163,9 +163,8 @@ impl DumpTask {
                 relative_path: relative_path.clone(),
                 file_size_bytes: file_size_bytes as i64,
                 record_count: row_ids.len() as i64,
-                validity: RowsValidity {
-                    validity: row_ids.iter().map(|id| (*id, true)).collect::<Vec<_>>(),
-                },
+                row_ids: row_ids.clone(),
+                validity: vec![true; row_ids.len()],
             }])
             .await?;
 

@@ -5,8 +5,7 @@ use arrow::datatypes::{DataType, Field, FieldRef};
 use uuid::Uuid;
 
 use crate::catalog::{
-    CatalogHelper, DataFileRecord, FieldRecord, IndexFileRecord, IndexRecord, RowsValidity,
-    inline_row_table_name,
+    CatalogHelper, DataFileRecord, FieldRecord, IndexFileRecord, IndexRecord, inline_row_table_name,
 };
 use crate::expr::Expr;
 use crate::{

@@ -104,7 +104,7 @@ impl Table {
         let data_file_records = catalog_helper.get_data_files(&self.table_id).await?;
         let data_file_row_count: usize = data_file_records
             .iter()
-            .map(|record| record.validity.valid_row_count())
+            .map(|record| record.valid_row_count())
             .sum();
         Ok(inline_row_count + data_file_row_count)
     }
@@ -114,7 +114,7 @@ impl Table {
         Ok(batch_stream)
     }
 
-    pub async fn update(&self, set_map: HashMap<String, Scalar>, condition: &Expr) -> ILResult<()> {
+    pub async fn update(&self, set_map: HashMap<String, Expr>, condition: &Expr) -> ILResult<()> {
         condition.check_data_type(&self.schema, &DataType::Boolean)?;
 
         let catalog_helper = CatalogHelper::new(self.catalog.clone());

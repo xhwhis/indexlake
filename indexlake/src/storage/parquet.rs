@@ -122,7 +122,7 @@ pub(crate) async fn read_parquet_file_by_record(
 
     let batch_size = batch_size.unwrap_or(1024);
     let stream = arrow_reader_builder
-        .with_row_selection(data_file_record.validity.row_selection(row_ids)?)
+        .with_row_selection(data_file_record.row_selection(row_ids)?)
         .with_projection(projection_mask.clone())
         .with_batch_size(batch_size)
         .build()?
@@ -137,7 +137,7 @@ pub(crate) async fn read_parquet_file_by_record_and_row_id_condition(
     projection: Option<Vec<usize>>,
     row_id_condition: &Expr,
 ) -> ILResult<RecordBatchStream> {
-    let valid_row_ids = data_file_record.validity.valid_row_ids();
+    let valid_row_ids = data_file_record.valid_row_ids();
     let valid_row_ids_array = Arc::new(Int64Array::from_iter_values(valid_row_ids)) as ArrayRef;
 
     let schema = Arc::new(Schema::new(vec![INTERNAL_ROW_ID_FIELD_REF.clone()]));

@@ -149,8 +149,8 @@ impl Expr {
     pub fn check_data_type(&self, schema: &Schema, expected: &DataType) -> ILResult<()> {
         let return_type = self.data_type(schema)?;
         if &return_type != expected {
-            return Err(ILError::InternalError(format!(
-                "expr should return {expected} instead of {return_type}"
+            return Err(ILError::InvalidInput(format!(
+                "expr {self} should return {expected} instead of {return_type}"
             )));
         }
         Ok(())

@@ -146,21 +146,35 @@ pub(crate) struct DataFileRecord {
     pub(crate) relative_path: String,
     pub(crate) file_size_bytes: i64,
     pub(crate) record_count: i64,
-    pub(crate) validity: RowsValidity,
+    pub(crate) row_ids: Vec<i64>,
+    pub(crate) validity: Vec<bool>,
 }
 
 impl DataFileRecord {
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
-        let validity_sql = database.sql_binary_value(&self.validity.to_bytes());
+        let row_ids_bytes = self
+            .row_ids
+            .iter()
+            .flat_map(|id| id.to_le_bytes())
+            .collect::<Vec<_>>();
+        let validity_bytes = Self::validity_to_bytes(&self.validity);
         format!(
-            "({}, {}, '{}', {}, {}, {})",
+            "({}, {}, '{}', {}, {}, {}, {})",
             database.sql_uuid_value(&self.data_file_id),
             database.sql_uuid_value(&self.table_id),
             self.relative_path,
             self.file_size_bytes,
             self.record_count,
-            validity_sql
+            database.sql_binary_value(&row_ids_bytes),
+            database.sql_binary_value(&validity_bytes),
         )
+    }
+
+    pub(crate) fn validity_to_bytes(validity: &Vec<bool>) -> Vec<u8> {
+        validity
+            .iter()
+            .flat_map(|valid| if *valid { vec![1u8] } else { vec![0u8] })
+            .collect::<Vec<_>>()
     }
 
     pub(crate) fn catalog_schema() -> CatalogSchema {
@@ -170,6 +184,7 @@ impl DataFileRecord {
             Column::new("relative_path", CatalogDataType::Utf8, false),
             Column::new("file_size_bytes", CatalogDataType::Int64, false),
             Column::new("record_count", CatalogDataType::Int64, false),
+            Column::new("row_ids", CatalogDataType::Binary, false),
             Column::new("validity", CatalogDataType::Binary, false),
         ])
     }
@@ -193,60 +208,43 @@ impl DataFileRecord {
         let relative_path = row.utf8(2)?.expect("relative_path is not null").to_string();
         let file_size_bytes = row.int64(3)?.expect("file_size_bytes is not null");
         let record_count = row.int64(4)?.expect("record_count is not null");
-        let validity_bytes = row.binary(5)?.expect("validity is not null");
-        let validity = RowsValidity::from_bytes(&validity_bytes)?;
+
+        let row_ids_bytes = row.binary(5)?.expect("row_ids is not null");
+        let row_ids_chunks = row_ids_bytes.chunks_exact(8);
+        let mut row_ids = Vec::with_capacity(record_count as usize);
+        for chunk in row_ids_chunks {
+            row_ids.push(i64::from_le_bytes(chunk.try_into().map_err(|e| {
+                ILError::InternalError(format!("Invalid row ids bytes: {e:?}"))
+            })?));
+        }
+
+        let validity_bytes = row.binary(6)?.expect("validity is not null");
+        let mut validity = Vec::with_capacity(record_count as usize);
+        for byte in validity_bytes {
+            validity.push(*byte == 1u8);
+        }
+
         Ok(DataFileRecord {
             data_file_id,
             table_id,
             relative_path,
             file_size_bytes,
             record_count,
+            row_ids,
             validity,
         })
     }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct RowsValidity {
-    pub(crate) validity: Vec<(i64, bool)>,
-}
-
-impl RowsValidity {
-    pub(crate) fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(self.validity.len() * (8 + 1));
-        for (row_id, valid) in &self.validity {
-            bytes.extend_from_slice(&row_id.to_le_bytes());
-            if *valid {
-                bytes.extend_from_slice(&[1]);
-            } else {
-                bytes.extend_from_slice(&[0]);
-            }
-        }
-        bytes
-    }
-
-    pub(crate) fn from_bytes(bytes: &[u8]) -> ILResult<Self> {
-        if bytes.len() % (8 + 1) != 0 {
-            return Err(ILError::InternalError(format!(
-                "Invalid row validity bytes length: {}",
-                bytes.len()
-            )));
-        }
-        let validity = bytes
-            .chunks_exact(8 + 1)
-            .map(|bytes| {
-                let row_id = i64::from_le_bytes(bytes[..8].try_into().map_err(|e| {
-                    ILError::InternalError(format!("Invalid row validity bytes: {e:?}"))
-                })?);
-                let valid = bytes[8] == 1;
-                Ok((row_id, valid))
-            })
-            .collect::<ILResult<Vec<_>>>()?;
-        Ok(Self { validity })
-    }
 
     pub(crate) fn valid_row_count(&self) -> usize {
-        self.validity.iter().filter(|(_, valid)| *valid).count()
+        self.validity.iter().filter(|valid| **valid).count()
+    }
+
+    pub(crate) fn valid_row_ids(&self) -> impl Iterator<Item = i64> {
+        self.row_ids.iter().enumerate().filter_map(
+            |(i, id)| {
+                if self.validity[i] { Some(*id) } else { None }
+            },
+        )
     }
 
     pub(crate) fn row_selection(&self, row_ids: Option<&HashSet<i64>>) -> ILResult<RowSelection> {
@@ -254,11 +252,11 @@ impl RowsValidity {
             .validity
             .iter()
             .enumerate()
-            .filter(|(_, (row_id, valid))| {
-                *valid
+            .filter(|(i, valid)| {
+                **valid
                     && row_ids
                         .as_ref()
-                        .map(|ids| ids.contains(row_id))
+                        .map(|ids| ids.contains(&self.row_ids[*i]))
                         .unwrap_or(true)
             })
             .map(|(i, _)| i)
@@ -281,24 +279,6 @@ impl RowsValidity {
             ranges.into_iter(),
             self.validity.len(),
         ))
-    }
-
-    pub(crate) fn row_ids(&self) -> Vec<i64> {
-        self.validity
-            .iter()
-            .map(|(row_id, _)| *row_id)
-            .collect::<Vec<_>>()
-    }
-
-    pub(crate) fn valid_row_ids(&self) -> impl Iterator<Item = i64> {
-        self.validity
-            .iter()
-            .filter(|(_, valid)| *valid)
-            .map(|(row_id, _)| *row_id)
-    }
-
-    pub(crate) fn iter_mut_valid_row_ids(&mut self) -> impl Iterator<Item = &mut (i64, bool)> {
-        self.validity.iter_mut().filter(|(_, valid)| *valid)
     }
 }
 

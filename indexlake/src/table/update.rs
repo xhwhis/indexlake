@@ -26,7 +26,7 @@ pub(crate) async fn process_update_by_condition(
     storage: Arc<Storage>,
     table_id: Uuid,
     table_schema: &SchemaRef,
-    set_map: HashMap<String, Scalar>,
+    set_map: HashMap<String, Expr>,
     condition: &Expr,
     mut matched_data_file_rows: HashMap<Uuid, RecordBatchStream>,
 ) -> ILResult<()> {
@@ -66,7 +66,7 @@ pub(crate) async fn process_update_by_condition(
 pub(crate) async fn update_data_file_rows_by_matched_rows(
     tx_helper: &mut TransactionHelper,
     table_id: &Uuid,
-    set_map: &HashMap<String, Scalar>,
+    set_map: &HashMap<String, Expr>,
     matched_data_file_rows: &mut RecordBatchStream,
     data_file_record: DataFileRecord,
 ) -> ILResult<()> {
@@ -101,7 +101,7 @@ pub(crate) async fn update_data_file_rows_by_condition(
     storage: &Storage,
     table_id: &Uuid,
     table_schema: &SchemaRef,
-    set_map: &HashMap<String, Scalar>,
+    set_map: &HashMap<String, Expr>,
     condition: &Expr,
     data_file_record: DataFileRecord,
 ) -> ILResult<()> {
@@ -224,13 +224,13 @@ pub(crate) async fn parallel_find_matched_data_file_rows(
 
 fn update_record_batch(
     batch: &RecordBatch,
-    set_map: &HashMap<String, Scalar>,
+    set_map: &HashMap<String, Expr>,
 ) -> ILResult<RecordBatch> {
     let mut columns = batch.columns().to_vec();
     for (name, value) in set_map {
         let idx = batch.schema().index_of(&name)?;
-        let array = value.to_array_of_size(batch.num_rows())?;
-        columns[idx] = Arc::new(array);
+        let new_array = value.eval(batch)?.into_array(batch.num_rows())?;
+        columns[idx] = Arc::new(new_array);
     }
     let options = RecordBatchOptions::default().with_row_count(Some(batch.num_rows()));
     Ok(RecordBatch::try_new_with_options(
