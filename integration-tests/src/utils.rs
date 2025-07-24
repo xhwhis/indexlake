@@ -1,12 +1,15 @@
+use std::sync::Arc;
+
 use arrow::{
     array::{ArrayRef, RecordBatch, RecordBatchOptions},
-    util::pretty::pretty_format_batches,
+    util::pretty::pretty_format_batches_with_schema,
 };
 use futures::TryStreamExt;
 use indexlake::{
     ILError, ILResult,
     catalog::INTERNAL_ROW_ID_FIELD_NAME,
     table::{Table, TableScan, TableSearch},
+    utils::project_schema,
 };
 
 pub fn sort_record_batches(batches: &[RecordBatch], sort_col: &str) -> ILResult<RecordBatch> {
@@ -39,16 +42,22 @@ pub async fn full_table_scan(table: &Table) -> ILResult<String> {
 }
 
 pub async fn table_scan(table: &Table, scan: TableScan) -> ILResult<String> {
+    let batch_schema = Arc::new(project_schema(&table.schema, scan.projection.as_ref())?);
     let stream = table.scan(scan).await?;
     let batches = stream.try_collect::<Vec<_>>().await?;
-    let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME)?;
-    let table_str = pretty_format_batches(&[sorted_batch])?.to_string();
+    let sorted_batches = if batches.is_empty() {
+        vec![]
+    } else {
+        vec![sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME)?]
+    };
+    let table_str = pretty_format_batches_with_schema(batch_schema, &sorted_batches)?.to_string();
     Ok(table_str)
 }
 
 pub async fn table_search(table: &Table, search: TableSearch) -> ILResult<String> {
+    let batch_schema = Arc::new(project_schema(&table.schema, search.projection.as_ref())?);
     let stream = table.search(search).await?;
     let batches = stream.try_collect::<Vec<_>>().await?;
-    let table_str = pretty_format_batches(&batches)?.to_string();
+    let table_str = pretty_format_batches_with_schema(batch_schema, &batches)?.to_string();
     Ok(table_str)
 }

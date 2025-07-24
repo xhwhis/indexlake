@@ -13,7 +13,7 @@ pub use utils::*;
 pub use visitor::*;
 
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock, OnceLock};
 
 use arrow::{
     array::{ArrayRef, AsArray, BooleanArray, RecordBatch},
@@ -167,6 +167,31 @@ impl Expr {
             ))
         })?;
         Ok(bool_array.clone())
+    }
+
+    pub(crate) fn constant_eval(&self) -> ILResult<Scalar> {
+        if !visited_columns(self).is_empty() {
+            return Err(ILError::InvalidInput(format!(
+                "expr {self} is not constant"
+            )));
+        }
+
+        static EMPTY_BATCH: LazyLock<RecordBatch> =
+            LazyLock::new(|| RecordBatch::new_empty(Arc::new(Schema::empty())));
+
+        let value = self.eval(&EMPTY_BATCH)?;
+        match value {
+            ColumnarValue::Scalar(scalar) => Ok(scalar),
+            ColumnarValue::Array(array) => {
+                if array.len() == 1 {
+                    Scalar::try_from_array(&array, 0)
+                } else {
+                    Err(ILError::InvalidInput(format!(
+                        "expr {self} is not constant"
+                    )))
+                }
+            }
+        }
     }
 
     pub fn as_literal(self) -> ILResult<Scalar> {

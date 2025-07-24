@@ -115,6 +115,7 @@ impl Table {
     }
 
     pub async fn update(&self, set_map: HashMap<String, Expr>, condition: &Expr) -> ILResult<()> {
+        // TODO update all rows
         condition.check_data_type(&self.schema, &DataType::Boolean)?;
 
         let catalog_helper = CatalogHelper::new(self.catalog.clone());
@@ -146,6 +147,12 @@ impl Table {
 
     pub async fn delete(&self, condition: &Expr) -> ILResult<()> {
         condition.check_data_type(&self.schema, &DataType::Boolean)?;
+
+        if let Ok(scalar) = condition.constant_eval()
+            && matches!(scalar, Scalar::Boolean(Some(true)))
+        {
+            return self.truncate().await;
+        }
 
         if condition.only_visit_row_id_column() {
             let mut tx_helper = self.transaction_helper().await?;
