@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use arrow::datatypes::{FieldRef, SchemaRef};
 use futures::StreamExt;

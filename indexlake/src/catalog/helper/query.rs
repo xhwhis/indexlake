@@ -345,7 +345,10 @@ impl CatalogHelper {
         Ok(data_files)
     }
 
-    pub(crate) async fn get_index_files(&self, table_id: &Uuid) -> ILResult<Vec<IndexFileRecord>> {
+    pub(crate) async fn get_table_index_files(
+        &self,
+        table_id: &Uuid,
+    ) -> ILResult<Vec<IndexFileRecord>> {
         let schema = Arc::new(IndexFileRecord::catalog_schema());
         let rows = self
             .query_rows(
@@ -353,6 +356,28 @@ impl CatalogHelper {
                     "SELECT {} FROM indexlake_index_file WHERE table_id = {}",
                     schema.select_items(self.catalog.database()).join(", "),
                     self.catalog.database().sql_uuid_value(table_id)
+                ),
+                schema,
+            )
+            .await?;
+        let mut index_files = Vec::with_capacity(rows.len());
+        for row in rows {
+            index_files.push(IndexFileRecord::from_row(&row)?);
+        }
+        Ok(index_files)
+    }
+
+    pub(crate) async fn get_index_files_by_index_id(
+        &self,
+        index_id: &Uuid,
+    ) -> ILResult<Vec<IndexFileRecord>> {
+        let schema = Arc::new(IndexFileRecord::catalog_schema());
+        let rows = self
+            .query_rows(
+                &format!(
+                    "SELECT {} FROM indexlake_index_file WHERE index_id = {}",
+                    schema.select_items(self.catalog.database()).join(", "),
+                    self.catalog.database().sql_uuid_value(index_id)
                 ),
                 schema,
             )

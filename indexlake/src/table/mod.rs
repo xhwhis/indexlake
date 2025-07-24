@@ -182,13 +182,19 @@ impl Table {
     pub async fn truncate(&self) -> ILResult<()> {
         let catalog_helper = CatalogHelper::new(self.catalog.clone());
         let data_file_records = catalog_helper.get_data_files(&self.table_id).await?;
-        let index_file_records = catalog_helper.get_index_files(&self.table_id).await?;
+        let index_file_records = catalog_helper.get_table_index_files(&self.table_id).await?;
 
         let mut tx_helper = self.transaction_helper().await?;
-        process_catalog_truncate(&mut tx_helper, &self.table_id).await?;
+
+        tx_helper.truncate_inline_row_table(&self.table_id).await?;
+
+        tx_helper.delete_all_data_files(&self.table_id).await?;
+        tx_helper.delete_table_index_files(&self.table_id).await?;
+
         tx_helper.commit().await?;
 
-        spawn_storage_clean_task(self.storage.clone(), data_file_records, index_file_records);
+        spawn_storage_data_files_clean_task(self.storage.clone(), data_file_records);
+        spawn_storage_index_files_clean_task(self.storage.clone(), index_file_records);
         Ok(())
     }
 
@@ -196,13 +202,51 @@ impl Table {
     pub async fn drop(self) -> ILResult<()> {
         let catalog_helper = CatalogHelper::new(self.catalog.clone());
         let data_file_records = catalog_helper.get_data_files(&self.table_id).await?;
-        let index_file_records = catalog_helper.get_index_files(&self.table_id).await?;
+        let index_file_records = catalog_helper.get_table_index_files(&self.table_id).await?;
 
         let mut tx_helper = self.transaction_helper().await?;
-        process_catalog_drop(&mut tx_helper, &self.table_id).await?;
+
+        tx_helper.drop_inline_row_table(&self.table_id).await?;
+
+        tx_helper.delete_all_data_files(&self.table_id).await?;
+        tx_helper.delete_table_index_files(&self.table_id).await?;
+
+        tx_helper.delete_table_indexes(&self.table_id).await?;
+        tx_helper.delete_fields(&self.table_id).await?;
+        tx_helper.delete_table(&self.table_id).await?;
+
         tx_helper.commit().await?;
 
-        spawn_storage_clean_task(self.storage.clone(), data_file_records, index_file_records);
+        spawn_storage_data_files_clean_task(self.storage.clone(), data_file_records);
+        spawn_storage_index_files_clean_task(self.storage.clone(), index_file_records);
+        Ok(())
+    }
+
+    pub async fn drop_index(&mut self, index_name: &str, if_exists: bool) -> ILResult<()> {
+        let Some(index_def) = self.indexes.get(index_name) else {
+            if if_exists {
+                return Ok(());
+            }
+            return Err(ILError::InvalidInput(format!(
+                "Index {index_name} not found"
+            )));
+        };
+
+        let catalog_helper = CatalogHelper::new(self.catalog.clone());
+        let index_file_records = catalog_helper
+            .get_index_files_by_index_id(&index_def.index_id)
+            .await?;
+
+        let mut tx_helper = self.transaction_helper().await?;
+
+        tx_helper.delete_index(&index_def.index_id).await?;
+        tx_helper.delete_index_files(&index_def.index_id).await?;
+
+        tx_helper.commit().await?;
+
+        spawn_storage_index_files_clean_task(self.storage.clone(), index_file_records);
+
+        self.indexes.remove(index_name);
         Ok(())
     }
 
@@ -233,35 +277,9 @@ impl Table {
     }
 }
 
-async fn process_catalog_truncate(
-    tx_helper: &mut TransactionHelper,
-    table_id: &Uuid,
-) -> ILResult<()> {
-    tx_helper.truncate_inline_row_table(table_id).await?;
-
-    tx_helper.delete_all_data_files(table_id).await?;
-    tx_helper.delete_all_index_files(table_id).await?;
-
-    Ok(())
-}
-
-async fn process_catalog_drop(tx_helper: &mut TransactionHelper, table_id: &Uuid) -> ILResult<()> {
-    tx_helper.drop_inline_row_table(table_id).await?;
-
-    tx_helper.delete_all_data_files(table_id).await?;
-    tx_helper.delete_all_index_files(table_id).await?;
-
-    tx_helper.delete_indexes(table_id).await?;
-    tx_helper.delete_fields(table_id).await?;
-    tx_helper.delete_table(table_id).await?;
-
-    Ok(())
-}
-
-fn spawn_storage_clean_task(
+fn spawn_storage_data_files_clean_task(
     storage: Arc<Storage>,
     data_file_records: Vec<DataFileRecord>,
-    index_file_records: Vec<IndexFileRecord>,
 ) {
     tokio::spawn(async move {
         for data_file_record in data_file_records {
@@ -272,6 +290,14 @@ fn spawn_storage_clean_task(
                 );
             }
         }
+    });
+}
+
+fn spawn_storage_index_files_clean_task(
+    storage: Arc<Storage>,
+    index_file_records: Vec<IndexFileRecord>,
+) {
+    tokio::spawn(async move {
         for index_file_record in index_file_records {
             if let Err(e) = storage.delete(&index_file_record.relative_path).await {
                 warn!(
