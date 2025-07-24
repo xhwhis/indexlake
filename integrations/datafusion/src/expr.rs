@@ -1,5 +1,9 @@
+use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::common::DFSchema;
+use datafusion::common::tree_node::TreeNode;
 use datafusion::logical_expr::{ExprSchemable, Operator};
+use datafusion::optimizer::analyzer::type_coercion::TypeCoercionRewriter;
+use datafusion::prelude::SessionContext;
 use datafusion::{common::ScalarValue, error::DataFusionError, prelude::Expr};
 use indexlake::catalog::Scalar as ILScalar;
 use indexlake::expr::BinaryOp as ILOperator;
@@ -137,5 +141,43 @@ pub fn datafusion_operator_to_indexlake_operator(
             "Unsupported operator: {:?}",
             operator
         ))),
+    }
+}
+
+pub fn parse_expr(expr: &str, schema: SchemaRef) -> Result<ILExpr, DataFusionError> {
+    let ctx = SessionContext::new();
+    let df_schema = DFSchema::try_from(schema)?;
+    let expr = ctx.parse_sql_expr(expr, &df_schema)?;
+
+    let mut rewriter = TypeCoercionRewriter::new(&df_schema);
+    let coerced_expr = expr.rewrite(&mut rewriter)?;
+
+    datafusion_expr_to_indexlake_expr(&coerced_expr.data, &df_schema)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use datafusion::arrow::datatypes::{DataType, Field, Schema};
+    use std::sync::Arc;
+
+    #[test]
+    fn test_parse_expr() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Int32, false),
+            Field::new("name", DataType::Utf8, false),
+        ]));
+        let expr = parse_expr("id + 1", schema).unwrap();
+        assert_eq!(
+            expr,
+            ILExpr::BinaryExpr(indexlake::expr::BinaryExpr {
+                left: Box::new(ILExpr::Cast(indexlake::expr::Cast {
+                    expr: Box::new(indexlake::expr::col("id")),
+                    cast_type: DataType::Int64,
+                })),
+                right: Box::new(indexlake::expr::lit(1i64)),
+                op: ILOperator::Plus,
+            })
+        );
     }
 }
