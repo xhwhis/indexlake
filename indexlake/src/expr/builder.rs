@@ -30,6 +30,30 @@ impl Expr {
         })
     }
 
+    pub fn gteq(self, other: Expr) -> Expr {
+        Expr::BinaryExpr(BinaryExpr {
+            left: Box::new(self),
+            op: BinaryOp::GtEq,
+            right: Box::new(other),
+        })
+    }
+
+    pub fn lt(self, other: Expr) -> Expr {
+        Expr::BinaryExpr(BinaryExpr {
+            left: Box::new(self),
+            op: BinaryOp::Lt,
+            right: Box::new(other),
+        })
+    }
+
+    pub fn lteq(self, other: Expr) -> Expr {
+        Expr::BinaryExpr(BinaryExpr {
+            left: Box::new(self),
+            op: BinaryOp::LtEq,
+            right: Box::new(other),
+        })
+    }
+
     pub fn plus(self, other: Expr) -> Expr {
         Expr::BinaryExpr(BinaryExpr {
             left: Box::new(self),

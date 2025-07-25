@@ -19,12 +19,12 @@ pub fn datafusion_expr_to_indexlake_expr(
         Expr::Literal(lit, _) => Ok(ILExpr::Literal(datafusion_scalar_to_indexlake_scalar(lit)?)),
         Expr::BinaryExpr(binary) => {
             let left = Box::new(datafusion_expr_to_indexlake_expr(&binary.left, schema)?);
-            let right = Box::new(datafusion_expr_to_indexlake_expr(&binary.right, schema)?);
             let op = datafusion_operator_to_indexlake_operator(&binary.op)?;
+            let right = Box::new(datafusion_expr_to_indexlake_expr(&binary.right, schema)?);
             Ok(ILExpr::BinaryExpr(indexlake::expr::BinaryExpr {
                 left,
-                right,
                 op,
+                right,
             }))
         }
         Expr::Not(expr) => {
@@ -38,6 +38,68 @@ pub fn datafusion_expr_to_indexlake_expr(
         Expr::IsNotNull(expr) => {
             let expr = Box::new(datafusion_expr_to_indexlake_expr(expr, schema)?);
             Ok(ILExpr::IsNotNull(expr))
+        }
+        Expr::IsTrue(expr) => {
+            let expr = Box::new(datafusion_expr_to_indexlake_expr(expr, schema)?);
+            Ok(ILExpr::BinaryExpr(indexlake::expr::BinaryExpr {
+                left: expr,
+                op: ILOperator::IsNotDistinctFrom,
+                right: Box::new(indexlake::expr::lit(true)),
+            }))
+        }
+        Expr::IsNotTrue(expr) => {
+            let expr = Box::new(datafusion_expr_to_indexlake_expr(expr, schema)?);
+            Ok(ILExpr::BinaryExpr(indexlake::expr::BinaryExpr {
+                left: expr,
+                op: ILOperator::IsDistinctFrom,
+                right: Box::new(indexlake::expr::lit(true)),
+            }))
+        }
+        Expr::IsFalse(expr) => {
+            let expr = Box::new(datafusion_expr_to_indexlake_expr(expr, schema)?);
+            Ok(ILExpr::BinaryExpr(indexlake::expr::BinaryExpr {
+                left: expr,
+                op: ILOperator::IsNotDistinctFrom,
+                right: Box::new(indexlake::expr::lit(false)),
+            }))
+        }
+        Expr::IsNotFalse(expr) => {
+            let expr = Box::new(datafusion_expr_to_indexlake_expr(expr, schema)?);
+            Ok(ILExpr::BinaryExpr(indexlake::expr::BinaryExpr {
+                left: expr,
+                op: ILOperator::IsDistinctFrom,
+                right: Box::new(indexlake::expr::lit(false)),
+            }))
+        }
+        Expr::IsUnknown(expr) => {
+            let expr = Box::new(datafusion_expr_to_indexlake_expr(expr, schema)?);
+            Ok(ILExpr::BinaryExpr(indexlake::expr::BinaryExpr {
+                left: expr,
+                op: ILOperator::IsNotDistinctFrom,
+                right: Box::new(ILExpr::Literal(ILScalar::Boolean(None))),
+            }))
+        }
+        Expr::IsNotUnknown(expr) => {
+            let expr = Box::new(datafusion_expr_to_indexlake_expr(expr, schema)?);
+            Ok(ILExpr::BinaryExpr(indexlake::expr::BinaryExpr {
+                left: expr,
+                op: ILOperator::IsDistinctFrom,
+                right: Box::new(ILExpr::Literal(ILScalar::Boolean(None))),
+            }))
+        }
+        Expr::Between(between) => {
+            let expr = datafusion_expr_to_indexlake_expr(&between.expr, schema)?;
+            let low = datafusion_expr_to_indexlake_expr(&between.low, schema)?;
+            let high = datafusion_expr_to_indexlake_expr(&between.high, schema)?;
+
+            let left_expr = expr.clone().gteq(low);
+            let right_expr = expr.lteq(high);
+            let and_expr = left_expr.and(right_expr);
+            if between.negated {
+                Ok(ILExpr::Not(Box::new(and_expr)))
+            } else {
+                Ok(and_expr)
+            }
         }
         Expr::InList(in_list) => {
             let expr = Box::new(datafusion_expr_to_indexlake_expr(&in_list.expr, schema)?);
@@ -145,6 +207,8 @@ pub fn datafusion_operator_to_indexlake_operator(
         Operator::Modulo => Ok(ILOperator::Modulo),
         Operator::And => Ok(ILOperator::And),
         Operator::Or => Ok(ILOperator::Or),
+        Operator::IsDistinctFrom => Ok(ILOperator::IsDistinctFrom),
+        Operator::IsNotDistinctFrom => Ok(ILOperator::IsNotDistinctFrom),
         _ => Err(DataFusionError::NotImplemented(format!(
             "Unsupported operator: {operator}",
         ))),

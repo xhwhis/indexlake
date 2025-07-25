@@ -42,6 +42,8 @@ pub enum BinaryOp {
     And,
     /// Logical OR, like `||`
     Or,
+    IsDistinctFrom,
+    IsNotDistinctFrom,
 }
 
 impl std::fmt::Display for BinaryOp {
@@ -60,6 +62,8 @@ impl std::fmt::Display for BinaryOp {
             BinaryOp::Modulo => write!(f, "%"),
             BinaryOp::And => write!(f, "AND"),
             BinaryOp::Or => write!(f, "OR"),
+            BinaryOp::IsDistinctFrom => write!(f, "IS DISTINCT FROM"),
+            BinaryOp::IsNotDistinctFrom => write!(f, "IS NOT DISTINCT FROM"),
         }
     }
 }
@@ -108,6 +112,12 @@ impl BinaryExpr {
                 return apply_boolean(&lhs, &rhs, arrow::compute::kernels::boolean::and);
             }
             BinaryOp::Or => return apply_boolean(&lhs, &rhs, arrow::compute::kernels::boolean::or),
+            BinaryOp::IsDistinctFrom => {
+                return apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::distinct);
+            }
+            BinaryOp::IsNotDistinctFrom => {
+                return apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::not_distinct);
+            }
         }
     }
 
@@ -122,7 +132,9 @@ impl BinaryExpr {
             | BinaryOp::Gt
             | BinaryOp::GtEq
             | BinaryOp::And
-            | BinaryOp::Or => Ok(DataType::Boolean),
+            | BinaryOp::Or
+            | BinaryOp::IsDistinctFrom
+            | BinaryOp::IsNotDistinctFrom => Ok(DataType::Boolean),
             BinaryOp::Plus
             | BinaryOp::Minus
             | BinaryOp::Multiply
