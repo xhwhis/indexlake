@@ -14,6 +14,7 @@ pub fn datafusion_expr_to_indexlake_expr(
     schema: &DFSchema,
 ) -> Result<ILExpr, DataFusionError> {
     match expr {
+        Expr::Alias(alias) => datafusion_expr_to_indexlake_expr(&alias.expr, schema),
         Expr::Column(col) => Ok(ILExpr::Column(col.name.clone())),
         Expr::Literal(lit, _) => Ok(ILExpr::Literal(datafusion_scalar_to_indexlake_scalar(lit)?)),
         Expr::BinaryExpr(binary) => {
@@ -66,6 +67,13 @@ pub fn datafusion_expr_to_indexlake_expr(
             Ok(ILExpr::Cast(indexlake::expr::Cast {
                 expr,
                 cast_type: cast.data_type.clone(),
+            }))
+        }
+        Expr::TryCast(try_cast) => {
+            let expr = Box::new(datafusion_expr_to_indexlake_expr(&try_cast.expr, schema)?);
+            Ok(ILExpr::TryCast(indexlake::expr::TryCast {
+                expr,
+                cast_type: try_cast.data_type.clone(),
             }))
         }
         Expr::Negative(expr) => {
@@ -138,8 +146,7 @@ pub fn datafusion_operator_to_indexlake_operator(
         Operator::And => Ok(ILOperator::And),
         Operator::Or => Ok(ILOperator::Or),
         _ => Err(DataFusionError::NotImplemented(format!(
-            "Unsupported operator: {:?}",
-            operator
+            "Unsupported operator: {operator}",
         ))),
     }
 }

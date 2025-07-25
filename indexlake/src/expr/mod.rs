@@ -60,6 +60,7 @@ pub enum Expr {
     Function(Function),
     Like(Like),
     Cast(Cast),
+    TryCast(TryCast),
     Negative(Box<Expr>),
 }
 
@@ -132,7 +133,15 @@ impl Expr {
             Expr::Like(like) => like.eval(batch),
             Expr::Cast(cast) => {
                 let value = cast.expr.eval(batch)?;
-                value.cast_to(&cast.cast_type, None)
+                value.cast_to(&cast.cast_type, &DEFAULT_CAST_OPTIONS)
+            }
+            Expr::TryCast(try_cast) => {
+                let value = try_cast.expr.eval(batch)?;
+                let options = CastOptions {
+                    safe: true,
+                    format_options: DEFAULT_FORMAT_OPTIONS,
+                };
+                value.cast_to(&try_cast.cast_type, &options)
             }
             Expr::Negative(expr) => match expr.eval(batch)? {
                 ColumnarValue::Array(array) => {
@@ -216,6 +225,7 @@ impl Expr {
             Expr::Function(function) => Ok(function.return_type.clone()),
             Expr::Like(_) => Ok(DataType::Boolean),
             Expr::Cast(cast) => Ok(cast.cast_type.clone()),
+            Expr::TryCast(try_cast) => Ok(try_cast.cast_type.clone()),
             Expr::Negative(expr) => expr.data_type(schema),
         }
     }
@@ -250,6 +260,9 @@ impl Expr {
                     catalog_datatype.to_sql(database)
                 ))
             }
+            Expr::TryCast(_) => Err(ILError::InvalidInput(format!(
+                "TRY_CAST is not supported in SQL"
+            ))),
             Expr::Negative(expr) => Ok(format!("-{}", expr.to_sql(database)?)),
         }
     }
@@ -292,6 +305,9 @@ impl std::fmt::Display for Expr {
             ),
             Expr::Like(like) => write!(f, "{}", like),
             Expr::Cast(cast) => write!(f, "CAST({} AS {})", cast.expr, cast.cast_type),
+            Expr::TryCast(try_cast) => {
+                write!(f, "TRY_CAST({} AS {})", try_cast.expr, try_cast.cast_type)
+            }
             Expr::Negative(expr) => write!(f, "-{}", expr),
         }
     }
@@ -363,9 +379,13 @@ pub struct Cast {
     /// The `DataType` the expression will yield
     #[drive(skip)]
     pub cast_type: DataType,
-    // TODO wait https://github.com/apache/arrow-rs/pull/7981
-    // #[drive(skip)]
-    // pub cast_options: Option<CastOptions<'static>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Drive, DriveMut, Serialize, Deserialize)]
+pub struct TryCast {
+    pub expr: Box<Expr>,
+    #[drive(skip)]
+    pub cast_type: DataType,
 }
 
 #[derive(Clone, Debug)]
@@ -387,15 +407,14 @@ impl ColumnarValue {
     pub fn cast_to(
         &self,
         cast_type: &DataType,
-        cast_options: Option<&CastOptions<'static>>,
+        cast_options: &CastOptions<'static>,
     ) -> ILResult<ColumnarValue> {
-        let cast_options = cast_options.cloned().unwrap_or(DEFAULT_CAST_OPTIONS);
         match self {
             ColumnarValue::Array(array) => Ok(ColumnarValue::Array(
-                arrow::compute::kernels::cast::cast_with_options(array, cast_type, &cast_options)?,
+                arrow::compute::kernels::cast::cast_with_options(array, cast_type, cast_options)?,
             )),
             ColumnarValue::Scalar(scalar) => Ok(ColumnarValue::Scalar(
-                scalar.cast_to(cast_type, &cast_options)?,
+                scalar.cast_to(cast_type, cast_options)?,
             )),
         }
     }
