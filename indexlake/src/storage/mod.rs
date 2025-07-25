@@ -96,15 +96,13 @@ impl OutputFile {
         Ok(self.op.delete(&self.relative_path).await?)
     }
 
-    pub async fn write(&self, bytes: bytes::Bytes) -> ILResult<()> {
-        let mut writer = self.op.writer(&self.relative_path).await?;
-        writer.write(bytes).await?;
-        writer.close().await?;
-        Ok(())
+    pub fn writer(&mut self) -> &mut opendal::Writer {
+        &mut self.writer
     }
 
-    pub fn writer(&self) -> &opendal::Writer {
-        &self.writer
+    pub async fn close(&mut self) -> ILResult<()> {
+        self.writer.close().await?;
+        Ok(())
     }
 }
 
