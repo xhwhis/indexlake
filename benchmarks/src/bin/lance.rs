@@ -2,7 +2,10 @@ use std::{sync::Arc, time::Instant};
 
 use arrow::{array::RecordBatchIterator, record_batch::RecordBatch};
 use futures::StreamExt;
-use indexlake_benchmarks::data::{arrow_table_schema, new_record_batch};
+use indexlake_benchmarks::{
+    data::{arrow_table_schema, new_record_batch},
+    setup_s3_env,
+};
 use indexlake_integration_tests::setup_minio;
 use lance::Dataset;
 
@@ -51,16 +54,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         start_time.elapsed().as_millis()
     );
     Ok(())
-}
-
-fn setup_s3_env() {
-    unsafe {
-        std::env::set_var("AWS_ACCESS_KEY_ID", "admin");
-        std::env::set_var("AWS_SECRET_ACCESS_KEY", "password");
-        std::env::set_var("AWS_ENDPOINT", "http://127.0.0.1:9000");
-        std::env::set_var("AWS_REGION", "us-east-1");
-        std::env::set_var("AWS_BUCKET", "indexlake");
-        std::env::set_var("AWS_EC2_METADATA_DISABLED", "true");
-        std::env::set_var("AWS_ALLOW_HTTP", "true");
-    }
 }
