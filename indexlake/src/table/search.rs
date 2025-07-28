@@ -13,14 +13,10 @@ use uuid::Uuid;
 use crate::{
     ILError, ILResult, RecordBatchStream,
     catalog::{
-        CatalogHelper, CatalogSchema, DataFileRecord, INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord,
-        Row, rows_to_record_batch,
+        CatalogHelper, CatalogSchema, DataFileRecord, IndexFileRecord, Row, rows_to_record_batch,
     },
-    expr::col,
-    index::{
-        IndexDefination, IndexDefinationRef, IndexKind, RowIdScore, SearchIndexEntries, SearchQuery,
-    },
-    storage::read_parquet_file_by_record,
+    index::{IndexDefinationRef, IndexKind, RowIdScore, SearchIndexEntries, SearchQuery},
+    storage::{Storage, read_parquet_file_by_record},
     table::Table,
     utils::project_schema,
 };
@@ -65,24 +61,38 @@ pub(crate) async fn process_search(
 
     let index_id = index_def.index_id;
 
-    let mut index_file_search_entries = HashMap::new();
+    let mut handles = Vec::new();
     for data_file_record in data_file_records.iter() {
         let data_file_id = data_file_record.data_file_id;
-        let index_file_record = catalog_helper
-            .get_index_file_by_index_id_and_data_file_id(&index_id, &data_file_id)
-            .await?
-            .ok_or(ILError::IndexError(format!(
-                "Index file not found for index {index_id} and data file {data_file_id}"
-            )))?;
+        let storage = table.storage.clone();
+        let catalog_helper = catalog_helper.clone();
+        let index_kind = index_kind.clone();
+        let index_def = index_def.clone();
+        let search_query = search.query.clone();
+        let handle = tokio::spawn(async move {
+            let index_file_record = catalog_helper
+                .get_index_file_by_index_id_and_data_file_id(&index_id, &data_file_id)
+                .await?
+                .ok_or(ILError::IndexError(format!(
+                    "Index file not found for index {index_id} and data file {data_file_id}"
+                )))?;
 
-        let search_entries = search_index_file(
-            table,
-            index_kind.as_ref(),
-            index_def,
-            &search,
-            &index_file_record,
-        )
-        .await?;
+            let search_entries = search_index_file(
+                &storage,
+                index_kind.as_ref(),
+                &index_def,
+                search_query.as_ref(),
+                &index_file_record,
+            )
+            .await?;
+            Ok::<_, ILError>((data_file_id, search_entries))
+        });
+        handles.push(handle);
+    }
+
+    let mut index_file_search_entries = HashMap::new();
+    for handle in handles {
+        let (data_file_id, search_entries) = handle.await??;
         index_file_search_entries.insert(data_file_id, search_entries);
     }
 
@@ -153,23 +163,20 @@ async fn search_inline_rows(
 }
 
 async fn search_index_file(
-    table: &Table,
+    storage: &Storage,
     index_kind: &dyn IndexKind,
     index_def: &IndexDefinationRef,
-    search: &TableSearch,
+    search_query: &dyn SearchQuery,
     index_file_record: &IndexFileRecord,
 ) -> ILResult<SearchIndexEntries> {
-    let index_file = table
-        .storage
-        .open_file(&index_file_record.relative_path)
-        .await?;
+    let index_file = storage.open_file(&index_file_record.relative_path).await?;
 
     let mut index_builder = index_kind.builder(index_def)?;
     index_builder.read_file(index_file).await?;
 
     let index = index_builder.build()?;
 
-    let search_index_entries = index.search(search.query.as_ref()).await?;
+    let search_index_entries = index.search(search_query).await?;
 
     Ok(search_index_entries)
 }
