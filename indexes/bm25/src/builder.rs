@@ -21,7 +21,7 @@ use parquet::{
     file::properties::WriterProperties,
 };
 
-use crate::{BM25Index, BM25IndexParams};
+use crate::{BM25Index, BM25IndexParams, JiebaTokenizer};
 
 static BM25_INDEX_SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| {
     Arc::new(Schema::new(vec![
@@ -49,7 +49,7 @@ static BM25_INDEX_SCHEMA_EMBEDDING_VALUES_INNER_FIELD: LazyLock<FieldRef> =
 pub struct Bm25IndexBuilder {
     index_def: IndexDefinationRef,
     params: BM25IndexParams,
-    embedder: Embedder,
+    embedder: Embedder<u32, JiebaTokenizer>,
     embeddings: Vec<(Int64Array, Vec<Option<Embedding>>)>,
 }
 
@@ -141,15 +141,14 @@ impl IndexBuilder for Bm25IndexBuilder {
     }
 }
 
-fn new_embedder(params: &BM25IndexParams) -> Embedder {
-    let embedder = EmbedderBuilder::with_avgdl(256.)
-        .language_mode(params.language.to_language_mode())
-        .build();
-    embedder
+fn new_embedder(params: &BM25IndexParams) -> Embedder<u32, JiebaTokenizer> {
+    EmbedderBuilder::with_avgdl(params.avgdl)
+        .tokenizer(JiebaTokenizer)
+        .build()
 }
 
 fn compute_embeddings(
-    embedder: &Embedder,
+    embedder: &Embedder<u32, JiebaTokenizer>,
     key_column: &ArrayRef,
 ) -> ILResult<Vec<Option<Embedding>>> {
     let data_type = key_column.data_type();

@@ -9,7 +9,7 @@ use indexlake::{
     },
 };
 
-use crate::BM25IndexParams;
+use crate::{BM25IndexParams, JiebaTokenizer};
 
 #[derive(Debug)]
 pub struct BM25SearchQuery {
@@ -34,7 +34,7 @@ impl SearchQuery for BM25SearchQuery {
 pub struct BM25Index {
     pub index_def: IndexDefinationRef,
     pub params: BM25IndexParams,
-    pub embedder: Embedder,
+    pub embedder: Embedder<u32, JiebaTokenizer>,
     pub scorer: Scorer<i64>,
 }
 

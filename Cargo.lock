@@ -3673,6 +3673,7 @@ dependencies = [
  "bm25",
  "futures",
  "indexlake",
+ "jieba-rs",
  "parquet",
  "serde",
  "serde_json",

@@ -1,7 +1,6 @@
 use std::{any::Any, sync::Arc};
 
 use arrow::datatypes::DataType;
-use bm25::LanguageMode;
 use indexlake::{
     ILError, ILResult,
     expr::Expr,
@@ -66,7 +65,7 @@ impl IndexKind for BM25IndexKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BM25IndexParams {
-    pub language: Language,
+    pub avgdl: f32,
 }
 
 impl IndexParams for BM25IndexParams {
@@ -76,20 +75,5 @@ impl IndexParams for BM25IndexParams {
 
     fn encode(&self) -> ILResult<String> {
         Ok(serde_json::to_string(self).map_err(|e| ILError::IndexError(e.to_string()))?)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Language {
-    English,
-    Chinese,
-}
-
-impl Language {
-    pub fn to_language_mode(&self) -> LanguageMode {
-        match self {
-            Language::English => LanguageMode::Fixed(bm25::Language::English),
-            Language::Chinese => todo!(),
-        }
     }
 }

@@ -7,6 +7,7 @@ license.workspace = true
 repository.workspace = true
 
 [features]
+default = ["lance"]
 deltalake = ["dep:delta_kernel", "dep:deltalake", "dep:deltalake-aws"]
 lance = ["dep:lance", "dep:lance-core", "dep:lance-index", "dep:lance-io", "dep:lance-table"]
 
