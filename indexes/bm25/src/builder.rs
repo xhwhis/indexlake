@@ -1,13 +1,11 @@
 use std::sync::{Arc, LazyLock};
 
 use arrow::{
-    array::{
-        ArrayRef, AsArray, Int64Array, ListArray, ListBuilder, PrimitiveArray, PrimitiveBuilder,
-    },
+    array::{ArrayRef, AsArray, Int64Array, ListArray, ListBuilder, PrimitiveBuilder},
     datatypes::{DataType, Field, FieldRef, Float32Type, Schema, SchemaRef, UInt32Type},
     record_batch::RecordBatch,
 };
-use bm25::{Embedder, EmbedderBuilder, Embedding, Scorer, TokenEmbedding};
+use bm25::{Embedder, EmbedderBuilder, Embedding};
 use futures::StreamExt;
 use indexlake::ILResult;
 use indexlake::{
@@ -21,7 +19,7 @@ use parquet::{
     file::properties::WriterProperties,
 };
 
-use crate::{BM25Index, BM25IndexParams, JiebaTokenizer};
+use crate::{ArrowScorer, BM25Index, BM25IndexParams, JiebaTokenizer};
 
 static BM25_INDEX_SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| {
     Arc::new(Schema::new(vec![
@@ -50,7 +48,7 @@ pub struct Bm25IndexBuilder {
     index_def: IndexDefinationRef,
     params: BM25IndexParams,
     embedder: Embedder<u32, JiebaTokenizer>,
-    embeddings: Vec<(Int64Array, Vec<Option<Embedding>>)>,
+    embeddings: Vec<(Int64Array, ListArray, ListArray)>,
 }
 
 impl Bm25IndexBuilder {
@@ -76,8 +74,9 @@ impl IndexBuilder for Bm25IndexBuilder {
         let key_column = batch.column(key_column_index);
 
         let embeddings = compute_embeddings(&self.embedder, key_column)?;
-
-        self.embeddings.push((row_id_array, embeddings));
+        let (indices_array, values_array) = embeddings_to_arrays(&embeddings)?;
+        self.embeddings
+            .push((row_id_array, indices_array, values_array));
         Ok(())
     }
 
@@ -87,8 +86,34 @@ impl IndexBuilder for Bm25IndexBuilder {
 
         while let Some(batch) = batch_stream.next().await {
             let batch = batch?;
-            let (row_id_array, embeddings) = extract_record_batch(&batch)?;
-            self.embeddings.push((row_id_array, embeddings));
+            let row_id_array = batch
+                .column(0)
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .ok_or(ILError::IndexError(
+                    "Failed to downcast row id to Int64Array".to_string(),
+                ))?;
+            let indices_array =
+                batch
+                    .column(1)
+                    .as_any()
+                    .downcast_ref::<ListArray>()
+                    .ok_or(ILError::IndexError(
+                        "Failed to downcast indices to ListArray".to_string(),
+                    ))?;
+            let values_array =
+                batch
+                    .column(2)
+                    .as_any()
+                    .downcast_ref::<ListArray>()
+                    .ok_or(ILError::IndexError(
+                        "Failed to downcast values to ListArray".to_string(),
+                    ))?;
+            self.embeddings.push((
+                row_id_array.clone(),
+                indices_array.clone(),
+                values_array.clone(),
+            ));
         }
 
         Ok(())
@@ -104,8 +129,15 @@ impl IndexBuilder for Bm25IndexBuilder {
             Some(writer_properties),
         )?;
 
-        for (row_id_array, embeddings) in self.embeddings.iter() {
-            let batch = build_index_record_batch(row_id_array.clone(), embeddings)?;
+        for (row_id_array, indices_array, values_array) in self.embeddings.iter() {
+            let batch = RecordBatch::try_new(
+                BM25_INDEX_SCHEMA.clone(),
+                vec![
+                    Arc::new(row_id_array.clone()),
+                    Arc::new(indices_array.clone()),
+                    Arc::new(values_array.clone()),
+                ],
+            )?;
             arrow_writer.write(&batch).await?;
         }
 
@@ -119,16 +151,13 @@ impl IndexBuilder for Bm25IndexBuilder {
     }
 
     fn build(&mut self) -> ILResult<Box<dyn Index>> {
-        let mut scorer = Scorer::<i64>::new();
-        for (row_id_array, embeddings) in self.embeddings.iter_mut() {
-            for (row_id, embedding) in row_id_array.iter().zip(embeddings.iter_mut()) {
-                if let Some(embedding) = embedding {
-                    scorer.upsert(
-                        &row_id.expect("Row id should not be null"),
-                        std::mem::replace(embedding, Embedding(vec![])),
-                    );
-                }
-            }
+        let mut scorer = ArrowScorer::new();
+        for (row_id_array, indices_array, values_array) in self.embeddings.iter_mut() {
+            scorer.insert(
+                row_id_array.clone(),
+                indices_array.clone(),
+                values_array.clone(),
+            )?;
         }
         let embedder = new_embedder(&self.params);
         let index = BM25Index {
@@ -205,10 +234,7 @@ fn compute_embeddings(
     Ok(embeddings)
 }
 
-fn build_index_record_batch(
-    row_id_array: Int64Array,
-    embeddings: &[Option<Embedding>],
-) -> ILResult<RecordBatch> {
+fn embeddings_to_arrays(embeddings: &[Option<Embedding>]) -> ILResult<(ListArray, ListArray)> {
     let mut indices_builder = ListBuilder::new(PrimitiveBuilder::<UInt32Type>::new())
         .with_field(BM25_INDEX_SCHEMA_EMBEDDING_INDICES_INNER_FIELD.clone());
     let mut values_builder = ListBuilder::new(PrimitiveBuilder::<Float32Type>::new())
@@ -229,73 +255,5 @@ fn build_index_record_batch(
     let indices_array = indices_builder.finish();
     let values_array = values_builder.finish();
 
-    Ok(RecordBatch::try_new(
-        BM25_INDEX_SCHEMA.clone(),
-        vec![
-            Arc::new(row_id_array),
-            Arc::new(indices_array),
-            Arc::new(values_array),
-        ],
-    )?)
-}
-
-fn extract_record_batch(batch: &RecordBatch) -> ILResult<(Int64Array, Vec<Option<Embedding>>)> {
-    let row_id_array = batch
-        .column(0)
-        .as_any()
-        .downcast_ref::<Int64Array>()
-        .ok_or(ILError::IndexError(
-            "Failed to downcast row id to Int64Array".to_string(),
-        ))?;
-    let indices_array =
-        batch
-            .column(1)
-            .as_any()
-            .downcast_ref::<ListArray>()
-            .ok_or(ILError::IndexError(
-                "Failed to downcast indices to ListArray".to_string(),
-            ))?;
-    let values_array =
-        batch
-            .column(2)
-            .as_any()
-            .downcast_ref::<ListArray>()
-            .ok_or(ILError::IndexError(
-                "Failed to downcast values to ListArray".to_string(),
-            ))?;
-
-    let mut embeddings = Vec::with_capacity(row_id_array.len());
-    for (indices, values) in indices_array.iter().zip(values_array.iter()) {
-        let Some(indices) = indices else {
-            embeddings.push(None);
-            continue;
-        };
-        let Some(values) = values else {
-            embeddings.push(None);
-            continue;
-        };
-        let indices = indices
-            .as_any()
-            .downcast_ref::<PrimitiveArray<UInt32Type>>()
-            .ok_or(ILError::IndexError(
-                "Failed to downcast inner indices to PrimitiveArray<UInt32Type>".to_string(),
-            ))?;
-        let values = values
-            .as_any()
-            .downcast_ref::<PrimitiveArray<Float32Type>>()
-            .ok_or(ILError::IndexError(
-                "Failed to downcast inner values to PrimitiveArray<Float32Type>".to_string(),
-            ))?;
-
-        let mut token_embeddings = Vec::with_capacity(indices.len());
-        for (index, value) in indices.iter().zip(values.iter()) {
-            token_embeddings.push(TokenEmbedding {
-                index: index.expect("Index should not be null"),
-                value: value.expect("Value should not be null"),
-            });
-        }
-        let embedding = Embedding(token_embeddings);
-        embeddings.push(Some(embedding));
-    }
-    Ok((row_id_array.clone(), embeddings))
+    Ok((indices_array, values_array))
 }

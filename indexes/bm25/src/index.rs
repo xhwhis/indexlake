@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use bm25::{Embedder, Scorer};
+use bm25::Embedder;
 use indexlake::{
     ILError, ILResult,
     expr::Expr,
@@ -9,7 +9,7 @@ use indexlake::{
     },
 };
 
-use crate::{BM25IndexParams, JiebaTokenizer};
+use crate::{ArrowScorer, BM25IndexParams, JiebaTokenizer};
 
 #[derive(Debug)]
 pub struct BM25SearchQuery {
@@ -35,7 +35,7 @@ pub struct BM25Index {
     pub index_def: IndexDefinationRef,
     pub params: BM25IndexParams,
     pub embedder: Embedder<u32, JiebaTokenizer>,
-    pub scorer: Scorer<i64>,
+    pub scorer: ArrowScorer,
 }
 
 #[async_trait::async_trait]
