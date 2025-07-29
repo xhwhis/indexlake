@@ -90,9 +90,11 @@ pub(crate) async fn process_search(
         handles.push(handle);
     }
 
-    let mut index_file_search_entries = HashMap::new();
-    for handle in handles {
-        let (data_file_id, search_entries) = handle.await??;
+    let join_all = futures::future::join_all(handles).await;
+
+    let mut index_file_search_entries = HashMap::with_capacity(join_all.len());
+    for res in join_all {
+        let (data_file_id, search_entries) = res??;
         index_file_search_entries.insert(data_file_id, search_entries);
     }
 

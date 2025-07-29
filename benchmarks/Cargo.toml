@@ -7,7 +7,6 @@ license.workspace = true
 repository.workspace = true
 
 [features]
-default = ["lance"]
 deltalake = ["dep:delta_kernel", "dep:deltalake", "dep:deltalake-aws"]
 lance = ["dep:lance", "dep:lance-core", "dep:lance-index", "dep:lance-io", "dep:lance-table"]
 
@@ -17,6 +16,7 @@ indexlake-catalog-postgres = { workspace = true }
 indexlake-catalog-sqlite = { workspace = true }
 indexlake-index-bm25 = { workspace = true }
 indexlake-index-btree = { workspace = true }
+indexlake-index-hnsw = { workspace = true }
 indexlake-index-rstar = { workspace = true }
 indexlake-integration-tests = { workspace = true }
 
@@ -30,12 +30,9 @@ lance-core = { version = "0.31.1", optional = true }
 lance-index = { version = "0.31.1", features = ["tokenizer-jieba"], optional = true }
 lance-io = { version = "0.31.1", optional = true }
 lance-table = { version = "0.31.1", optional = true }
+rand = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 num_cpus = { workspace = true }
-
-[[bin]]
-name = "indexlake"
-path = "src/bin/indexlake.rs"
 
 [[bin]]
 name = "deltalake"
@@ -45,4 +42,9 @@ required-features = ["deltalake"]
 [[bin]]
 name = "lance"
 path = "src/bin/lance.rs"
+required-features = ["lance"]
+
+[[bin]]
+name = "lance_bm25"
+path = "src/bin/lance_bm25.rs"
 required-features = ["lance"]

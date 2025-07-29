@@ -67,6 +67,11 @@ impl IndexBuilder for HnswIndexBuilder {
             .downcast_ref::<ListArray>()
             .ok_or_else(|| ILError::IndexError(format!("Key column is not a list array")))?;
 
+        // TODO fix
+        self.index.reserve(row_id_array.len()).map_err(|e| {
+            ILError::IndexError(format!("Failed to reserve capacity for Hnsw index: {e}"))
+        })?;
+
         for (row_id, vector_arr) in row_id_array.iter().zip(key_column.iter()) {
             let row_id = row_id.expect("row id is null");
             if let Some(arr) = vector_arr {

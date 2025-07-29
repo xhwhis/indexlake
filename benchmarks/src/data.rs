@@ -64,3 +64,42 @@ pub fn new_bm25_record_batch(num_rows: usize) -> RecordBatch {
     )
     .unwrap()
 }
+
+pub fn arrow_hnsw_vector_inner_field() -> Arc<Field> {
+    Arc::new(Field::new("f32", DataType::Float32, false))
+}
+
+pub fn arrow_hnsw_table_schema() -> SchemaRef {
+    let schema = Schema::new(vec![
+        Field::new("id", DataType::Int32, false),
+        Field::new(
+            "vector",
+            DataType::List(arrow_hnsw_vector_inner_field()),
+            false,
+        ),
+    ]);
+    Arc::new(schema)
+}
+
+pub fn new_hnsw_record_batch(num_rows: usize) -> RecordBatch {
+    let schema = arrow_hnsw_table_schema();
+    let id_array = Int32Array::from_iter_values(0..num_rows as i32);
+
+    let mut list_builder =
+        ListBuilder::new(Float32Builder::new()).with_field(arrow_hnsw_vector_inner_field());
+    for _ in 0..num_rows {
+        let rand = rand::random_range(0f32..1000f32);
+        list_builder.values().append_slice(&[rand; 1024]);
+        list_builder.append(true);
+    }
+    let vector_array = list_builder.finish();
+
+    RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(id_array) as ArrayRef,
+            Arc::new(vector_array) as ArrayRef,
+        ],
+    )
+    .unwrap()
+}

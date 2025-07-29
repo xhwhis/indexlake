@@ -3615,6 +3615,7 @@ dependencies = [
  "indexlake-catalog-sqlite",
  "indexlake-index-bm25",
  "indexlake-index-btree",
+ "indexlake-index-hnsw",
  "indexlake-index-rstar",
  "indexlake-integration-tests",
  "lance",
@@ -3623,6 +3624,7 @@ dependencies = [
  "lance-io",
  "lance-table",
  "num_cpus",
+ "rand 0.9.1",
  "tokio",
 ]
 
