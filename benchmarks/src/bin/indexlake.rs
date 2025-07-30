@@ -64,7 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let insert_cost_time = start_time.elapsed();
     println!(
-        "Inserted {} rows by {} tasks in {}ms",
+        "IndexLake: inserted {} rows by {} tasks in {}ms",
         total_rows,
         num_tasks,
         insert_cost_time.as_millis()
@@ -96,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let scan_cost_time = start_time.elapsed();
     println!(
-        "Scanned {} rows by {} tasks in {}ms",
+        "IndexLake: scanned {} rows by {} tasks in {}ms",
         count,
         num_tasks,
         scan_cost_time.as_millis()

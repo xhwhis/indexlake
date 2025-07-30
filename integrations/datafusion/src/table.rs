@@ -10,7 +10,7 @@ use datafusion::{
     physical_plan::ExecutionPlan,
     prelude::Expr,
 };
-use indexlake::table::{Table, TableScan, TableScanPartition};
+use indexlake::table::{Table, TableScanPartition};
 use log::warn;
 
 use crate::{IndexLakeScanExec, datafusion_expr_to_indexlake_expr};

@@ -8,7 +8,7 @@ use std::{
 };
 
 use indexlake::{catalog::Catalog, storage::Storage};
-use indexlake_catalog_postgres::PostgresCatalog;
+use indexlake_catalog_postgres::{PostgresCatalog, PostgresCatalogBuilder};
 use indexlake_catalog_sqlite::SqliteCatalog;
 use opendal::services::S3Config;
 
@@ -73,11 +73,10 @@ pub fn catalog_sqlite() -> Arc<dyn Catalog> {
 
 pub async fn catalog_postgres() -> Arc<dyn Catalog> {
     let _ = POSTGRES_DB.get_or_init(|| setup_postgres_db());
-    Arc::new(
-        PostgresCatalog::try_new("localhost", 5432, "postgres", "password", Some("postgres"))
-            .await
-            .unwrap(),
-    )
+    let builder =
+        PostgresCatalogBuilder::new("localhost", 5432, "postgres", "password").dbname("postgres");
+    let catalog = builder.build().await.unwrap();
+    Arc::new(catalog)
 }
 
 pub fn storage_fs() -> Arc<Storage> {

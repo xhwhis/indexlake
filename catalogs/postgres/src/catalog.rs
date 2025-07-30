@@ -14,24 +14,8 @@ pub struct PostgresCatalog {
 }
 
 impl PostgresCatalog {
-    pub async fn try_new(
-        host: &str,
-        port: u16,
-        user: &str,
-        password: &str,
-        dbname: Option<&str>,
-    ) -> ILResult<Self> {
-        let mut config = bb8_postgres::tokio_postgres::config::Config::new();
-        config.host(host).port(port).user(user).password(password);
-        if let Some(dbname) = dbname {
-            config.dbname(dbname);
-        }
-        let manager = PostgresConnectionManager::new(config, NoTls);
-        let pool = Pool::builder()
-            .build(manager)
-            .await
-            .map_err(|e| ILError::CatalogError(format!("failed to build postgres pool: {e}")))?;
-        Ok(Self { pool })
+    pub fn new(pool: Pool<PostgresConnectionManager<NoTls>>) -> Self {
+        Self { pool }
     }
 }
 
