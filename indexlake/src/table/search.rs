@@ -7,6 +7,7 @@ use arrow::{
     array::{Float64Array, Int64Array, RecordBatch},
     compute::SortOptions,
 };
+use arrow_schema::Schema;
 use futures::{StreamExt, TryStreamExt};
 use uuid::Uuid;
 
@@ -21,6 +22,7 @@ use crate::{
     utils::project_schema,
 };
 
+#[derive(Debug, Clone)]
 pub struct TableSearch {
     pub query: Arc<dyn SearchQuery>,
     pub projection: Option<Vec<usize>>,
@@ -48,14 +50,24 @@ pub(crate) async fn process_search(
 
     let catalog_helper = CatalogHelper::new(table.catalog.clone());
 
-    let inline_search_entries = search_inline_rows(
-        &catalog_helper,
-        table,
-        index_kind.as_ref(),
-        index_def,
-        &search,
-    )
-    .await?;
+    let table_id = table.table_id;
+    let table_schema = table.schema.clone();
+    let catalog_helper_captured = catalog_helper.clone();
+    let index_kind_captured = index_kind.clone();
+    let index_def_captured = index_def.clone();
+    let search_captured = search.clone();
+    let inline_handle = tokio::spawn(async move {
+        let inline_search_entries = search_inline_rows(
+            &catalog_helper_captured,
+            &table_id,
+            &table_schema,
+            index_kind_captured.as_ref(),
+            &index_def_captured,
+            &search_captured,
+        )
+        .await?;
+        Ok::<_, ILError>(inline_search_entries)
+    });
 
     let data_file_records = catalog_helper.get_data_files(&table.table_id).await?;
 
@@ -98,6 +110,8 @@ pub(crate) async fn process_search(
         index_file_search_entries.insert(data_file_id, search_entries);
     }
 
+    let inline_search_entries = inline_handle.await??;
+
     let score_higher_is_better = inline_search_entries.score_higher_is_better;
 
     let row_id_score_locations = merge_search_index_entries(
@@ -134,15 +148,16 @@ pub(crate) async fn process_search(
 
 async fn search_inline_rows(
     catalog_helper: &CatalogHelper,
-    table: &Table,
+    table_id: &Uuid,
+    table_schema: &Schema,
     index_kind: &dyn IndexKind,
     index_def: &IndexDefinationRef,
     search: &TableSearch,
 ) -> ILResult<SearchIndexEntries> {
-    let projected_schema = Arc::new(project_schema(&table.schema, search.projection.as_ref())?);
+    let projected_schema = Arc::new(project_schema(table_schema, search.projection.as_ref())?);
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
     let row_stream = catalog_helper
-        .scan_inline_rows(&table.table_id, &catalog_schema, &[])
+        .scan_inline_rows(table_id, &catalog_schema, &[])
         .await?;
     let mut inline_stream = row_stream.chunks(1024).map(move |rows| {
         let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;

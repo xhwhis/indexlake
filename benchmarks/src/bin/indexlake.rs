@@ -5,6 +5,7 @@ use indexlake::ILError;
 use indexlake::table::TableConfig;
 use indexlake::table::TableCreation;
 use indexlake::table::TableScan;
+use indexlake::table::TableScanPartition;
 use indexlake::{Client, catalog::Catalog};
 use indexlake_benchmarks::data::{arrow_table_schema, new_record_batch};
 use indexlake_integration_tests::init_env_logger;
@@ -37,8 +38,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let table = client.load_table(namespace_name, table_name).await?;
 
     let total_rows = 1000000;
-    // Round up to the nearest multiple of 10
-    // let num_tasks = (num_cpus::get() + 9) / 10 * 10;
     let num_tasks = 10;
     let task_rows = total_rows / num_tasks;
     let insert_batch_size = 10000;
@@ -72,16 +71,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let start_time = Instant::now();
-    let scan = TableScan::default();
-    let mut stream = table.scan(scan).await?;
+    let mut handles = Vec::new();
+    for i in 0..num_tasks {
+        let table = table.clone();
+        let handle = tokio::spawn(async move {
+            let scan = TableScan::default().with_partition(TableScanPartition {
+                partition_idx: i,
+                partition_count: num_tasks,
+            });
+            let mut stream = table.scan(scan).await?;
+            let mut count = 0;
+            while let Some(batch) = stream.next().await {
+                let batch = batch?;
+                count += batch.num_rows();
+            }
+            Ok::<_, ILError>(count)
+        });
+        handles.push(handle);
+    }
     let mut count = 0;
-    while let Some(batch) = stream.next().await {
-        let batch = batch?;
-        count += batch.num_rows();
+    for handle in handles {
+        count += handle.await??;
     }
 
     let scan_cost_time = start_time.elapsed();
-    println!("Scanned {} rows in {}ms", count, scan_cost_time.as_millis());
+    println!(
+        "Scanned {} rows by {} tasks in {}ms",
+        count,
+        num_tasks,
+        scan_cost_time.as_millis()
+    );
 
     Ok(())
 }

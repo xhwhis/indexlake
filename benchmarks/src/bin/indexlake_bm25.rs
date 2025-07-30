@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let table_name = "test_table";
     let table_config = TableConfig {
         inline_row_count_limit: 10000,
-        parquet_row_group_size: 1000,
+        parquet_row_group_size: 100,
     };
     let table_creation = TableCreation {
         namespace_name: namespace_name.to_string(),
@@ -54,8 +54,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     table.create_index(index_creation).await?;
 
     let total_rows = 1000000;
-    // Round up to the nearest multiple of 10
-    // let num_tasks = (num_cpus::get() + 9) / 10 * 10;
     let num_tasks = 10;
     let task_rows = total_rows / num_tasks;
     let insert_batch_size = 10000;
