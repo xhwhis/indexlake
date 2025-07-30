@@ -325,6 +325,49 @@ impl CatalogHelper {
             .await
     }
 
+    pub(crate) async fn count_data_files(&self, table_id: &Uuid) -> ILResult<i64> {
+        let schema = Arc::new(CatalogSchema::new(vec![Column::new(
+            "count",
+            CatalogDataType::Int64,
+            false,
+        )]));
+        let rows = self
+            .query_rows(
+                &format!(
+                    "SELECT COUNT(1) FROM indexlake_data_file WHERE table_id = {}",
+                    self.catalog.database().sql_uuid_value(table_id)
+                ),
+                schema,
+            )
+            .await?;
+        let count = rows[0].int64(0)?.expect("count is not null");
+        Ok(count)
+    }
+
+    pub(crate) async fn get_partitioned_data_files(
+        &self,
+        table_id: &Uuid,
+        offset: usize,
+        limit: usize,
+    ) -> ILResult<Vec<DataFileRecord>> {
+        let schema = Arc::new(DataFileRecord::catalog_schema());
+        let rows = self
+            .query_rows(
+                &format!(
+                    "SELECT {} FROM indexlake_data_file WHERE table_id = {} ORDER BY data_file_id ASC LIMIT {limit} OFFSET {offset}",
+                    schema.select_items(self.catalog.database()).join(", "),
+                    self.catalog.database().sql_uuid_value(table_id),
+                ),
+                schema,
+            )
+            .await?;
+        let mut data_files = Vec::with_capacity(rows.len());
+        for row in rows {
+            data_files.push(DataFileRecord::from_row(&row)?);
+        }
+        Ok(data_files)
+    }
+
     pub(crate) async fn get_data_files(&self, table_id: &Uuid) -> ILResult<Vec<DataFileRecord>> {
         let schema = Arc::new(DataFileRecord::catalog_schema());
         let rows = self

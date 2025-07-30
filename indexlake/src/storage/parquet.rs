@@ -96,7 +96,7 @@ pub(crate) async fn read_parquet_file_by_record(
     projection: Option<Vec<usize>>,
     filters: Vec<Expr>,
     row_ids: Option<&HashSet<i64>>,
-    batch_size: Option<usize>,
+    batch_size: usize,
 ) -> ILResult<RecordBatchStream> {
     let projection_mask = match projection {
         Some(projection) => {
@@ -120,7 +120,6 @@ pub(crate) async fn read_parquet_file_by_record(
             .with_row_filter(RowFilter::new(vec![Box::new(arrow_predicate.clone())]));
     }
 
-    let batch_size = batch_size.unwrap_or(1024);
     let stream = arrow_reader_builder
         .with_row_selection(data_file_record.row_selection(row_ids)?)
         .with_projection(projection_mask.clone())
@@ -178,7 +177,7 @@ pub(crate) async fn read_parquet_file_by_record_and_row_id_condition(
         projection,
         vec![],
         Some(&match_row_ids),
-        None,
+        1024,
     )
     .await?;
     Ok(stream)
@@ -203,7 +202,7 @@ pub(crate) async fn find_matched_row_ids_from_parquet_file(
         Some(projection),
         vec![condition.clone()],
         None,
-        None,
+        1024,
     )
     .await?;
 

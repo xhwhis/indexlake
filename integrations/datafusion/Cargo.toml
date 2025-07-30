@@ -13,4 +13,5 @@ async-trait = { workspace = true }
 datafusion = { workspace = true }
 futures = { workspace = true }
 log = { workspace = true }
+num_cpus = { workspace = true }
 tokio = { workspace = true }

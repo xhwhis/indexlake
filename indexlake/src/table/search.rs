@@ -283,7 +283,7 @@ async fn read_data_file_rows(
             projection.clone(),
             vec![],
             Some(&row_ids),
-            None,
+            1024,
         )
         .await?;
         let batches: Vec<RecordBatch> = stream.try_collect::<Vec<_>>().await?;

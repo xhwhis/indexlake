@@ -10,7 +10,7 @@ use datafusion::{
     physical_plan::ExecutionPlan,
     prelude::Expr,
 };
-use indexlake::table::{Table, TableScan};
+use indexlake::table::{Table, TableScan, TableScanPartition};
 use log::warn;
 
 use crate::{IndexLakeScanExec, datafusion_expr_to_indexlake_expr};
@@ -18,11 +18,20 @@ use crate::{IndexLakeScanExec, datafusion_expr_to_indexlake_expr};
 #[derive(Debug)]
 pub struct IndexLakeTable {
     table: Arc<Table>,
+    partition_count: usize,
 }
 
 impl IndexLakeTable {
     pub fn new(table: Arc<Table>) -> Self {
-        Self { table }
+        Self {
+            table,
+            partition_count: num_cpus::get(),
+        }
+    }
+
+    pub fn with_partition_count(mut self, partition_count: usize) -> Self {
+        self.partition_count = partition_count;
+        self
     }
 }
 
@@ -47,17 +56,13 @@ impl TableProvider for IndexLakeTable {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        let df_schema = DFSchema::try_from(self.table.schema.clone())?;
-        let il_filters = filters
-            .iter()
-            .map(|f| datafusion_expr_to_indexlake_expr(f, &df_schema))
-            .collect::<Result<Vec<_>, _>>()?;
-        let scan = TableScan {
-            projection: projection.cloned(),
-            filters: il_filters,
-            batch_size: None,
-        };
-        let exec = IndexLakeScanExec::try_new(self.table.clone(), scan, limit)?;
+        let exec = IndexLakeScanExec::try_new(
+            self.table.clone(),
+            self.partition_count,
+            projection.cloned(),
+            filters.to_vec(),
+            limit,
+        )?;
         Ok(Arc::new(exec))
     }
 
@@ -83,7 +88,11 @@ impl TableProvider for IndexLakeTable {
 
     fn statistics(&self) -> Option<Statistics> {
         let row_count_result = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async { self.table.count().await })
+            tokio::runtime::Handle::current().block_on(async {
+                self.table
+                    .count(TableScanPartition::single_partition())
+                    .await
+            })
         });
         match row_count_result {
             Ok(row_count) => Some(Statistics {

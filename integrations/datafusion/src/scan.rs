@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::common::stats::Precision;
-use datafusion::common::{Statistics, project_schema};
+use datafusion::common::{DFSchema, Statistics, project_schema};
 use datafusion::error::DataFusionError;
 use datafusion::execution::{SendableRecordBatchStream, TaskContext};
 use datafusion::physical_expr::EquivalenceProperties;
@@ -14,14 +14,19 @@ use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, PlanProperties,
 };
+use datafusion::prelude::Expr;
 use futures::TryStreamExt;
-use indexlake::table::{Table, TableScan};
+use indexlake::table::{Table, TableScan, TableScanPartition};
 use log::error;
+
+use crate::datafusion_expr_to_indexlake_expr;
 
 #[derive(Debug)]
 pub struct IndexLakeScanExec {
     pub table: Arc<Table>,
-    pub scan: TableScan,
+    pub partition_count: usize,
+    pub projection: Option<Vec<usize>>,
+    pub filters: Vec<Expr>,
     pub limit: Option<usize>,
     properties: PlanProperties,
 }
@@ -29,19 +34,23 @@ pub struct IndexLakeScanExec {
 impl IndexLakeScanExec {
     pub fn try_new(
         table: Arc<Table>,
-        scan: TableScan,
+        partition_count: usize,
+        projection: Option<Vec<usize>>,
+        filters: Vec<Expr>,
         limit: Option<usize>,
     ) -> Result<Self, DataFusionError> {
-        let projected_schema = project_schema(&table.schema, scan.projection.as_ref())?;
+        let projected_schema = project_schema(&table.schema, projection.as_ref())?;
         let properties = PlanProperties::new(
             EquivalenceProperties::new(projected_schema),
-            Partitioning::UnknownPartitioning(1),
+            Partitioning::UnknownPartitioning(partition_count),
             EmissionType::Incremental,
             Boundedness::Bounded,
         );
         Ok(Self {
             table,
-            scan,
+            partition_count,
+            projection,
+            filters,
             limit,
             properties,
         })
@@ -77,16 +86,37 @@ impl ExecutionPlan for IndexLakeScanExec {
         partition: usize,
         _context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream, DataFusionError> {
-        if partition != 0 {
-            return Err(DataFusionError::Execution(
-                "IndexLakeScanExec only supports one partition".to_string(),
-            ));
+        if partition >= self.partition_count {
+            return Err(DataFusionError::Execution(format!(
+                "partition index out of range: {partition} >= {}",
+                self.partition_count
+            )));
         }
+
+        let df_schema = DFSchema::try_from(self.table.schema.clone())?;
+        let il_filters = self
+            .filters
+            .iter()
+            .map(|f| datafusion_expr_to_indexlake_expr(f, &df_schema))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut scan = TableScan::default()
+            .with_projection(self.projection.clone())
+            .with_filters(il_filters)
+            .with_partition(TableScanPartition {
+                partition_idx: partition,
+                partition_count: self.partition_count,
+            });
+
+        if let Some(limit) = self.limit {
+            scan.batch_size = limit;
+        }
+
         let projected_schema = self.schema();
         let fut = get_batch_stream(
             self.table.clone(),
             projected_schema.clone(),
-            self.scan.clone(),
+            scan,
             self.limit,
         );
         let stream = futures::stream::once(fut).try_flatten();
@@ -100,15 +130,17 @@ impl ExecutionPlan for IndexLakeScanExec {
         &self,
         partition: Option<usize>,
     ) -> Result<Statistics, DataFusionError> {
-        if let Some(partition) = partition
-            && partition != 0
-        {
-            return Err(DataFusionError::Execution(
-                "IndexLakeScanExec only supports one partition".to_string(),
-            ));
-        }
+        let scan_partition = match partition {
+            Some(partition) => TableScanPartition {
+                partition_idx: partition,
+                partition_count: self.partition_count,
+            },
+            None => TableScanPartition::single_partition(),
+        };
+
         let row_count_result = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async { self.table.count().await })
+            tokio::runtime::Handle::current()
+                .block_on(async { self.table.count(scan_partition).await })
         });
         match row_count_result {
             Ok(row_count) => Ok(Statistics {
@@ -124,7 +156,13 @@ impl ExecutionPlan for IndexLakeScanExec {
     }
 
     fn with_fetch(&self, limit: Option<usize>) -> Option<Arc<dyn ExecutionPlan>> {
-        match IndexLakeScanExec::try_new(self.table.clone(), self.scan.clone(), limit) {
+        match IndexLakeScanExec::try_new(
+            self.table.clone(),
+            self.partition_count,
+            self.projection.clone(),
+            self.filters.clone(),
+            limit,
+        ) {
             Ok(exec) => Some(Arc::new(exec)),
             Err(e) => {
                 error!("Failed to create IndexLakeScanExec with fetch: {e}");
@@ -139,7 +177,7 @@ impl ExecutionPlan for IndexLakeScanExec {
 }
 
 impl DisplayAs for IndexLakeScanExec {
-    fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "IndexLakeScanExec")
     }
 }
@@ -147,15 +185,9 @@ impl DisplayAs for IndexLakeScanExec {
 async fn get_batch_stream(
     table: Arc<Table>,
     projected_schema: SchemaRef,
-    mut scan: TableScan,
+    scan: TableScan,
     limit: Option<usize>,
 ) -> Result<SendableRecordBatchStream, DataFusionError> {
-    // TODO support output partitioning
-    if let Some(limit) = limit
-        && limit < 1024
-    {
-        scan.batch_size = Some(limit);
-    }
     let stream = table
         .scan(scan)
         .await

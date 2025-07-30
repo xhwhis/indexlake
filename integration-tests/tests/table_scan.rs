@@ -1,5 +1,9 @@
+use arrow::{
+    array::{Int32Array, RecordBatch, StringArray},
+    datatypes::{DataType, Field, Schema},
+};
 use indexlake::expr::{col, lit};
-use indexlake::table::TableScan;
+use indexlake::table::{TableConfig, TableCreation, TableScan, TableScanPartition};
 use indexlake::{Client, catalog::Catalog, storage::Storage};
 use indexlake_integration_tests::data::prepare_simple_testing_table;
 use indexlake_integration_tests::utils::table_scan;
@@ -67,6 +71,124 @@ async fn scan_with_filters(
 +-------------------+---------+-----+
 | 3                 | Charlie | 22  |
 +-------------------+---------+-----+"#
+    );
+
+    Ok(())
+}
+
+#[rstest::rstest]
+#[case(async { catalog_sqlite() }, storage_fs())]
+// #[case(async { catalog_postgres().await }, storage_s3())]
+#[tokio::test(flavor = "multi_thread")]
+async fn partitioned_scan(
+    #[future(awt)]
+    #[case]
+    catalog: Arc<dyn Catalog>,
+    #[case] storage: Arc<Storage>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    init_env_logger();
+
+    let client = Client::new(catalog, storage);
+
+    let namespace_name = uuid::Uuid::new_v4().to_string();
+    client.create_namespace(&namespace_name, true).await?;
+
+    let table_schema = Arc::new(Schema::new(vec![
+        Field::new("name", DataType::Utf8, false),
+        Field::new("age", DataType::Int32, false),
+    ]));
+    let table_config = TableConfig {
+        inline_row_count_limit: 2,
+        parquet_row_group_size: 1,
+    };
+    let table_name = uuid::Uuid::new_v4().to_string();
+    let table_creation = TableCreation {
+        namespace_name: namespace_name.clone(),
+        table_name: table_name.clone(),
+        schema: table_schema.clone(),
+        config: table_config,
+    };
+    client.create_table(table_creation).await?;
+
+    let table = client.load_table(&namespace_name, &table_name).await?;
+
+    // produce a data file
+    let record_batch = RecordBatch::try_new(
+        table_schema.clone(),
+        vec![
+            Arc::new(StringArray::from(vec!["Alice", "Bob"])),
+            Arc::new(Int32Array::from(vec![20, 21])),
+        ],
+    )?;
+    table.insert(&[record_batch]).await?;
+
+    // produce a data file
+    let record_batch = RecordBatch::try_new(
+        table_schema.clone(),
+        vec![
+            Arc::new(StringArray::from(vec!["Charlie", "David"])),
+            Arc::new(Int32Array::from(vec![22, 23])),
+        ],
+    )?;
+    table.insert(&[record_batch]).await?;
+
+    // insert a inline row
+    let record_batch = RecordBatch::try_new(
+        table_schema.clone(),
+        vec![
+            Arc::new(StringArray::from(vec!["Eva"])),
+            Arc::new(Int32Array::from(vec![24])),
+        ],
+    )?;
+    table.insert(&[record_batch]).await?;
+
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
+    let scan = TableScan::default().with_partition(TableScanPartition {
+        partition_idx: 0,
+        partition_count: 2,
+    });
+    let table_str = table_scan(&table, scan).await?;
+    println!("{}", table_str);
+    assert_eq!(
+        table_str,
+        r#"+-------------------+-------+-----+
+| _indexlake_row_id | name  | age |
++-------------------+-------+-----+
+| 1                 | Alice | 20  |
+| 2                 | Bob   | 21  |
+| 5                 | Eva   | 24  |
++-------------------+-------+-----+"#,
+    );
+
+    let scan = TableScan::default().with_partition(TableScanPartition {
+        partition_idx: 1,
+        partition_count: 2,
+    });
+    let table_str = table_scan(&table, scan).await?;
+    println!("{}", table_str);
+    assert_eq!(
+        table_str,
+        r#"+-------------------+---------+-----+
+| _indexlake_row_id | name    | age |
++-------------------+---------+-----+
+| 3                 | Charlie | 22  |
+| 4                 | David   | 23  |
++-------------------+---------+-----+"#,
+    );
+
+    let scan = TableScan::default().with_partition(TableScanPartition {
+        partition_idx: 2,
+        partition_count: 3,
+    });
+    let table_str = table_scan(&table, scan).await?;
+    println!("{}", table_str);
+    assert_eq!(
+        table_str,
+        r#"+-------------------+------+-----+
+| _indexlake_row_id | name | age |
++-------------------+------+-----+
++-------------------+------+-----+"#,
     );
 
     Ok(())

@@ -85,6 +85,8 @@ impl Table {
     }
 
     pub async fn scan(&self, scan: TableScan) -> ILResult<RecordBatchStream> {
+        scan.partition.validate()?;
+
         let catalog_helper = CatalogHelper::new(self.catalog.clone());
         let batch_stream = process_scan(
             &catalog_helper,
@@ -98,14 +100,28 @@ impl Table {
         Ok(batch_stream)
     }
 
-    pub async fn count(&self) -> ILResult<usize> {
+    pub async fn count(&self, partition: TableScanPartition) -> ILResult<usize> {
+        partition.validate()?;
+
         let catalog_helper = CatalogHelper::new(self.catalog.clone());
-        let inline_row_count = catalog_helper.count_inline_rows(&self.table_id).await? as usize;
-        let data_file_records = catalog_helper.get_data_files(&self.table_id).await?;
+
+        let inline_row_count = if partition.partition_idx == 0 {
+            catalog_helper.count_inline_rows(&self.table_id).await? as usize
+        } else {
+            0
+        };
+
+        let data_file_count = catalog_helper.count_data_files(&self.table_id).await?;
+        let (offset, limit) = partition.offset_limit(data_file_count as usize);
+
+        let data_file_records = catalog_helper
+            .get_partitioned_data_files(&self.table_id, offset, limit)
+            .await?;
         let data_file_row_count: usize = data_file_records
             .iter()
             .map(|record| record.valid_row_count())
             .sum();
+
         Ok(inline_row_count + data_file_row_count)
     }
 
