@@ -45,6 +45,7 @@ async fn create_hnsw_index(
     let table_config = TableConfig {
         inline_row_count_limit: 3,
         parquet_row_group_size: 2,
+        ..Default::default()
     };
     let table_name = uuid::Uuid::new_v4().to_string();
     let table_creation = TableCreation {

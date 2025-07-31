@@ -7,8 +7,9 @@ license.workspace = true
 repository.workspace = true
 
 [features]
+# default = ["deltalake", "lance"]
 deltalake = ["dep:delta_kernel", "dep:deltalake", "dep:deltalake-aws"]
-lance = ["dep:lance", "dep:lance-core", "dep:lance-index", "dep:lance-io", "dep:lance-table"]
+lance = ["dep:lance", "dep:lance-index"]
 
 [dependencies]
 indexlake = { workspace = true }
@@ -21,15 +22,13 @@ indexlake-index-rstar = { workspace = true }
 indexlake-integration-tests = { workspace = true }
 
 arrow = { workspace = true }
+bytes = { workspace = true }
 delta_kernel = { version = "0.13.0", features = ["arrow-conversion"], optional = true }
 deltalake = { version = "0.27.0", features = ["datafusion"], optional = true }
 deltalake-aws = { version = "0.10.0", default-features = false, optional = true }
 futures = { workspace = true }
 lance = { version = "0.31.1", optional = true }
-lance-core = { version = "0.31.1", optional = true }
 lance-index = { version = "0.31.1", features = ["tokenizer-jieba"], optional = true }
-lance-io = { version = "0.31.1", optional = true }
-lance-table = { version = "0.31.1", optional = true }
 rand = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 num_cpus = { workspace = true }

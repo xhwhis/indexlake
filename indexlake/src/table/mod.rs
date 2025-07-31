@@ -22,6 +22,7 @@ use crate::catalog::IndexFileRecord;
 use crate::catalog::{CatalogHelper, DataFileRecord, Scalar};
 use crate::expr::Expr;
 use crate::index::{IndexDefinationRef, IndexKind};
+use crate::storage::DataFileFormat;
 use crate::utils::schema_without_row_id;
 use crate::{
     ILError, ILResult,
@@ -336,6 +337,7 @@ fn spawn_storage_index_files_clean_task(
 pub struct TableConfig {
     pub inline_row_count_limit: usize,
     pub parquet_row_group_size: usize,
+    pub preferred_data_file_format: DataFileFormat,
 }
 
 impl Default for TableConfig {
@@ -343,6 +345,7 @@ impl Default for TableConfig {
         Self {
             inline_row_count_limit: 100000,
             parquet_row_group_size: 1000,
+            preferred_data_file_format: DataFileFormat::ParquetV2,
         }
     }
 }

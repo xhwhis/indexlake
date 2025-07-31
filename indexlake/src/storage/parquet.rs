@@ -18,7 +18,7 @@ use parquet::{
     },
     file::{
         metadata::{ParquetMetaData, ParquetMetaDataReader},
-        properties::WriterProperties,
+        properties::{WriterProperties, WriterVersion},
     },
 };
 
@@ -26,7 +26,7 @@ use crate::{
     ILError, ILResult, RecordBatchStream,
     catalog::{DataFileRecord, INTERNAL_ROW_ID_FIELD_REF},
     expr::{Expr, ExprPredicate},
-    storage::{InputFile, OutputFile, Storage},
+    storage::{DataFileFormat, InputFile, OutputFile, Storage},
     utils::build_projection_from_condition,
 };
 
@@ -87,6 +87,31 @@ impl AsyncFileWriter for OutputFile {
             Ok(())
         })
     }
+}
+
+pub(crate) fn build_parquet_writer<W: AsyncFileWriter>(
+    writer: W,
+    schema: SchemaRef,
+    row_group_size: usize,
+    data_file_format: DataFileFormat,
+) -> ILResult<AsyncArrowWriter<W>> {
+    let writer_properties = WriterProperties::builder()
+        .set_max_row_group_size(row_group_size)
+        .set_writer_version(match data_file_format {
+            DataFileFormat::ParquetV1 => WriterVersion::PARQUET_1_0,
+            DataFileFormat::ParquetV2 => WriterVersion::PARQUET_2_0,
+            DataFileFormat::LanceV2_1 => {
+                return Err(ILError::InternalError(
+                    "Cannot build parquet writer for LanceV2_1".to_string(),
+                ));
+            }
+        })
+        .build();
+    Ok(AsyncArrowWriter::try_new(
+        writer,
+        schema,
+        Some(writer_properties),
+    )?)
 }
 
 pub(crate) async fn read_parquet_file_by_record(

@@ -4,7 +4,10 @@ use arrow::{
     array::*,
     datatypes::{DataType, TimeUnit, i256},
 };
-use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
+use parquet::{
+    arrow::AsyncArrowWriter,
+    file::properties::{WriterProperties, WriterVersion},
+};
 use uuid::Uuid;
 
 use crate::{
@@ -13,6 +16,7 @@ use crate::{
         CatalogDatabase, CatalogSchema, DataFileRecord, INTERNAL_FLAG_FIELD_NAME,
         INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, TransactionHelper,
     },
+    storage::build_parquet_writer,
     table::Table,
     utils::{record_batch_with_row_id, schema_without_row_id, serialize_array},
 };
@@ -50,15 +54,20 @@ pub(crate) async fn process_bypass_insert(
     total_rows: usize,
 ) -> ILResult<()> {
     let data_file_id = uuid::Uuid::now_v7();
-    let relative_path =
-        DataFileRecord::build_relative_path(&table.namespace_id, &table.table_id, &data_file_id);
+    let relative_path = DataFileRecord::build_relative_path(
+        &table.namespace_id,
+        &table.table_id,
+        &data_file_id,
+        table.config.preferred_data_file_format,
+    );
     let output_file = table.storage.create_file(&relative_path).await?;
 
-    let writer_properties = WriterProperties::builder()
-        .set_max_row_group_size(table.config.parquet_row_group_size)
-        .build();
-    let mut arrow_writer =
-        AsyncArrowWriter::try_new(output_file, table.schema.clone(), Some(writer_properties))?;
+    let mut arrow_writer = build_parquet_writer(
+        output_file,
+        table.schema.clone(),
+        table.config.parquet_row_group_size,
+        table.config.preferred_data_file_format,
+    )?;
 
     let reserved_row_ids = reserve_row_ids(tx_helper, table, total_rows).await?;
 
@@ -92,6 +101,7 @@ pub(crate) async fn process_bypass_insert(
         .insert_data_files(&[DataFileRecord {
             data_file_id,
             table_id: table.table_id,
+            format: table.config.preferred_data_file_format,
             relative_path: relative_path.clone(),
             file_size_bytes: file_size_bytes as i64,
             record_count: total_rows as i64,

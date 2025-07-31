@@ -3,7 +3,10 @@ use std::{collections::HashMap, sync::Arc, time::Instant};
 use arrow::datatypes::SchemaRef;
 use futures::StreamExt;
 use log::{debug, error};
-use parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
+use parquet::{
+    arrow::AsyncArrowWriter,
+    file::properties::{WriterProperties, WriterVersion},
+};
 use uuid::Uuid;
 
 use crate::{
@@ -13,7 +16,7 @@ use crate::{
         TransactionHelper, rows_to_record_batch,
     },
     index::{IndexBuilder, IndexDefinationRef, IndexKind},
-    storage::Storage,
+    storage::{Storage, build_parquet_writer},
     table::{Table, TableConfig},
 };
 
@@ -107,8 +110,12 @@ impl DumpTask {
             .await?;
 
         let data_file_id = uuid::Uuid::now_v7();
-        let relative_path =
-            DataFileRecord::build_relative_path(&self.namespace_id, &self.table_id, &data_file_id);
+        let relative_path = DataFileRecord::build_relative_path(
+            &self.namespace_id,
+            &self.table_id,
+            &data_file_id,
+            self.table_config.preferred_data_file_format,
+        );
 
         let mut index_builders = HashMap::new();
         for (index_name, index_def) in self.table_indexes.iter() {
@@ -160,6 +167,7 @@ impl DumpTask {
             .insert_data_files(&[DataFileRecord {
                 data_file_id,
                 table_id: self.table_id,
+                format: self.table_config.preferred_data_file_format,
                 relative_path: relative_path.clone(),
                 file_size_bytes: file_size_bytes as i64,
                 record_count: row_ids.len() as i64,
@@ -203,14 +211,12 @@ impl DumpTask {
     ) -> ILResult<(Vec<i64>, usize)> {
         let mut row_ids = Vec::new();
 
-        let writer_properties = WriterProperties::builder()
-            .set_max_row_group_size(self.table_config.parquet_row_group_size)
-            .build();
         let output_file = self.storage.create_file(relative_path).await?;
-        let mut arrow_writer = AsyncArrowWriter::try_new(
+        let mut arrow_writer = build_parquet_writer(
             output_file,
             self.table_schema.clone(),
-            Some(writer_properties),
+            self.table_config.parquet_row_group_size,
+            self.table_config.preferred_data_file_format,
         )?;
 
         let mut chunk_stream = row_stream.chunks(self.table_config.parquet_row_group_size);

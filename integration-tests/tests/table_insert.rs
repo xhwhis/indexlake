@@ -39,6 +39,7 @@ async fn parallel_insert_table(
     let table_config = TableConfig {
         inline_row_count_limit: 100,
         parquet_row_group_size: 10,
+        ..Default::default()
     };
     let table_creation = TableCreation {
         namespace_name: namespace_name.clone(),
@@ -113,6 +114,7 @@ async fn bypass_insert_table(
     let table_config = TableConfig {
         inline_row_count_limit: 3,
         parquet_row_group_size: 2,
+        ..Default::default()
     };
     let table_creation = TableCreation {
         namespace_name: namespace_name.clone(),

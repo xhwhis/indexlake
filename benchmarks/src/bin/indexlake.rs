@@ -26,6 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let table_config = TableConfig {
         inline_row_count_limit: 10000,
         parquet_row_group_size: 1000,
+        ..Default::default()
     };
     let table_creation = TableCreation {
         namespace_name: namespace_name.to_string(),

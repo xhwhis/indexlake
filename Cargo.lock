@@ -3606,6 +3606,7 @@ name = "indexlake-benchmarks"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "bytes",
  "delta_kernel",
  "deltalake",
  "deltalake-aws",
@@ -3619,10 +3620,7 @@ dependencies = [
  "indexlake-index-rstar",
  "indexlake-integration-tests",
  "lance",
- "lance-core",
  "lance-index",
- "lance-io",
- "lance-table",
  "num_cpus",
  "rand 0.9.1",
  "tokio",

@@ -6,6 +6,7 @@ pub use fs::*;
 pub use opendal::services::S3Config;
 pub use parquet::*;
 pub use s3::*;
+use serde::{Deserialize, Serialize};
 
 use std::path::PathBuf;
 
@@ -128,5 +129,37 @@ impl InputFile {
 
     pub fn reader(&self) -> &opendal::Reader {
         &self.reader
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum DataFileFormat {
+    ParquetV1,
+    ParquetV2,
+    LanceV2_1,
+}
+
+impl std::fmt::Display for DataFileFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DataFileFormat::ParquetV1 => write!(f, "ParquetV1"),
+            DataFileFormat::ParquetV2 => write!(f, "ParquetV2"),
+            DataFileFormat::LanceV2_1 => write!(f, "LanceV2_1"),
+        }
+    }
+}
+
+impl std::str::FromStr for DataFileFormat {
+    type Err = ILError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "ParquetV1" => Ok(DataFileFormat::ParquetV1),
+            "ParquetV2" => Ok(DataFileFormat::ParquetV2),
+            "LanceV2_1" => Ok(DataFileFormat::LanceV2_1),
+            _ => Err(ILError::InvalidInput(format!(
+                "Invalid data file format: {s}"
+            ))),
+        }
     }
 }

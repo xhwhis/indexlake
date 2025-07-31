@@ -26,6 +26,7 @@ CREATE TABLE indexlake_dump_task (
 CREATE TABLE indexlake_data_file (
     data_file_id BLOB PRIMARY KEY,
     table_id BLOB NOT NULL,
+    format VARCHAR NOT NULL,
     relative_path VARCHAR NOT NULL,
     file_size_bytes BIGINT NOT NULL,
     record_count BIGINT NOT NULL,
