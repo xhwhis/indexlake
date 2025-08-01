@@ -41,6 +41,12 @@ impl From<parquet::errors::ParquetError> for ILError {
     }
 }
 
+impl From<lance_core::Error> for ILError {
+    fn from(err: lance_core::Error) -> Self {
+        ILError::StorageError(err.to_string())
+    }
+}
+
 impl From<arrow::error::ArrowError> for ILError {
     fn from(err: arrow::error::ArrowError) -> Self {
         ILError::InternalError(err.to_string())

@@ -4,8 +4,8 @@ use crate::{ILError, ILResult};
 
 #[derive(Debug, Clone)]
 pub struct S3Storage {
-    config: S3Config,
-    bucket: String,
+    pub config: S3Config,
+    pub bucket: String,
 }
 
 impl S3Storage {

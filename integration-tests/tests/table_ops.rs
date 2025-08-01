@@ -8,7 +8,7 @@ use indexlake::table::TableScan;
 use indexlake::{
     Client,
     catalog::Catalog,
-    storage::Storage,
+    storage::{DataFileFormat, Storage},
     table::{TableConfig, TableCreation},
 };
 use indexlake_index_btree::{BTreeIndexKind, BTreeIndexParams};
@@ -384,7 +384,7 @@ async fn truncate_table(
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
 
     table.truncate().await?;
 
@@ -528,7 +528,7 @@ async fn unsupported_index_kind(
     let mut client = Client::new(catalog, storage);
     client.register_index_kind(Arc::new(BTreeIndexKind));
 
-    let mut table = prepare_simple_testing_table(&client).await?;
+    let mut table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
 
     let index_creation = IndexCreation {
         name: uuid::Uuid::new_v4().to_string(),

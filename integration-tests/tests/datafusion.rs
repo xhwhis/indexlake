@@ -1,6 +1,7 @@
 use arrow::util::pretty::pretty_format_batches;
 use datafusion::prelude::SessionContext;
 use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
+use indexlake::storage::DataFileFormat;
 use indexlake::{Client, catalog::Catalog, storage::Storage};
 use indexlake_datafusion::IndexLakeTable;
 use indexlake_integration_tests::data::prepare_simple_testing_table;
@@ -23,7 +24,7 @@ async fn datafusion_full_scan(
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
 
     let df_table = IndexLakeTable::new(Arc::new(table));
     let session = SessionContext::new();
@@ -61,7 +62,7 @@ async fn datafusion_scan_with_projection(
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
 
     let df_table = IndexLakeTable::new(Arc::new(table));
     let session = SessionContext::new();
@@ -101,7 +102,7 @@ async fn datafusion_scan_with_filters(
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
 
     let df_table = IndexLakeTable::new(Arc::new(table));
     let session = SessionContext::new();
@@ -139,7 +140,7 @@ async fn datafusion_scan_with_limit(
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
 
     let df_table = IndexLakeTable::new(Arc::new(table));
     let session = SessionContext::new();

@@ -6,7 +6,7 @@ use crate::ILResult;
 
 #[derive(Debug, Clone)]
 pub struct FsStorage {
-    root: PathBuf,
+    pub root: PathBuf,
 }
 
 impl FsStorage {

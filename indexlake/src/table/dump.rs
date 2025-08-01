@@ -1,12 +1,13 @@
-use std::{collections::HashMap, sync::Arc, time::Instant};
+use std::{collections::HashMap, path::Path, sync::Arc, time::Instant};
 
 use arrow::datatypes::SchemaRef;
 use futures::StreamExt;
-use log::{debug, error};
-use parquet::{
-    arrow::AsyncArrowWriter,
-    file::properties::{WriterProperties, WriterVersion},
+use lance_file::{
+    v2::writer::{FileWriter, FileWriterOptions},
+    version::LanceFileVersion,
 };
+use lance_io::object_store::ObjectStore;
+use log::{debug, error};
 use uuid::Uuid;
 
 use crate::{
@@ -16,7 +17,7 @@ use crate::{
         TransactionHelper, rows_to_record_batch,
     },
     index::{IndexBuilder, IndexDefinationRef, IndexKind},
-    storage::{Storage, build_parquet_writer},
+    storage::{DataFileFormat, Storage, build_lance_writer, build_parquet_writer},
     table::{Table, TableConfig},
 };
 
@@ -126,9 +127,16 @@ impl DumpTask {
             index_builders.insert(index_name.clone(), index_builder);
         }
 
-        let (row_ids, file_size_bytes) = self
-            .write_dump_file(row_stream, &relative_path, &mut index_builders)
-            .await?;
+        let (row_ids, file_size_bytes) = match self.table_config.preferred_data_file_format {
+            DataFileFormat::ParquetV1 | DataFileFormat::ParquetV2 => {
+                self.write_parquet_file(row_stream, &relative_path, &mut index_builders)
+                    .await?
+            }
+            DataFileFormat::LanceV2_1 => {
+                self.write_lance_file(row_stream, &relative_path, &mut index_builders)
+                    .await?
+            }
+        };
 
         if row_ids.len() != self.table_config.inline_row_count_limit {
             self.storage.delete(&relative_path).await?;
@@ -203,7 +211,7 @@ impl DumpTask {
         Ok(true)
     }
 
-    async fn write_dump_file(
+    async fn write_parquet_file(
         &self,
         row_stream: RowStream<'_>,
         relative_path: &str,
@@ -242,5 +250,46 @@ impl DumpTask {
         arrow_writer.close().await?;
 
         Ok((row_ids, file_size_bytes))
+    }
+
+    async fn write_lance_file(
+        &self,
+        row_stream: RowStream<'_>,
+        relative_path: &str,
+        index_builders: &mut HashMap<String, Box<dyn IndexBuilder>>,
+    ) -> ILResult<(Vec<i64>, usize)> {
+        let mut row_ids = Vec::new();
+
+        let mut writer = build_lance_writer(
+            &self.storage,
+            relative_path,
+            &self.table_schema,
+            self.table_config.preferred_data_file_format,
+        )
+        .await?;
+
+        let mut chunk_stream = row_stream.chunks(1024);
+
+        while let Some(row_chunk) = chunk_stream.next().await {
+            let mut rows = Vec::with_capacity(row_chunk.len());
+            for row in row_chunk.into_iter() {
+                let row = row?;
+                let row_id = row.get_row_id()?.expect("row_id is not null");
+                row_ids.push(row_id);
+                rows.push(row);
+            }
+            let record_batch = rows_to_record_batch(&self.table_schema, &rows)?;
+
+            for (_index_name, index_builder) in index_builders.iter_mut() {
+                index_builder.append(&record_batch)?;
+            }
+
+            writer.write_batch(&record_batch).await?;
+        }
+
+        writer.finish().await?;
+        let file_size_bytes = writer.tell().await?;
+
+        Ok((row_ids, file_size_bytes as usize))
     }
 }

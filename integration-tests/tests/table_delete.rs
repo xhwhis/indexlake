@@ -1,6 +1,10 @@
 use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
 use indexlake::expr::{col, lit};
-use indexlake::{Client, catalog::Catalog, storage::Storage};
+use indexlake::{
+    Client,
+    catalog::Catalog,
+    storage::{DataFileFormat, Storage},
+};
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
@@ -20,7 +24,7 @@ async fn delete_table_by_condition(
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
 
     let condition = col("age").gt(lit(21i32));
     table.delete(&condition).await?;
@@ -53,7 +57,7 @@ async fn delete_table_by_row_id(
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
 
     let condition = col(INTERNAL_ROW_ID_FIELD_NAME).eq(lit(1i64));
     table.delete(&condition).await?;
@@ -87,7 +91,7 @@ async fn delete_table_by_constant_condition(
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
 
     let false_condition = lit(1i32).eq(lit(2i32));
     table.delete(&false_condition).await?;

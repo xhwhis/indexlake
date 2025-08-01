@@ -1,20 +1,26 @@
 mod fs;
+mod lance;
 mod parquet;
 mod s3;
 
+use arrow_schema::Schema;
 pub use fs::*;
+pub use lance::*;
 pub use opendal::services::S3Config;
 pub use parquet::*;
 pub use s3::*;
-use serde::{Deserialize, Serialize};
-
-use std::path::PathBuf;
-
-use opendal::Operator;
 
 use crate::{
-    ILError, ILResult,
+    ILError, ILResult, RecordBatchStream,
+    catalog::DataFileRecord,
+    expr::Expr,
     storage::{fs::FsStorage, s3::S3Storage},
+};
+use opendal::Operator;
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
 };
 
 #[derive(Debug, Clone)]
@@ -56,6 +62,35 @@ impl Storage {
         match self {
             Storage::Fs(fs) => fs.new_operator(),
             Storage::S3(s3) => s3.new_operator(),
+        }
+    }
+
+    pub fn root_path(&self) -> ILResult<String> {
+        match self {
+            Storage::Fs(fs) => Ok(fs.root.to_string_lossy().to_string()),
+            Storage::S3(s3) => Ok(format!("s3://{}/", s3.bucket)),
+        }
+    }
+
+    pub fn storage_options(&self) -> HashMap<String, String> {
+        match self {
+            Storage::Fs(fs) => HashMap::new(),
+            Storage::S3(s3) => {
+                // TODO fix
+                let mut options = HashMap::new();
+                options.insert("aws_access_key_id".to_string(), "admin".to_string());
+                options.insert("aws_secret_access_key".to_string(), "password".to_string());
+                options.insert(
+                    "aws_endpoint".to_string(),
+                    "http://127.0.0.1:9000".to_string(),
+                );
+                options.insert("aws_allow_http".to_string(), "true".to_string());
+                options.insert("aws_region".to_string(), "us-east-1".to_string());
+                options.insert("aws_default_region".to_string(), "us-east-1".to_string());
+                options.insert("AWS_EC2_METADATA_DISABLED".to_string(), "true".to_string());
+                options.insert("AWS_S3_ALLOW_UNSAFE_RENAME".to_string(), "true".to_string());
+                options
+            }
         }
     }
 
@@ -160,6 +195,43 @@ impl std::str::FromStr for DataFileFormat {
             _ => Err(ILError::InvalidInput(format!(
                 "Invalid data file format: {s}"
             ))),
+        }
+    }
+}
+
+pub(crate) async fn read_data_file_by_record(
+    storage: &Storage,
+    table_schema: &Schema,
+    data_file_record: &DataFileRecord,
+    projection: Option<Vec<usize>>,
+    filters: Vec<Expr>,
+    row_ids: Option<&HashSet<i64>>,
+    batch_size: usize,
+) -> ILResult<RecordBatchStream> {
+    match data_file_record.format {
+        DataFileFormat::ParquetV1 | DataFileFormat::ParquetV2 => {
+            read_parquet_file_by_record(
+                storage,
+                table_schema,
+                data_file_record,
+                projection,
+                filters,
+                row_ids,
+                batch_size,
+            )
+            .await
+        }
+        DataFileFormat::LanceV2_1 => {
+            read_lance_file_by_record(
+                storage,
+                table_schema,
+                data_file_record,
+                projection,
+                filters,
+                row_ids,
+                batch_size,
+            )
+            .await
         }
     }
 }

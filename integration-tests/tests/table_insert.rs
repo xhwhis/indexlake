@@ -6,7 +6,7 @@ use indexlake::table::TableScan;
 use indexlake::{
     Client,
     catalog::Catalog,
-    storage::Storage,
+    storage::{DataFileFormat, Storage},
     table::{TableConfig, TableCreation},
 };
 use indexlake_integration_tests::utils::full_table_scan;
@@ -93,14 +93,17 @@ async fn parallel_insert_table(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
 #[tokio::test(flavor = "multi_thread")]
 async fn bypass_insert_table(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
@@ -114,7 +117,7 @@ async fn bypass_insert_table(
     let table_config = TableConfig {
         inline_row_count_limit: 3,
         parquet_row_group_size: 2,
-        ..Default::default()
+        preferred_data_file_format: format,
     };
     let table_creation = TableCreation {
         namespace_name: namespace_name.clone(),

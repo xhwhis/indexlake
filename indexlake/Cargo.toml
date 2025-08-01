@@ -17,6 +17,10 @@ derive-visitor = { workspace = true, features = ["std-types-drive"] }
 derive-with = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
+lance-core = { workspace = true }
+lance-encoding = { workspace = true }
+lance-file = { workspace = true }
+lance-io = { workspace = true }
 log = { workspace = true }
 opendal = { workspace = true, features = ["services-fs", "services-s3"] }
 parquet = { workspace = true, features = ["async"] }

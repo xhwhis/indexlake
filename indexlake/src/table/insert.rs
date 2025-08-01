@@ -16,7 +16,8 @@ use crate::{
         CatalogDatabase, CatalogSchema, DataFileRecord, INTERNAL_FLAG_FIELD_NAME,
         INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, TransactionHelper,
     },
-    storage::build_parquet_writer,
+    index::IndexBuilder,
+    storage::{DataFileFormat, Storage, build_lance_writer, build_parquet_writer},
     table::Table,
     utils::{record_batch_with_row_id, schema_without_row_id, serialize_array},
 };
@@ -60,14 +61,6 @@ pub(crate) async fn process_bypass_insert(
         &data_file_id,
         table.config.preferred_data_file_format,
     );
-    let output_file = table.storage.create_file(&relative_path).await?;
-
-    let mut arrow_writer = build_parquet_writer(
-        output_file,
-        table.schema.clone(),
-        table.config.parquet_row_group_size,
-        table.config.preferred_data_file_format,
-    )?;
 
     let reserved_row_ids = reserve_row_ids(tx_helper, table, total_rows).await?;
 
@@ -80,22 +73,28 @@ pub(crate) async fn process_bypass_insert(
         index_builders.insert(index_name.clone(), index_builder);
     }
 
-    let mut idx = 0;
-    for batch in batches {
-        let row_ids = &reserved_row_ids[idx..idx + batch.num_rows()];
-        let row_id_array = Int64Array::from_iter(row_ids.iter().copied());
-        let batch = record_batch_with_row_id(batch, row_id_array)?;
-
-        arrow_writer.write(&batch).await?;
-        for (_, builder) in index_builders.iter_mut() {
-            builder.append(&batch)?;
+    let file_size_bytes = match table.config.preferred_data_file_format {
+        DataFileFormat::ParquetV1 | DataFileFormat::ParquetV2 => {
+            write_parquet_file(
+                table,
+                &relative_path,
+                &reserved_row_ids,
+                batches,
+                &mut index_builders,
+            )
+            .await?
         }
-
-        idx += batch.num_rows();
-    }
-
-    let file_size_bytes = arrow_writer.bytes_written();
-    arrow_writer.close().await?;
+        DataFileFormat::LanceV2_1 => {
+            write_lance_file(
+                table,
+                &relative_path,
+                &reserved_row_ids,
+                batches,
+                &mut index_builders,
+            )
+            .await?
+        }
+    };
 
     tx_helper
         .insert_data_files(&[DataFileRecord {
@@ -185,6 +184,77 @@ pub(crate) async fn reserve_row_ids(
         .await?;
 
     Ok(row_ids)
+}
+
+async fn write_parquet_file(
+    table: &Table,
+    relative_path: &str,
+    reserved_row_ids: &[i64],
+    batches: &[RecordBatch],
+    index_builders: &mut HashMap<String, Box<dyn IndexBuilder>>,
+) -> ILResult<usize> {
+    let output_file = table.storage.create_file(&relative_path).await?;
+
+    let mut arrow_writer = build_parquet_writer(
+        output_file,
+        table.schema.clone(),
+        table.config.parquet_row_group_size,
+        table.config.preferred_data_file_format,
+    )?;
+
+    let mut idx = 0;
+    for batch in batches {
+        let row_ids = &reserved_row_ids[idx..idx + batch.num_rows()];
+        let row_id_array = Int64Array::from_iter(row_ids.iter().copied());
+        let batch = record_batch_with_row_id(batch, row_id_array)?;
+
+        arrow_writer.write(&batch).await?;
+        for (_, builder) in index_builders.iter_mut() {
+            builder.append(&batch)?;
+        }
+
+        idx += batch.num_rows();
+    }
+
+    let file_size_bytes = arrow_writer.bytes_written();
+    arrow_writer.close().await?;
+
+    Ok(file_size_bytes)
+}
+
+async fn write_lance_file(
+    table: &Table,
+    relative_path: &str,
+    reserved_row_ids: &[i64],
+    batches: &[RecordBatch],
+    index_builders: &mut HashMap<String, Box<dyn IndexBuilder>>,
+) -> ILResult<usize> {
+    let mut writer = build_lance_writer(
+        &table.storage,
+        relative_path,
+        &table.schema,
+        table.config.preferred_data_file_format,
+    )
+    .await?;
+
+    let mut idx = 0;
+    for batch in batches {
+        let row_ids = &reserved_row_ids[idx..idx + batch.num_rows()];
+        let row_id_array = Int64Array::from_iter(row_ids.iter().copied());
+        let batch = record_batch_with_row_id(batch, row_id_array)?;
+
+        writer.write_batch(&batch).await?;
+        for (_, builder) in index_builders.iter_mut() {
+            builder.append(&batch)?;
+        }
+
+        idx += batch.num_rows();
+    }
+
+    let file_size_bytes = writer.tell().await?;
+    writer.finish().await?;
+
+    Ok(file_size_bytes as usize)
 }
 
 macro_rules! extract_sql_values {

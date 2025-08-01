@@ -18,7 +18,7 @@ use crate::{
     },
     expr::{Expr, split_conjunction_filters},
     index::{IndexDefinationRef, IndexKind},
-    storage::{Storage, read_parquet_file_by_record},
+    storage::{Storage, read_data_file_by_record},
     table::Table,
     utils::project_schema,
 };
@@ -157,7 +157,7 @@ async fn process_table_scan(
         let projection = scan.projection.clone();
         let filters = scan.filters.clone();
         let handle = tokio::spawn(async move {
-            let stream = read_parquet_file_by_record(
+            let stream = read_data_file_by_record(
                 &storage,
                 &table_schema,
                 &data_file_record,
@@ -373,7 +373,7 @@ async fn index_scan_data_file(
         .map(|(_, filter)| filter.clone())
         .collect::<Vec<_>>();
 
-    read_parquet_file_by_record(
+    read_data_file_by_record(
         &table.storage,
         &table.schema,
         &data_file_record,

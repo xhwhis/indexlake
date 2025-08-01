@@ -86,7 +86,6 @@ pub fn storage_fs() -> Arc<Storage> {
 
 pub fn storage_s3() -> Arc<Storage> {
     let _ = MINIO.get_or_init(|| setup_minio());
-    std::thread::sleep(std::time::Duration::from_secs(5));
     let mut config = S3Config::default();
     config.endpoint = Some("http://127.0.0.1:9000".to_string());
     config.access_key_id = Some("admin".to_string());

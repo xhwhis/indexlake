@@ -6,10 +6,14 @@ use arrow::{
 };
 use indexlake::{
     Client, ILResult,
+    storage::DataFileFormat,
     table::{Table, TableConfig, TableCreation},
 };
 
-pub async fn prepare_simple_testing_table(client: &Client) -> ILResult<Table> {
+pub async fn prepare_simple_testing_table(
+    client: &Client,
+    format: DataFileFormat,
+) -> ILResult<Table> {
     let namespace_name = uuid::Uuid::new_v4().to_string();
     client.create_namespace(&namespace_name, true).await?;
 
@@ -20,7 +24,7 @@ pub async fn prepare_simple_testing_table(client: &Client) -> ILResult<Table> {
     let table_config = TableConfig {
         inline_row_count_limit: 3,
         parquet_row_group_size: 2,
-        ..Default::default()
+        preferred_data_file_format: format,
     };
     let table_name = uuid::Uuid::new_v4().to_string();
     let table_creation = TableCreation {
@@ -42,6 +46,8 @@ pub async fn prepare_simple_testing_table(client: &Client) -> ILResult<Table> {
     )?;
     table.insert(&[record_batch]).await?;
 
+    log::info!("LWZTEST first insert success");
+
     let record_batch = RecordBatch::try_new(
         table_schema.clone(),
         vec![
@@ -50,6 +56,8 @@ pub async fn prepare_simple_testing_table(client: &Client) -> ILResult<Table> {
         ],
     )?;
     table.insert(&[record_batch]).await?;
+
+    log::info!("LWZTEST second insert success");
 
     // wait for dump task to finish
     tokio::time::sleep(std::time::Duration::from_secs(3)).await;

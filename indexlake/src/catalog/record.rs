@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Range,
+};
 
 use arrow::datatypes::{DataType, Field};
 use parquet::arrow::arrow_reader::RowSelection;
@@ -264,7 +267,7 @@ impl DataFileRecord {
         )
     }
 
-    pub(crate) fn row_selection(&self, row_ids: Option<&HashSet<i64>>) -> ILResult<RowSelection> {
+    pub(crate) fn row_ranges(&self, row_ids: Option<&HashSet<i64>>) -> ILResult<Vec<Range<usize>>> {
         let offsets = self
             .validity
             .iter()
@@ -292,6 +295,11 @@ impl DataFileRecord {
             ranges.push(current_offset..offsets[next_offset_idx - 1] + 1);
             offset_idx = next_offset_idx;
         }
+        Ok(ranges)
+    }
+
+    pub(crate) fn row_selection(&self, row_ids: Option<&HashSet<i64>>) -> ILResult<RowSelection> {
+        let ranges = self.row_ranges(row_ids)?;
         Ok(RowSelection::from_consecutive_ranges(
             ranges.into_iter(),
             self.validity.len(),

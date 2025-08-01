@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use arrow::{
     array::{ArrayRef, RecordBatch, RecordBatchOptions},
-    util::pretty::pretty_format_batches_with_schema,
+    util::pretty::{pretty_format_batches, pretty_format_batches_with_schema},
 };
 use futures::TryStreamExt;
 use indexlake::{

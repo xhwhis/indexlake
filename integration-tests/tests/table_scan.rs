@@ -4,7 +4,11 @@ use arrow::{
 };
 use indexlake::expr::{col, lit};
 use indexlake::table::{TableConfig, TableCreation, TableScan, TableScanPartition};
-use indexlake::{Client, catalog::Catalog, storage::Storage};
+use indexlake::{
+    Client,
+    catalog::Catalog,
+    storage::{DataFileFormat, Storage},
+};
 use indexlake_integration_tests::data::prepare_simple_testing_table;
 use indexlake_integration_tests::utils::table_scan;
 use indexlake_integration_tests::{
@@ -25,7 +29,7 @@ async fn scan_with_projection(
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
 
     let scan = TableScan::default().with_projection(Some(vec![0, 2]));
     let table_str = table_scan(&table, scan).await?;
@@ -58,7 +62,7 @@ async fn scan_with_filters(
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
 
     let scan = TableScan::default()
         .with_filters(vec![col("age").gt(lit(21)), col("name").eq(lit("Charlie"))]);
@@ -78,7 +82,7 @@ async fn scan_with_filters(
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, storage_fs())]
-// #[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_postgres().await }, storage_s3())]
 #[tokio::test(flavor = "multi_thread")]
 async fn partitioned_scan(
     #[future(awt)]

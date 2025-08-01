@@ -1,6 +1,11 @@
 use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
 use indexlake::expr::{col, lit};
-use indexlake::{Client, catalog::Catalog, catalog::Scalar, storage::Storage};
+use indexlake::{
+    Client,
+    catalog::Catalog,
+    catalog::Scalar,
+    storage::{DataFileFormat, Storage},
+};
 use indexlake_integration_tests::data::prepare_simple_testing_table;
 use indexlake_integration_tests::utils::full_table_scan;
 use indexlake_integration_tests::{
@@ -22,7 +27,7 @@ async fn update_table_by_condition(
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
 
     let set_map = HashMap::from([("age".to_string(), lit(30i32))]);
     let condition = col("name").eq(lit("Alice"));
@@ -58,7 +63,7 @@ async fn update_table_by_row_id(
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client).await?;
+    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
 
     let set_map = HashMap::from([("age".to_string(), lit(30i32))]);
     let condition = col(INTERNAL_ROW_ID_FIELD_NAME).eq(lit(1i64));
