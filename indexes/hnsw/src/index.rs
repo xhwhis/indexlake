@@ -26,13 +26,11 @@ impl SearchQuery for HnswSearchQuery {
     }
 }
 
-pub struct HnswIndex {
-    index: Arc<usearch::Index>,
-}
+pub struct HnswIndex {}
 
 impl HnswIndex {
-    pub fn new(index: Arc<usearch::Index>) -> Self {
-        Self { index }
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
@@ -53,23 +51,7 @@ impl Index for HnswIndex {
                     "Hnsw index does not support search query: {query:?}"
                 ))
             })?;
-        let matches = self
-            .index
-            .search(&query.vector, query.limit)
-            .map_err(|e| ILError::IndexError(format!("Failed to search Hnsw index: {e}")))?;
-        let row_id_scores = matches
-            .keys
-            .iter()
-            .zip(matches.distances.iter())
-            .map(|(key, distance)| RowIdScore {
-                row_id: *key as i64,
-                score: *distance as f64,
-            })
-            .collect();
-        Ok(SearchIndexEntries {
-            row_id_scores,
-            score_higher_is_better: false,
-        })
+        todo!()
     }
 
     async fn filter(&self, _filters: &[Expr]) -> ILResult<FilterIndexEntries> {

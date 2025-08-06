@@ -13,34 +13,13 @@ use crate::{HnswIndex, HnswIndexParams};
 pub struct HnswIndexBuilder {
     index_def: IndexDefinationRef,
     params: HnswIndexParams,
-    index: Arc<usearch::Index>,
 }
 
 impl HnswIndexBuilder {
     pub fn try_new(index_def: IndexDefinationRef) -> ILResult<Self> {
         let params = index_def.downcast_params::<HnswIndexParams>()?.clone();
-        let options = usearch::IndexOptions {
-            dimensions: params.dimensions,
-            metric: params.distance.to_usearch(),
-            quantization: usearch::ScalarKind::F32,
-            connectivity: params.connectivity,
-            expansion_add: 0,
-            expansion_search: 0,
-            multi: false,
-        };
-        let index = usearch::Index::new(&options)
-            .map_err(|e| ILError::IndexError(format!("Failed to create Hnsw index: {e}")))?;
 
-        // TODO why we need this code?
-        index.reserve(1).map_err(|e| {
-            ILError::IndexError(format!("Failed to reserve capacity for Hnsw index: {e}"))
-        })?;
-
-        Ok(Self {
-            index_def,
-            params,
-            index: Arc::new(index),
-        })
+        Ok(Self { index_def, params })
     }
 }
 
@@ -67,11 +46,6 @@ impl IndexBuilder for HnswIndexBuilder {
             .downcast_ref::<ListArray>()
             .ok_or_else(|| ILError::IndexError(format!("Key column is not a list array")))?;
 
-        // TODO fix
-        self.index.reserve(row_id_array.len()).map_err(|e| {
-            ILError::IndexError(format!("Failed to reserve capacity for Hnsw index: {e}"))
-        })?;
-
         for (row_id, vector_arr) in row_id_array.iter().zip(key_column.iter()) {
             let row_id = row_id.expect("row id is null");
             if let Some(arr) = vector_arr {
@@ -79,46 +53,25 @@ impl IndexBuilder for HnswIndexBuilder {
                     .as_any()
                     .downcast_ref::<Float32Array>()
                     .ok_or_else(|| ILError::IndexError(format!("Vector is not a float32 array")))?;
-                self.index
-                    .add(row_id as u64, vector.values())
-                    .map_err(|e| {
-                        ILError::IndexError(format!("Failed to add vector to Hnsw index: {e}"))
-                    })?;
+                todo!()
             }
         }
         Ok(())
     }
 
     async fn read_file(&mut self, input_file: InputFile) -> ILResult<()> {
-        let buffer = input_file.read().await?;
-        self.index.load_from_buffer(&buffer).map_err(|e| {
-            ILError::IndexError(format!("Failed to load Hnsw index from file: {e}"))
-        })?;
-        Ok(())
+        todo!()
     }
 
     async fn write_file(&mut self, mut output_file: OutputFile) -> ILResult<()> {
-        let mut buffer = vec![0; self.index.memory_usage()];
-        self.index.save_to_buffer(&mut buffer).map_err(|e| {
-            ILError::IndexError(format!("Failed to save Hnsw index to buffer: {e}"))
-        })?;
-
-        let writer = output_file.writer();
-        writer.write(buffer).await?;
-
-        output_file.close().await?;
-        Ok(())
+        todo!()
     }
 
     fn serialize(&self) -> ILResult<Vec<u8>> {
-        let mut buffer = vec![0; self.index.memory_usage()];
-        self.index.save_to_buffer(&mut buffer).map_err(|e| {
-            ILError::IndexError(format!("Failed to save Hnsw index to buffer: {e}"))
-        })?;
-        Ok(buffer)
+        todo!()
     }
 
     fn build(&mut self) -> ILResult<Box<dyn Index>> {
-        Ok(Box::new(HnswIndex::new(self.index.clone())))
+        Ok(Box::new(HnswIndex::new()))
     }
 }

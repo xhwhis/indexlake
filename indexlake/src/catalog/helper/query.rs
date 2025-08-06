@@ -44,18 +44,23 @@ impl TransactionHelper {
         }
     }
 
-    pub(crate) async fn table_name_exists(
+    pub(crate) async fn get_table_id(
         &mut self,
         namespace_id: &Uuid,
         table_name: &str,
-    ) -> ILResult<bool> {
+    ) -> ILResult<Option<Uuid>> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "table_id",
             CatalogDataType::Uuid,
             false,
         )]));
         let rows = self.query_rows(&format!("SELECT table_id FROM indexlake_table WHERE namespace_id = {} AND table_name = '{table_name}'", self.database.sql_uuid_value(namespace_id)), schema).await?;
-        Ok(rows.len() > 0)
+        if rows.is_empty() {
+            Ok(None)
+        } else {
+            let table_id_opt = rows[0].uuid(0)?;
+            Ok(table_id_opt)
+        }
     }
 
     pub(crate) async fn scan_inline_rows(

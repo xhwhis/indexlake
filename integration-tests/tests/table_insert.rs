@@ -49,6 +49,7 @@ async fn parallel_insert_table(
         table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: table_config,
+        if_not_exists: false,
     };
     client.create_table(table_creation).await?;
     let table = client.load_table(&namespace_name, &table_name).await?;
@@ -127,6 +128,7 @@ async fn bypass_insert_table(
         table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: table_config,
+        if_not_exists: false,
     };
     client.create_table(table_creation).await?;
     let table = client.load_table(&namespace_name, &table_name).await?;

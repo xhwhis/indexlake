@@ -40,6 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         table_name: table_name.to_string(),
         schema: arrow_bm25_table_schema(),
         config: table_config,
+        if_not_exists: false,
     };
     client.create_table(table_creation).await?;
 

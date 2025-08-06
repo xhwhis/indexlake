@@ -32,6 +32,7 @@ pub async fn prepare_simple_testing_table(
         table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: table_config,
+        if_not_exists: false,
     };
     client.create_table(table_creation).await?;
 

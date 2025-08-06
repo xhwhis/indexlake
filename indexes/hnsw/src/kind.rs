@@ -107,14 +107,3 @@ pub enum DistanceKind {
     Hamming,
     Divergence,
 }
-
-impl DistanceKind {
-    pub fn to_usearch(&self) -> usearch::MetricKind {
-        match self {
-            DistanceKind::L2 => usearch::MetricKind::L2sq,
-            DistanceKind::Cosine => usearch::MetricKind::Cos,
-            DistanceKind::Hamming => usearch::MetricKind::Hamming,
-            DistanceKind::Divergence => usearch::MetricKind::Divergence,
-        }
-    }
-}

@@ -48,6 +48,7 @@ async fn create_table(
         table_name: table_name.clone(),
         schema: expected_schema.clone(),
         config: TableConfig::default(),
+        if_not_exists: false,
     };
 
     let expected_table_id = client.create_table(table_creation).await?;
@@ -171,6 +172,7 @@ async fn table_data_types(
         table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: TableConfig::default(),
+        if_not_exists: false,
     };
 
     client.create_table(table_creation).await?;
@@ -357,16 +359,21 @@ async fn duplicated_table_name(
     ]));
 
     let table_name = uuid::Uuid::new_v4().to_string();
-    let table_creation = TableCreation {
+    let mut table_creation = TableCreation {
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: expected_schema.clone(),
         config: TableConfig::default(),
+        if_not_exists: false,
     };
 
     client.create_table(table_creation.clone()).await?;
-    let result = client.create_table(table_creation).await;
+
+    let result = client.create_table(table_creation.clone()).await;
     assert!(result.is_err());
+
+    table_creation.if_not_exists = true;
+    client.create_table(table_creation).await?;
 
     Ok(())
 }
@@ -423,6 +430,7 @@ async fn drop_table(
         table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: TableConfig::default(),
+        if_not_exists: false,
     };
     client.create_table(table_creation.clone()).await?;
 
@@ -493,6 +501,7 @@ async fn duplicated_index_name(
         table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: TableConfig::default(),
+        if_not_exists: false,
     };
     client.create_table(table_creation).await?;
 
@@ -571,6 +580,7 @@ async fn drop_index(
         table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: TableConfig::default(),
+        if_not_exists: false,
     };
     client.create_table(table_creation).await?;
 

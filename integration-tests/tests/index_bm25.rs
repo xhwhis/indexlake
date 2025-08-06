@@ -56,6 +56,7 @@ async fn create_bm25_index(
         table_name: table_name.clone(),
         schema: table_schema.clone(),
         config: table_config,
+        if_not_exists: false,
     };
     client.create_table(table_creation).await?;
     let mut table = client.load_table(&namespace_name, &table_name).await?;

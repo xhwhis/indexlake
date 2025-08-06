@@ -18,6 +18,7 @@ pub struct TableCreation {
     pub table_name: String,
     pub schema: SchemaRef,
     pub config: TableConfig,
+    pub if_not_exists: bool,
 }
 
 pub(crate) async fn process_create_table(
@@ -28,17 +29,21 @@ pub(crate) async fn process_create_table(
         .get_namespace_id(&creation.namespace_name)
         .await?
         .ok_or_else(|| {
-            ILError::CatalogError(format!("Namespace {} not found", creation.namespace_name))
+            ILError::InvalidInput(format!("Namespace {} not found", creation.namespace_name))
         })?;
 
-    if tx_helper
-        .table_name_exists(&namespace_id, &creation.table_name)
+    if let Some(table_id) = tx_helper
+        .get_table_id(&namespace_id, &creation.table_name)
         .await?
     {
-        return Err(ILError::InvalidInput(format!(
-            "Table {} already exists in namespace {}",
-            creation.table_name, creation.namespace_name
-        )));
+        return if creation.if_not_exists {
+            Ok(table_id)
+        } else {
+            Err(ILError::InvalidInput(format!(
+                "Table {} already exists in namespace {}",
+                creation.table_name, creation.namespace_name
+            )))
+        };
     }
 
     let table_id = Uuid::now_v7();
