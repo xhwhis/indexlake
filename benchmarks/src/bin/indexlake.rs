@@ -6,7 +6,7 @@ use indexlake::table::TableConfig;
 use indexlake::table::TableCreation;
 use indexlake::table::TableScan;
 use indexlake::table::TableScanPartition;
-use indexlake::{Client, catalog::Catalog};
+use indexlake::{Client, storage::DataFileFormat};
 use indexlake_benchmarks::data::{arrow_table_schema, new_record_batch};
 use indexlake_integration_tests::init_env_logger;
 use indexlake_integration_tests::{catalog_postgres, storage_s3};
@@ -19,24 +19,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client = Client::new(catalog, storage);
 
-    let namespace_name = "test_namespace";
-    client.create_namespace(namespace_name, true).await?;
+    let namespace_name = uuid::Uuid::new_v4().to_string();
+    client.create_namespace(&namespace_name, true).await?;
 
-    let table_name = "test_table";
+    let table_name = uuid::Uuid::new_v4().to_string();
     let table_config = TableConfig {
         inline_row_count_limit: 10000,
         parquet_row_group_size: 1000,
-        ..Default::default()
+        preferred_data_file_format: DataFileFormat::LanceV2_0,
     };
     let table_creation = TableCreation {
-        namespace_name: namespace_name.to_string(),
-        table_name: table_name.to_string(),
+        namespace_name: namespace_name.clone(),
+        table_name: table_name.clone(),
         schema: arrow_table_schema(),
         config: table_config,
     };
     client.create_table(table_creation).await?;
 
-    let table = client.load_table(namespace_name, table_name).await?;
+    let table = client.load_table(&namespace_name, &table_name).await?;
 
     let total_rows = 1000000;
     let num_tasks = 10;

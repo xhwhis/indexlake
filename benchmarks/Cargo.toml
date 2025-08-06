@@ -32,6 +32,7 @@ lance-index = { version = "0.31.1", features = ["tokenizer-jieba"], optional = t
 rand = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 num_cpus = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
 
 [[bin]]
 name = "deltalake"

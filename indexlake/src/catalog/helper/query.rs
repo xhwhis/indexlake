@@ -51,7 +51,7 @@ impl TransactionHelper {
     ) -> ILResult<bool> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "table_id",
-            CatalogDataType::Int64,
+            CatalogDataType::Uuid,
             false,
         )]));
         let rows = self.query_rows(&format!("SELECT table_id FROM indexlake_table WHERE namespace_id = {} AND table_name = '{table_name}'", self.database.sql_uuid_value(namespace_id)), schema).await?;
