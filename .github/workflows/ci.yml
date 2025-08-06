@@ -15,8 +15,8 @@ jobs:
 
       - name: Install Build Dependencies
         run: |
-          apt-get update
-          apt-get install -y protobuf-compiler
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
 
       - name: Run cargo check
         run: cargo check
@@ -31,8 +31,8 @@ jobs:
 
       - name: Install Build Dependencies
         run: |
-          apt-get update
-          apt-get install -y protobuf-compiler
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
 
       - name: Run cargo test
         run: cargo test
