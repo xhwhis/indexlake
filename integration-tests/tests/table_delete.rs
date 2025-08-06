@@ -12,19 +12,22 @@ use indexlake_integration_tests::{data::prepare_simple_testing_table, utils::ful
 use std::sync::Arc;
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
 #[tokio::test(flavor = "multi_thread")]
 async fn delete_table_by_condition(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
+    let table = prepare_simple_testing_table(&client, format).await?;
 
     let condition = col("age").gt(lit(21i32));
     table.delete(&condition).await?;
@@ -45,19 +48,22 @@ async fn delete_table_by_condition(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
 #[tokio::test(flavor = "multi_thread")]
 async fn delete_table_by_row_id(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
+    let table = prepare_simple_testing_table(&client, format).await?;
 
     let condition = col(INTERNAL_ROW_ID_FIELD_NAME).eq(lit(1i64));
     table.delete(&condition).await?;
@@ -79,19 +85,22 @@ async fn delete_table_by_row_id(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
 #[tokio::test(flavor = "multi_thread")]
 async fn delete_table_by_constant_condition(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
+    let table = prepare_simple_testing_table(&client, format).await?;
 
     let false_condition = lit(1i32).eq(lit(2i32));
     table.delete(&false_condition).await?;

@@ -235,3 +235,57 @@ pub(crate) async fn read_data_file_by_record(
         }
     }
 }
+
+pub(crate) async fn read_data_file_by_record_and_row_id_condition(
+    storage: &Storage,
+    table_schema: &Schema,
+    data_file_record: &DataFileRecord,
+    projection: Option<Vec<usize>>,
+    row_id_condition: &Expr,
+) -> ILResult<RecordBatchStream> {
+    match data_file_record.format {
+        DataFileFormat::ParquetV1 | DataFileFormat::ParquetV2 => {
+            read_parquet_file_by_record_and_row_id_condition(
+                storage,
+                table_schema,
+                data_file_record,
+                projection,
+                row_id_condition,
+            )
+            .await
+        }
+        DataFileFormat::LanceV2_1 => {
+            read_lance_file_by_record_and_row_id_condition(
+                storage,
+                table_schema,
+                data_file_record,
+                projection,
+                row_id_condition,
+            )
+            .await
+        }
+    }
+}
+
+pub(crate) async fn find_matched_row_ids_from_data_file(
+    storage: &Storage,
+    table_schema: &Schema,
+    condition: &Expr,
+    data_file_record: &DataFileRecord,
+) -> ILResult<HashSet<i64>> {
+    match data_file_record.format {
+        DataFileFormat::ParquetV1 | DataFileFormat::ParquetV2 => {
+            find_matched_row_ids_from_parquet_file(
+                storage,
+                table_schema,
+                condition,
+                data_file_record,
+            )
+            .await
+        }
+        DataFileFormat::LanceV2_1 => {
+            find_matched_row_ids_from_lance_file(storage, table_schema, condition, data_file_record)
+                .await
+        }
+    }
+}

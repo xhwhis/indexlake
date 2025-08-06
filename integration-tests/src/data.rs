@@ -46,8 +46,6 @@ pub async fn prepare_simple_testing_table(
     )?;
     table.insert(&[record_batch]).await?;
 
-    log::info!("LWZTEST first insert success");
-
     let record_batch = RecordBatch::try_new(
         table_schema.clone(),
         vec![
@@ -56,8 +54,6 @@ pub async fn prepare_simple_testing_table(
         ],
     )?;
     table.insert(&[record_batch]).await?;
-
-    log::info!("LWZTEST second insert success");
 
     // wait for dump task to finish
     tokio::time::sleep(std::time::Duration::from_secs(3)).await;

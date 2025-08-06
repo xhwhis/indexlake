@@ -19,13 +19,16 @@ use std::time::Duration;
 #[rstest::rstest]
 // TODO fix sqlite test
 // #[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
 #[tokio::test(flavor = "multi_thread")]
 async fn parallel_insert_table(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
@@ -39,7 +42,7 @@ async fn parallel_insert_table(
     let table_config = TableConfig {
         inline_row_count_limit: 100,
         parquet_row_group_size: 10,
-        ..Default::default()
+        preferred_data_file_format: format,
     };
     let table_creation = TableCreation {
         namespace_name: namespace_name.clone(),

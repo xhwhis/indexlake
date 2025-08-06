@@ -4,7 +4,7 @@ use std::{
 };
 
 use arrow::{
-    array::{AsArray, Int64Array, RecordBatch, RecordBatchOptions},
+    array::{AsArray, RecordBatch, RecordBatchOptions},
     datatypes::{Int64Type, SchemaRef},
 };
 use futures::StreamExt;
@@ -13,11 +13,9 @@ use uuid::Uuid;
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
-    catalog::{DataFileRecord, Scalar, TransactionHelper},
+    catalog::{DataFileRecord, TransactionHelper},
     expr::Expr,
-    storage::{
-        Storage, read_parquet_file_by_record, read_parquet_file_by_record_and_row_id_condition,
-    },
+    storage::{Storage, read_data_file_by_record, read_data_file_by_record_and_row_id_condition},
     table::process_insert_into_inline_rows,
 };
 
@@ -106,7 +104,7 @@ pub(crate) async fn update_data_file_rows_by_condition(
     data_file_record: DataFileRecord,
 ) -> ILResult<()> {
     let mut stream = if condition.only_visit_row_id_column() {
-        read_parquet_file_by_record_and_row_id_condition(
+        read_data_file_by_record_and_row_id_condition(
             storage,
             &table_schema,
             &data_file_record,
@@ -115,7 +113,7 @@ pub(crate) async fn update_data_file_rows_by_condition(
         )
         .await?
     } else {
-        read_parquet_file_by_record(
+        read_data_file_by_record(
             storage,
             &table_schema,
             &data_file_record,
@@ -165,7 +163,7 @@ pub(crate) async fn parallel_find_matched_data_file_rows(
         let condition = condition.clone();
         let handle: JoinHandle<ILResult<(Uuid, RecordBatchStream)>> = tokio::spawn(async move {
             let mut stream = if condition.only_visit_row_id_column() {
-                read_parquet_file_by_record_and_row_id_condition(
+                read_data_file_by_record_and_row_id_condition(
                     &storage,
                     &table_schema,
                     &data_file_record,
@@ -174,7 +172,7 @@ pub(crate) async fn parallel_find_matched_data_file_rows(
                 )
                 .await?
             } else {
-                read_parquet_file_by_record(
+                read_data_file_by_record(
                     &storage,
                     &table_schema,
                     &data_file_record,

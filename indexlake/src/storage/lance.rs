@@ -1,6 +1,9 @@
 use std::{collections::HashSet, sync::Arc};
 
-use arrow::array::UInt64Array;
+use arrow::{
+    array::{ArrayRef, AsArray, Int64Array, RecordBatch, UInt64Array},
+    datatypes::Int64Type,
+};
 use arrow_schema::Schema;
 use futures::{StreamExt, TryStreamExt};
 use lance_core::cache::LanceCache;
@@ -20,9 +23,10 @@ use lance_io::{
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
-    catalog::DataFileRecord,
+    catalog::{DataFileRecord, INTERNAL_ROW_ID_FIELD_REF},
     expr::{Expr, merge_filters},
     storage::{DataFileFormat, Storage},
+    utils::build_projection_from_condition,
 };
 
 // TODO fix local fs
@@ -165,4 +169,103 @@ pub(crate) async fn read_lance_file_by_record(
     }
 
     Ok(Box::pin(futures::stream::iter(batches).map(Ok)))
+}
+
+pub(crate) async fn read_lance_file_by_record_and_row_id_condition(
+    storage: &Storage,
+    table_schema: &Schema,
+    data_file_record: &DataFileRecord,
+    projection: Option<Vec<usize>>,
+    row_id_condition: &Expr,
+) -> ILResult<RecordBatchStream> {
+    let valid_row_ids = data_file_record.valid_row_ids();
+    let valid_row_ids_array = Arc::new(Int64Array::from_iter_values(valid_row_ids)) as ArrayRef;
+
+    let schema = Arc::new(Schema::new(vec![INTERNAL_ROW_ID_FIELD_REF.clone()]));
+    let batch = RecordBatch::try_new(schema, vec![valid_row_ids_array.clone()])?;
+
+    let bool_array = row_id_condition.condition_eval(&batch)?;
+
+    let mut indices = Vec::new();
+    for (i, v) in bool_array.iter().enumerate() {
+        if let Some(v) = v
+            && v
+        {
+            indices.push(i as u64);
+        }
+    }
+    if indices.is_empty() {
+        return Ok(Box::pin(futures::stream::empty()));
+    }
+    let index_array = UInt64Array::from(indices);
+
+    let take_array = arrow::compute::take(valid_row_ids_array.as_ref(), &index_array, None)?;
+    let match_row_id_array = take_array.as_primitive_opt::<Int64Type>().ok_or_else(|| {
+        ILError::InternalError(format!(
+            "match row id array should be Int64Array, but got {:?}",
+            take_array.data_type()
+        ))
+    })?;
+    let match_row_ids = match_row_id_array
+        .values()
+        .iter()
+        .map(|v| *v)
+        .collect::<HashSet<_>>();
+
+    let stream = read_lance_file_by_record(
+        &storage,
+        &table_schema,
+        &data_file_record,
+        projection,
+        vec![],
+        Some(&match_row_ids),
+        1024,
+    )
+    .await?;
+    Ok(stream)
+}
+
+pub(crate) async fn find_matched_row_ids_from_lance_file(
+    storage: &Storage,
+    table_schema: &Schema,
+    condition: &Expr,
+    data_file_record: &DataFileRecord,
+) -> ILResult<HashSet<i64>> {
+    let mut projection = build_projection_from_condition(table_schema, &condition)?;
+    // If the condition does not contain the row id column, add it to the projection
+    if !projection.contains(&0) {
+        projection.insert(0, 0);
+    }
+
+    let mut stream = read_lance_file_by_record(
+        storage,
+        table_schema,
+        data_file_record,
+        Some(projection),
+        vec![condition.clone()],
+        None,
+        1024,
+    )
+    .await?;
+
+    let mut matched_row_ids = HashSet::new();
+    while let Some(batch) = stream.next().await {
+        let batch = batch?;
+        let row_id_array = batch
+            .column(0)
+            .as_primitive_opt::<Int64Type>()
+            .ok_or_else(|| {
+                ILError::InternalError(format!(
+                    "row id array should be Int64Array, but got {:?}",
+                    batch.column(0).data_type()
+                ))
+            })?;
+
+        matched_row_ids.extend(
+            row_id_array
+                .iter()
+                .map(|row_id| row_id.expect("Row id should not be null")),
+        );
+    }
+    Ok(matched_row_ids)
 }

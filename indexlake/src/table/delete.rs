@@ -1,15 +1,14 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use arrow::array::{AsArray, Int64Array, RecordBatch};
-use arrow::datatypes::{DataType, Int64Type, Schema, SchemaRef};
-use futures::StreamExt;
+use arrow::array::{Int64Array, RecordBatch};
+use arrow::datatypes::{DataType, Schema, SchemaRef};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 use crate::catalog::{DataFileRecord, INTERNAL_ROW_ID_FIELD_REF, TransactionHelper};
 use crate::expr::Expr;
-use crate::storage::{Storage, find_matched_row_ids_from_parquet_file};
+use crate::storage::{Storage, find_matched_row_ids_from_data_file};
 use crate::{ILError, ILResult};
 
 pub(crate) async fn process_delete_by_condition(
@@ -53,13 +52,9 @@ pub(crate) async fn delete_data_file_rows_by_condition(
     condition: &Expr,
     data_file_record: DataFileRecord,
 ) -> ILResult<()> {
-    let deleted_row_ids = find_matched_row_ids_from_parquet_file(
-        &storage,
-        &table_schema,
-        &condition,
-        &data_file_record,
-    )
-    .await?;
+    let deleted_row_ids =
+        find_matched_row_ids_from_data_file(&storage, &table_schema, &condition, &data_file_record)
+            .await?;
 
     tx_helper
         .update_data_file_rows_as_invalid(data_file_record, &deleted_row_ids)
@@ -118,7 +113,7 @@ pub(crate) async fn parallel_find_matched_data_file_row_ids(
         let condition = condition.clone();
 
         let handle: JoinHandle<ILResult<(Uuid, HashSet<i64>)>> = tokio::spawn(async move {
-            let matched_row_ids = find_matched_row_ids_from_parquet_file(
+            let matched_row_ids = find_matched_row_ids_from_data_file(
                 &storage,
                 &table_schema,
                 &condition,
