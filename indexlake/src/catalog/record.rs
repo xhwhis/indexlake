@@ -209,7 +209,7 @@ impl DataFileRecord {
             data_file_id.to_string(),
             match format {
                 DataFileFormat::ParquetV1 | DataFileFormat::ParquetV2 => "parquet",
-                DataFileFormat::LanceV2_1 => "lance",
+                DataFileFormat::LanceV2_0 => "lance",
             }
         )
     }

@@ -188,7 +188,7 @@ impl InputFile {
 pub enum DataFileFormat {
     ParquetV1,
     ParquetV2,
-    LanceV2_1,
+    LanceV2_0,
 }
 
 impl std::fmt::Display for DataFileFormat {
@@ -196,7 +196,7 @@ impl std::fmt::Display for DataFileFormat {
         match self {
             DataFileFormat::ParquetV1 => write!(f, "ParquetV1"),
             DataFileFormat::ParquetV2 => write!(f, "ParquetV2"),
-            DataFileFormat::LanceV2_1 => write!(f, "LanceV2_1"),
+            DataFileFormat::LanceV2_0 => write!(f, "LanceV2_0"),
         }
     }
 }
@@ -208,7 +208,7 @@ impl std::str::FromStr for DataFileFormat {
         match s {
             "ParquetV1" => Ok(DataFileFormat::ParquetV1),
             "ParquetV2" => Ok(DataFileFormat::ParquetV2),
-            "LanceV2_1" => Ok(DataFileFormat::LanceV2_1),
+            "LanceV2_0" => Ok(DataFileFormat::LanceV2_0),
             _ => Err(ILError::InvalidInput(format!(
                 "Invalid data file format: {s}"
             ))),
@@ -238,7 +238,7 @@ pub(crate) async fn read_data_file_by_record(
             )
             .await
         }
-        DataFileFormat::LanceV2_1 => {
+        DataFileFormat::LanceV2_0 => {
             read_lance_file_by_record(
                 storage,
                 table_schema,
@@ -271,7 +271,7 @@ pub(crate) async fn read_data_file_by_record_and_row_id_condition(
             )
             .await
         }
-        DataFileFormat::LanceV2_1 => {
+        DataFileFormat::LanceV2_0 => {
             read_lance_file_by_record_and_row_id_condition(
                 storage,
                 table_schema,
@@ -300,7 +300,7 @@ pub(crate) async fn find_matched_row_ids_from_data_file(
             )
             .await
         }
-        DataFileFormat::LanceV2_1 => {
+        DataFileFormat::LanceV2_0 => {
             find_matched_row_ids_from_lance_file(storage, table_schema, condition, data_file_record)
                 .await
         }

@@ -27,8 +27,7 @@ use indexlake_integration_tests::utils::table_scan;
 #[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
 #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
 #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
-// TODO fix lance binary encoding: casting buffer failed during BinaryMiniBlock decompression: TargetAlignmentGreaterAndInputNotAligned
-// #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
 async fn create_rstar_index_on_existing_table(
     #[future(awt)]

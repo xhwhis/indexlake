@@ -48,7 +48,7 @@ pub(crate) async fn build_lance_writer(
     let object_writer = object_store.create(&relative_path.into()).await?;
 
     let version = match data_file_format {
-        DataFileFormat::LanceV2_1 => LanceFileVersion::V2_1,
+        DataFileFormat::LanceV2_0 => LanceFileVersion::V2_0,
         _ => {
             return Err(ILError::InvalidInput(format!(
                 "Cannot build lance writer for file format: {data_file_format}",

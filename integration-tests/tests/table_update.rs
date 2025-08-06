@@ -18,7 +18,7 @@ use std::sync::Arc;
 #[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
 #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
 #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
 async fn update_table_by_condition(
     #[future(awt)]
@@ -57,7 +57,7 @@ async fn update_table_by_condition(
 #[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
 #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
 #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
 async fn update_table_by_row_id(
     #[future(awt)]

@@ -24,8 +24,7 @@ use indexlake_integration_tests::utils::table_search;
 #[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
 #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
 #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
-// TODO fix
-// #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
 async fn create_bm25_index(
     #[future(awt)]

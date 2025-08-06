@@ -132,7 +132,7 @@ impl DumpTask {
                 self.write_parquet_file(row_stream, &relative_path, &mut index_builders)
                     .await?
             }
-            DataFileFormat::LanceV2_1 => {
+            DataFileFormat::LanceV2_0 => {
                 self.write_lance_file(row_stream, &relative_path, &mut index_builders)
                     .await?
             }

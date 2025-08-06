@@ -20,7 +20,7 @@ use std::sync::Arc;
 #[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
 #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
 #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
 async fn scan_with_projection(
     #[future(awt)]
@@ -56,7 +56,7 @@ async fn scan_with_projection(
 #[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
 #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
 #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
 async fn scan_with_filters(
     #[future(awt)]
@@ -90,7 +90,7 @@ async fn scan_with_filters(
 #[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
 #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
 #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
 async fn partitioned_scan(
     #[future(awt)]

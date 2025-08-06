@@ -84,7 +84,7 @@ pub(crate) async fn process_bypass_insert(
             )
             .await?
         }
-        DataFileFormat::LanceV2_1 => {
+        DataFileFormat::LanceV2_0 => {
             write_lance_file(
                 table,
                 &relative_path,
