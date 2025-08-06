@@ -3,12 +3,11 @@ mod lance;
 mod parquet;
 mod s3;
 
-use arrow_schema::Schema;
-pub use fs::*;
-pub use lance::*;
+pub(crate) use fs::*;
+pub(crate) use lance::*;
 pub use opendal::services::S3Config;
-pub use parquet::*;
-pub use s3::*;
+pub(crate) use parquet::*;
+pub(crate) use s3::*;
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
@@ -16,6 +15,7 @@ use crate::{
     expr::Expr,
     storage::{fs::FsStorage, s3::S3Storage},
 };
+use arrow_schema::Schema;
 use opendal::Operator;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -72,24 +72,41 @@ impl Storage {
         }
     }
 
-    pub fn storage_options(&self) -> HashMap<String, String> {
+    pub fn storage_options(&self) -> ILResult<HashMap<String, String>> {
         match self {
-            Storage::Fs(fs) => HashMap::new(),
+            Storage::Fs(_fs) => Ok(HashMap::new()),
             Storage::S3(s3) => {
-                // TODO fix
                 let mut options = HashMap::new();
-                options.insert("aws_access_key_id".to_string(), "admin".to_string());
-                options.insert("aws_secret_access_key".to_string(), "password".to_string());
+                options.insert(
+                    "aws_access_key_id".to_string(),
+                    s3.config.access_key_id.clone().ok_or_else(|| {
+                        ILError::InternalError("Access key id is not set".to_string())
+                    })?,
+                );
+                options.insert(
+                    "aws_secret_access_key".to_string(),
+                    s3.config.secret_access_key.clone().ok_or_else(|| {
+                        ILError::InternalError("Secret access key is not set".to_string())
+                    })?,
+                );
                 options.insert(
                     "aws_endpoint".to_string(),
-                    "http://127.0.0.1:9000".to_string(),
+                    s3.config
+                        .endpoint
+                        .clone()
+                        .ok_or_else(|| ILError::InternalError("Endpoint is not set".to_string()))?,
                 );
                 options.insert("aws_allow_http".to_string(), "true".to_string());
-                options.insert("aws_region".to_string(), "us-east-1".to_string());
-                options.insert("aws_default_region".to_string(), "us-east-1".to_string());
+                options.insert(
+                    "aws_region".to_string(),
+                    s3.config
+                        .region
+                        .clone()
+                        .ok_or_else(|| ILError::InternalError("Region is not set".to_string()))?,
+                );
                 options.insert("AWS_EC2_METADATA_DISABLED".to_string(), "true".to_string());
                 options.insert("AWS_S3_ALLOW_UNSAFE_RENAME".to_string(), "true".to_string());
-                options
+                Ok(options)
             }
         }
     }

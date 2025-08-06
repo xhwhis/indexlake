@@ -33,6 +33,7 @@ indexlake-integration-tests = { path = "integration-tests" }
 
 arrow = "55"
 arrow-schema = "55"
+async-stream = "0.3.6"
 async-trait = "0.1"
 bb8 = "0.9"
 bb8-postgres = "0.9"

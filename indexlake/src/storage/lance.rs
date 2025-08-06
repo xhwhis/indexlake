@@ -41,7 +41,7 @@ pub(crate) async fn build_lance_writer(
     let registry = Arc::new(ObjectStoreRegistry::default());
 
     let mut object_store_params = ObjectStoreParams::default();
-    object_store_params.storage_options = Some(storage.storage_options());
+    object_store_params.storage_options = Some(storage.storage_options()?);
 
     let (object_store, _) =
         ObjectStore::from_uri_and_params(registry, &root_path, &object_store_params).await?;
@@ -82,7 +82,7 @@ pub(crate) async fn read_lance_file_by_record(
     let registry = Arc::new(ObjectStoreRegistry::default());
 
     let mut object_store_params = ObjectStoreParams::default();
-    object_store_params.storage_options = Some(storage.storage_options());
+    object_store_params.storage_options = Some(storage.storage_options()?);
 
     let (object_store, _) =
         ObjectStore::from_uri_and_params(registry, &root_path, &object_store_params).await?;
@@ -133,7 +133,7 @@ pub(crate) async fn read_lance_file_by_record(
         .map(|r| r.start as u64..r.end as u64)
         .collect::<Vec<_>>();
 
-    let mut stream = reader.read_tasks(
+    let mut task_stream = reader.read_tasks(
         lance_io::ReadBatchParams::Ranges(ranges.into()),
         batch_size as u32,
         None,
@@ -142,8 +142,8 @@ pub(crate) async fn read_lance_file_by_record(
 
     let filter = merge_filters(filters);
 
-    let mut batches = Vec::new();
-    while let Some(task) = stream.next().await {
+    let stream = async_stream::stream! {
+        while let Some(task) = task_stream.next().await {
         let batch = task.task.await?;
         if let Some(filter) = &filter {
             let bool_array = filter.condition_eval(&batch)?;
@@ -162,13 +162,14 @@ pub(crate) async fn read_lance_file_by_record(
                 .collect::<Vec<_>>();
             let index_array = UInt64Array::from(indices);
             let filtered_batch = arrow::compute::take_record_batch(&batch, &index_array)?;
-            batches.push(filtered_batch);
+            yield Ok(filtered_batch);
         } else {
-            batches.push(batch);
+            yield Ok(batch);
         }
-    }
+        }
+    };
 
-    Ok(Box::pin(futures::stream::iter(batches).map(Ok)))
+    Ok(Box::pin(stream))
 }
 
 pub(crate) async fn read_lance_file_by_record_and_row_id_condition(

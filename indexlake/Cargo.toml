@@ -10,6 +10,7 @@ description = "An experimental table format with extensible index support."
 [dependencies]
 arrow = { workspace = true }
 arrow-schema = { workspace = true, features = ["serde"]}
+async-stream = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
 comfy-table = { workspace = true }

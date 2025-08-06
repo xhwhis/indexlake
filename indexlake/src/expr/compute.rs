@@ -44,7 +44,6 @@ pub fn compare_op_for_nested(
         return Ok(BooleanArray::new_null(len));
     }
 
-    // TODO: make SortOptions configurable
     // we choose the default behaviour from arrow-rs which has null-first that follow spark's behaviour
     let cmp = make_comparator(l, r, SortOptions::default())?;
 
