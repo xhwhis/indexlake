@@ -108,35 +108,27 @@ pub(crate) async fn read_lance_file_by_record(
     )
     .await?;
 
-    let version = match data_file_record.format {
-        DataFileFormat::LanceV2_1 => LanceFileVersion::V2_1,
-        _ => {
-            return Err(ILError::InvalidInput(format!(
-                "Cannot build lance reader for file format: {}",
-                data_file_record.format
-            )));
-        }
-    };
-
-    // TODO fix projection
-    let projection = match projection {
-        Some(projection) => ReaderProjection {
-            schema: Arc::new(table_schema.try_into()?),
-            column_indices: projection.iter().map(|idx| *idx as u32).collect(),
-        },
-        None => ReaderProjection::from_whole_schema(&table_schema.try_into()?, version),
-    };
-
     let ranges = data_file_record
         .row_ranges(row_ids)?
         .into_iter()
         .map(|r| r.start as u64..r.end as u64)
         .collect::<Vec<_>>();
 
+    let projection = match projection {
+        Some(projection) => {
+            let projected_schema = table_schema.project(&projection)?;
+            Some(ReaderProjection {
+                schema: Arc::new((&projected_schema).try_into()?),
+                column_indices: projection.iter().map(|idx| *idx as u32).collect(),
+            })
+        }
+        None => None,
+    };
+
     let mut task_stream = reader.read_tasks(
         lance_io::ReadBatchParams::Ranges(ranges.into()),
         batch_size as u32,
-        None,
+        projection,
         FilterExpression::no_filter(),
     )?;
 

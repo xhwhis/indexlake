@@ -8,7 +8,7 @@ use crate::{
     ILError, ILResult,
     catalog::{FieldRecord, IndexFileRecord, IndexRecord, TableRecord, TransactionHelper},
     index::{IndexDefination, IndexParams},
-    storage::read_parquet_file_by_record,
+    storage::read_data_file_by_record,
     table::{Table, TableConfig},
 };
 
@@ -118,7 +118,7 @@ pub(crate) async fn process_create_index(
     let mut index_file_records = Vec::new();
     for data_file_record in data_file_records {
         let mut index_builder = index_kind.builder(&index_def)?;
-        let mut stream = read_parquet_file_by_record(
+        let mut stream = read_data_file_by_record(
             &table.storage,
             &table.schema,
             &data_file_record,

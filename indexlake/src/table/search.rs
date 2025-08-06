@@ -17,7 +17,7 @@ use crate::{
         CatalogHelper, CatalogSchema, DataFileRecord, IndexFileRecord, Row, rows_to_record_batch,
     },
     index::{IndexDefinationRef, IndexKind, RowIdScore, SearchIndexEntries, SearchQuery},
-    storage::{Storage, read_parquet_file_by_record},
+    storage::{Storage, read_data_file_by_record},
     table::Table,
     utils::project_schema,
 };
@@ -291,7 +291,7 @@ async fn read_data_file_rows(
             .ok_or(ILError::IndexError(format!(
                 "Data file record not found for data file id {data_file_id}"
             )))?;
-        let stream = read_parquet_file_by_record(
+        let stream = read_data_file_by_record(
             &table.storage,
             &table.schema,
             data_file_record,

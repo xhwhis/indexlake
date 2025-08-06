@@ -18,19 +18,24 @@ use arrow::array::{Int32Array, RecordBatch};
 use geo::{Geometry, Point};
 use geozero::{CoordDimensions, ToWkb};
 use indexlake::expr::{Expr, col, func, lit};
+use indexlake::storage::DataFileFormat;
 use indexlake::table::IndexCreation;
 use indexlake_index_rstar::{RStarIndexKind, RStarIndexParams, WkbDialect};
 use indexlake_integration_tests::utils::table_scan;
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
+// TODO fix lance binary encoding: casting buffer failed during BinaryMiniBlock decompression: TargetAlignmentGreaterAndInputNotAligned
+// #[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
 #[tokio::test(flavor = "multi_thread")]
 async fn create_rstar_index_on_existing_table(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
@@ -47,7 +52,7 @@ async fn create_rstar_index_on_existing_table(
     let table_config = TableConfig {
         inline_row_count_limit: 3,
         parquet_row_group_size: 2,
-        ..Default::default()
+        preferred_data_file_format: format,
     };
     let table_name = uuid::Uuid::new_v4().to_string();
     let table_creation = TableCreation {
@@ -80,6 +85,7 @@ async fn create_rstar_index_on_existing_table(
         ],
     )?;
     table.insert(&[record_batch]).await?;
+
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
     let index_creation = IndexCreation {
@@ -91,6 +97,8 @@ async fn create_rstar_index_on_existing_table(
         }),
     };
     table.create_index(index_creation).await?;
+
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
     let scan = TableScan::default().with_filters(vec![func(
         "intersects",

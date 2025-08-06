@@ -12,19 +12,22 @@ use indexlake_integration_tests::{
 use std::sync::Arc;
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
 #[tokio::test(flavor = "multi_thread")]
 async fn datafusion_full_scan(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
+    let table = prepare_simple_testing_table(&client, format).await?;
 
     let df_table = IndexLakeTable::new(Arc::new(table));
     let session = SessionContext::new();
@@ -50,19 +53,22 @@ async fn datafusion_full_scan(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
 #[tokio::test(flavor = "multi_thread")]
 async fn datafusion_scan_with_projection(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
+    let table = prepare_simple_testing_table(&client, format).await?;
 
     let df_table = IndexLakeTable::new(Arc::new(table));
     let session = SessionContext::new();
@@ -90,19 +96,22 @@ async fn datafusion_scan_with_projection(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
 #[tokio::test(flavor = "multi_thread")]
 async fn datafusion_scan_with_filters(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
+    let table = prepare_simple_testing_table(&client, format).await?;
 
     let df_table = IndexLakeTable::new(Arc::new(table));
     let session = SessionContext::new();
@@ -128,19 +137,22 @@ async fn datafusion_scan_with_filters(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_1)]
 #[tokio::test(flavor = "multi_thread")]
 async fn datafusion_scan_with_limit(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
     #[case] storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
     let client = Client::new(catalog, storage);
-    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
+    let table = prepare_simple_testing_table(&client, format).await?;
 
     let df_table = IndexLakeTable::new(Arc::new(table));
     let session = SessionContext::new();
