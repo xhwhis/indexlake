@@ -56,20 +56,12 @@ impl IndexKind for HnswIndexKind {
 
     fn supports_search(
         &self,
-        index_def: &IndexDefination,
+        _index_def: &IndexDefination,
         query: &dyn SearchQuery,
     ) -> ILResult<bool> {
-        let Some(query) = query.as_any().downcast_ref::<HnswSearchQuery>() else {
+        let Some(_query) = query.as_any().downcast_ref::<HnswSearchQuery>() else {
             return Ok(false);
         };
-        let params = index_def.downcast_params::<HnswIndexParams>()?;
-        if query.vector.len() != params.dimensions {
-            return Err(ILError::IndexError(format!(
-                "Hnsw index query dimensions mismatch: {} != {}",
-                query.vector.len(),
-                params.dimensions
-            )));
-        }
         Ok(true)
     }
 
@@ -82,9 +74,7 @@ impl IndexKind for HnswIndexKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HnswIndexParams {
-    pub dimensions: usize,
-    pub distance: DistanceKind,
-    pub connectivity: usize,
+    pub ef_construction: usize,
 }
 
 impl IndexParams for HnswIndexParams {
@@ -98,12 +88,4 @@ impl IndexParams for HnswIndexParams {
         })?;
         Ok(json)
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum DistanceKind {
-    L2,
-    Cosine,
-    Hamming,
-    Divergence,
 }

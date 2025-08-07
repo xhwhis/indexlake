@@ -1,10 +1,15 @@
-use std::{any::Any, sync::Arc};
+use std::any::Any;
 
+use hnsw::Hnsw;
 use indexlake::{
     ILError, ILResult,
     expr::Expr,
     index::{FilterIndexEntries, Index, RowIdScore, SearchIndexEntries, SearchQuery},
 };
+use rand_pcg::Pcg64;
+use space::Knn;
+
+use crate::Euclidean;
 
 #[derive(Debug)]
 pub struct HnswSearchQuery {
@@ -26,11 +31,14 @@ impl SearchQuery for HnswSearchQuery {
     }
 }
 
-pub struct HnswIndex {}
+pub struct HnswIndex {
+    hnsw: Hnsw<Euclidean, Vec<f32>, Pcg64, 24, 48>,
+    row_ids: Vec<i64>,
+}
 
 impl HnswIndex {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(hnsw: Hnsw<Euclidean, Vec<f32>, Pcg64, 24, 48>, row_ids: Vec<i64>) -> Self {
+        Self { hnsw, row_ids }
     }
 }
 
@@ -51,7 +59,21 @@ impl Index for HnswIndex {
                     "Hnsw index does not support search query: {query:?}"
                 ))
             })?;
-        todo!()
+
+        let limit = std::cmp::min(query.limit, self.hnsw.len());
+
+        let neighbors = self.hnsw.knn(&query.vector, limit);
+        let mut row_id_scores = vec![];
+        for neighbor in neighbors {
+            row_id_scores.push(RowIdScore {
+                row_id: self.row_ids[neighbor.index],
+                score: neighbor.distance as f64,
+            });
+        }
+        Ok(SearchIndexEntries {
+            row_id_scores,
+            score_higher_is_better: false,
+        })
     }
 
     async fn filter(&self, _filters: &[Expr]) -> ILResult<FilterIndexEntries> {

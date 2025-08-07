@@ -1,25 +1,36 @@
-use std::sync::Arc;
-
 use arrow::array::{Float32Array, ListArray};
 use arrow::record_batch::RecordBatch;
+use hnsw::{Hnsw, Params, Searcher};
 use indexlake::index::IndexDefinationRef;
 use indexlake::index::{Index, IndexBuilder};
 use indexlake::storage::{InputFile, OutputFile};
 use indexlake::utils::extract_row_id_array_from_record_batch;
 use indexlake::{ILError, ILResult};
+use rand_pcg::Pcg64;
+use serde::{Deserialize, Serialize};
 
-use crate::{HnswIndex, HnswIndexParams};
+use crate::{Euclidean, HnswIndex, HnswIndexParams};
 
 pub struct HnswIndexBuilder {
     index_def: IndexDefinationRef,
     params: HnswIndexParams,
+    hnsw: Hnsw<Euclidean, Vec<f32>, Pcg64, 24, 48>,
+    row_ids: Vec<i64>,
 }
 
 impl HnswIndexBuilder {
     pub fn try_new(index_def: IndexDefinationRef) -> ILResult<Self> {
         let params = index_def.downcast_params::<HnswIndexParams>()?.clone();
 
-        Ok(Self { index_def, params })
+        let hnsw_params = Params::new().ef_construction(params.ef_construction);
+        let hnsw = Hnsw::new_params(Euclidean, hnsw_params);
+
+        Ok(Self {
+            index_def,
+            params,
+            hnsw,
+            row_ids: vec![],
+        })
     }
 }
 
@@ -53,18 +64,36 @@ impl IndexBuilder for HnswIndexBuilder {
                     .as_any()
                     .downcast_ref::<Float32Array>()
                     .ok_or_else(|| ILError::IndexError(format!("Vector is not a float32 array")))?;
-                todo!()
+                let vector = vector.values().to_vec();
+                self.hnsw.insert(vector, &mut Searcher::default());
+                self.row_ids.push(row_id);
             }
         }
         Ok(())
     }
 
     async fn read_file(&mut self, input_file: InputFile) -> ILResult<()> {
-        todo!()
+        let json = input_file.read().await?;
+        let hnsw_with_row_ids: HnswWithRowIds = serde_json::from_slice(&json).map_err(|e| {
+            ILError::IndexError(format!("Failed to deserialize Hnsw and row ids: {e}"))
+        })?;
+        self.hnsw = hnsw_with_row_ids.hnsw;
+        self.row_ids = hnsw_with_row_ids.row_ids;
+        Ok(())
     }
 
     async fn write_file(&mut self, mut output_file: OutputFile) -> ILResult<()> {
-        todo!()
+        let hnsw_with_row_ids = HnswWithRowIds {
+            hnsw: std::mem::take(&mut self.hnsw),
+            row_ids: std::mem::take(&mut self.row_ids),
+        };
+        let json = serde_json::to_string(&hnsw_with_row_ids).map_err(|e| {
+            ILError::IndexError(format!("Failed to serialize Hnsw and row ids: {e}"))
+        })?;
+        let writer = output_file.writer();
+        writer.write(json).await?;
+        output_file.close().await?;
+        Ok(())
     }
 
     fn serialize(&self) -> ILResult<Vec<u8>> {
@@ -72,6 +101,15 @@ impl IndexBuilder for HnswIndexBuilder {
     }
 
     fn build(&mut self) -> ILResult<Box<dyn Index>> {
-        Ok(Box::new(HnswIndex::new()))
+        Ok(Box::new(HnswIndex::new(
+            std::mem::take(&mut self.hnsw),
+            std::mem::take(&mut self.row_ids),
+        )))
     }
+}
+
+#[derive(Serialize, Deserialize)]
+struct HnswWithRowIds {
+    hnsw: Hnsw<Euclidean, Vec<f32>, Pcg64, 24, 48>,
+    row_ids: Vec<i64>,
 }
