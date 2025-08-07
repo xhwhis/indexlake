@@ -151,18 +151,22 @@ impl TransactionHelper {
         Ok(data_files)
     }
 
-    pub(crate) async fn index_name_exists(
+    pub(crate) async fn get_index_id(
         &mut self,
         table_id: &Uuid,
         index_name: &str,
-    ) -> ILResult<bool> {
+    ) -> ILResult<Option<Uuid>> {
         let schema = Arc::new(CatalogSchema::new(vec![Column::new(
             "index_id",
-            CatalogDataType::Int64,
+            CatalogDataType::Uuid,
             false,
         )]));
         let rows = self.query_rows(&format!("SELECT index_id FROM indexlake_index WHERE table_id = {} AND index_name = '{index_name}'", self.database.sql_uuid_value(table_id)), schema).await?;
-        Ok(rows.len() > 0)
+        if rows.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(rows[0].uuid(0)?.expect("index_id is not null")))
+        }
     }
 }
 

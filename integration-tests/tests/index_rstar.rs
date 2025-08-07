@@ -95,6 +95,7 @@ async fn create_rstar_index_on_existing_table(
         params: Arc::new(RStarIndexParams {
             wkb_dialect: WkbDialect::Wkb,
         }),
+        if_not_exists: false,
     };
     table.create_index(index_creation).await?;
 

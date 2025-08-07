@@ -310,9 +310,9 @@ impl DataFileRecord {
 #[derive(Debug, Clone)]
 pub(crate) struct IndexRecord {
     pub(crate) index_id: Uuid,
+    pub(crate) table_id: Uuid,
     pub(crate) index_name: String,
     pub(crate) index_kind: String,
-    pub(crate) table_id: Uuid,
     pub(crate) key_field_ids: Vec<Uuid>,
     pub(crate) params: String,
 }
@@ -326,11 +326,11 @@ impl IndexRecord {
             .collect::<Vec<_>>()
             .join(",");
         format!(
-            "({}, '{}', '{}', {}, '{}', '{}')",
+            "({}, {}, '{}', '{}', '{}', '{}')",
             database.sql_uuid_value(&self.index_id),
+            database.sql_uuid_value(&self.table_id),
             self.index_name,
             self.index_kind,
-            database.sql_uuid_value(&self.table_id),
             key_field_ids_str,
             self.params
         )
@@ -339,9 +339,9 @@ impl IndexRecord {
     pub(crate) fn catalog_schema() -> CatalogSchema {
         CatalogSchema::new(vec![
             Column::new("index_id", CatalogDataType::Uuid, false),
+            Column::new("table_id", CatalogDataType::Uuid, false),
             Column::new("index_name", CatalogDataType::Utf8, false),
             Column::new("index_kind", CatalogDataType::Utf8, false),
-            Column::new("table_id", CatalogDataType::Uuid, false),
             Column::new("key_field_ids", CatalogDataType::Utf8, false),
             Column::new("params", CatalogDataType::Utf8, false),
         ])
@@ -349,8 +349,8 @@ impl IndexRecord {
 
     pub(crate) fn from_row(row: &Row) -> ILResult<Self> {
         let index_id = row.uuid(0)?.expect("index_id is not null");
-        let index_name = row.utf8(1)?.expect("index_name is not null");
-        let table_id = row.uuid(2)?.expect("table_id is not null");
+        let table_id = row.uuid(1)?.expect("table_id is not null");
+        let index_name = row.utf8(2)?.expect("index_name is not null");
         let kind = row.utf8(3)?.expect("kind is not null");
         let key_field_ids_str = row.utf8(4)?.expect("key_field_ids is not null");
         let key_field_ids = key_field_ids_str
@@ -358,7 +358,7 @@ impl IndexRecord {
             .map(|id| Uuid::parse_str(id))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| ILError::InternalError(format!("Failed to parse key field ids: {e:?}")))?;
-        let params = row.utf8(6)?.expect("params is not null");
+        let params = row.utf8(5)?.expect("params is not null");
         Ok(IndexRecord {
             index_id,
             index_name: index_name.clone(),

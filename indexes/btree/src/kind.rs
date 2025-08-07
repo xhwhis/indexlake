@@ -16,7 +16,7 @@ impl IndexKind for BTreeIndexKind {
     }
 
     fn decode_params(&self, value: &str) -> ILResult<Arc<dyn IndexParams>> {
-        todo!()
+        Ok(Arc::new(BTreeIndexParams))
     }
 
     fn supports(&self, index_def: &IndexDefination) -> ILResult<()> {

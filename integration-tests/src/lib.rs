@@ -72,9 +72,10 @@ pub fn catalog_sqlite() -> Arc<dyn Catalog> {
 }
 
 pub async fn catalog_postgres() -> Arc<dyn Catalog> {
-    // let _ = POSTGRES_DB.get_or_init(|| setup_postgres_db());
-    let builder =
-        PostgresCatalogBuilder::new("localhost", 5432, "postgres", "password").dbname("postgres");
+    let _ = POSTGRES_DB.get_or_init(|| setup_postgres_db());
+    let builder = PostgresCatalogBuilder::new("localhost", 5432, "postgres", "password")
+        .dbname("postgres")
+        .pool_size(50);
     let catalog = builder.build().await.unwrap();
     Arc::new(catalog)
 }
@@ -85,7 +86,7 @@ pub fn storage_fs() -> Arc<Storage> {
 }
 
 pub fn storage_s3() -> Arc<Storage> {
-    // let _ = MINIO.get_or_init(|| setup_minio());
+    let _ = MINIO.get_or_init(|| setup_minio());
     let mut config = S3Config::default();
     config.endpoint = Some("http://127.0.0.1:9000".to_string());
     config.access_key_id = Some("admin".to_string());

@@ -75,6 +75,7 @@ pub struct IndexCreation {
     pub kind: String,
     pub key_columns: Vec<String>,
     pub params: Arc<dyn IndexParams>,
+    pub if_not_exists: bool,
 }
 
 pub(crate) async fn process_create_index(
@@ -100,14 +101,18 @@ pub(crate) async fn process_create_index(
         .ok_or_else(|| ILError::InvalidInput(format!("Index kind {} not found", creation.kind)))?;
     index_kind.supports(&index_def)?;
 
-    if tx_helper
-        .index_name_exists(&table.table_id, &creation.name)
+    if let Some(index_id) = tx_helper
+        .get_index_id(&table.table_id, &creation.name)
         .await?
     {
-        return Err(ILError::InvalidInput(format!(
-            "Index name {} already exists",
-            creation.name
-        )));
+        return if creation.if_not_exists {
+            Ok(index_id)
+        } else {
+            Err(ILError::InvalidInput(format!(
+                "Index name {} already exists in table {}",
+                creation.name, table.table_name
+            )))
+        };
     }
 
     // create index file

@@ -66,6 +66,7 @@ async fn create_bm25_index(
         kind: BM25IndexKind.kind().to_string(),
         key_columns: vec!["content".to_string()],
         params: Arc::new(BM25IndexParams { avgdl: 256. }),
+        if_not_exists: false,
     };
     table.create_index(index_creation.clone()).await?;
 

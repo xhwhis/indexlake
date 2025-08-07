@@ -1,12 +1,11 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use arrow::util::pretty::pretty_format_batches;
 use futures::StreamExt;
-use indexlake::storage::DataFileFormat;
 use indexlake::Client;
 use indexlake::ILError;
 use indexlake::index::IndexKind;
+use indexlake::storage::DataFileFormat;
 use indexlake::table::IndexCreation;
 use indexlake::table::TableConfig;
 use indexlake::table::TableCreation;
@@ -30,9 +29,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let namespace_name = "test_namespace";
     client.create_namespace(namespace_name, true).await?;
 
+    let total_rows = 100000;
+    let num_tasks = 10;
+    let task_rows = total_rows / num_tasks;
+    let insert_batch_size = 1000;
+
     let table_name = uuid::Uuid::new_v4().to_string();
     let table_config = TableConfig {
-        inline_row_count_limit: 1000,
+        inline_row_count_limit: insert_batch_size,
         parquet_row_group_size: 100,
         preferred_data_file_format: DataFileFormat::ParquetV2,
     };
@@ -55,13 +59,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         params: Arc::new(HnswIndexParams {
             ef_construction: 400,
         }),
+        if_not_exists: false,
     };
     table.create_index(index_creation).await?;
-
-    let total_rows = 100000;
-    let num_tasks = 10;
-    let task_rows = total_rows / num_tasks;
-    let insert_batch_size = 1000;
 
     let start_time = Instant::now();
     let mut handles = Vec::new();
