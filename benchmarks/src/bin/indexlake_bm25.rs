@@ -6,6 +6,7 @@ use futures::StreamExt;
 use indexlake::Client;
 use indexlake::ILError;
 use indexlake::index::IndexKind;
+use indexlake::storage::DataFileFormat;
 use indexlake::table::IndexCreation;
 use indexlake::table::TableConfig;
 use indexlake::table::TableCreation;
@@ -29,22 +30,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let namespace_name = "test_namespace";
     client.create_namespace(namespace_name, true).await?;
 
-    let table_name = "test_table";
+    let table_name = uuid::Uuid::new_v4().to_string();
     let table_config = TableConfig {
         inline_row_count_limit: 10000,
         parquet_row_group_size: 100,
-        ..Default::default()
+        preferred_data_file_format: DataFileFormat::ParquetV1,
     };
     let table_creation = TableCreation {
         namespace_name: namespace_name.to_string(),
-        table_name: table_name.to_string(),
+        table_name: table_name.clone(),
         schema: arrow_bm25_table_schema(),
-        config: table_config,
+        config: table_config.clone(),
         if_not_exists: false,
     };
     client.create_table(table_creation).await?;
 
-    let mut table = client.load_table(namespace_name, table_name).await?;
+    let mut table = client.load_table(namespace_name, &table_name).await?;
 
     let index_name = "bm25_index";
     let index_creation = IndexCreation {
@@ -82,10 +83,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let insert_cost_time = start_time.elapsed();
     println!(
-        "IndexLake: inserted {} bm25 rows by {} tasks per {} batch size in {}ms",
+        "IndexLake BM25: inserted {} rows, {} tasks, batch size: {}, format: {}, in {}ms",
         total_rows,
         num_tasks,
         insert_batch_size,
+        table_config.preferred_data_file_format,
         insert_cost_time.as_millis()
     );
 
@@ -107,7 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let search_cost_time = start_time.elapsed();
     println!(
-        "IndexLake: searched {} bm25 rows in {}ms",
+        "IndexLake BM25: searched {} rows in {}ms",
         limit,
         search_cost_time.as_millis()
     );

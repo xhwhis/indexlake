@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: arrow_table_schema(),
-        config: table_config,
+        config: table_config.clone(),
         if_not_exists: false,
     };
     client.create_table(table_creation).await?;
@@ -66,9 +66,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let insert_cost_time = start_time.elapsed();
     println!(
-        "IndexLake: inserted {} rows by {} tasks in {}ms",
+        "IndexLake: inserted {} rows, {} tasks, batch size: {}, format: {}, in {}ms",
         total_rows,
         num_tasks,
+        insert_batch_size,
+        table_config.preferred_data_file_format,
         insert_cost_time.as_millis()
     );
 

@@ -26,7 +26,7 @@ impl PostgresCatalogBuilder {
             user: user.into(),
             password: password.into(),
             dbname: None,
-            pool_size: 5,
+            pool_size: 10,
         }
     }
 
