@@ -30,9 +30,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let namespace_name = "test_namespace";
     client.create_namespace(namespace_name, true).await?;
 
+    let total_rows = 100000;
+    let num_tasks = 10;
+    let task_rows = total_rows / num_tasks;
+    let insert_batch_size = 1000;
+
     let table_name = uuid::Uuid::new_v4().to_string();
     let table_config = TableConfig {
-        inline_row_count_limit: 10000,
+        inline_row_count_limit: insert_batch_size,
         parquet_row_group_size: 100,
         preferred_data_file_format: DataFileFormat::ParquetV1,
     };
@@ -56,11 +61,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if_not_exists: false,
     };
     table.create_index(index_creation).await?;
-
-    let total_rows = 1000000;
-    let num_tasks = 10;
-    let task_rows = total_rows / num_tasks;
-    let insert_batch_size = 10000;
 
     let start_time = Instant::now();
     let mut handles = Vec::new();
@@ -92,8 +92,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         insert_cost_time.as_millis()
     );
 
+    std::thread::sleep(std::time::Duration::from_secs(10));
+
     let start_time = Instant::now();
-    let limit = 10;
+    let limit = 500;
     let table_search = TableSearch {
         query: Arc::new(BM25SearchQuery {
             query: "杨绛女士".to_string(),

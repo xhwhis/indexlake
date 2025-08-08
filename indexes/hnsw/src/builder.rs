@@ -73,8 +73,8 @@ impl IndexBuilder for HnswIndexBuilder {
     }
 
     async fn read_file(&mut self, input_file: InputFile) -> ILResult<()> {
-        let json = input_file.read().await?;
-        let hnsw_with_row_ids: HnswWithRowIds = serde_json::from_slice(&json).map_err(|e| {
+        let data = input_file.read().await?;
+        let hnsw_with_row_ids: HnswWithRowIds = bincode::deserialize(&data).map_err(|e| {
             ILError::IndexError(format!("Failed to deserialize Hnsw and row ids: {e}"))
         })?;
         self.hnsw = hnsw_with_row_ids.hnsw;
@@ -87,11 +87,11 @@ impl IndexBuilder for HnswIndexBuilder {
             hnsw: std::mem::take(&mut self.hnsw),
             row_ids: std::mem::take(&mut self.row_ids),
         };
-        let json = serde_json::to_string(&hnsw_with_row_ids).map_err(|e| {
+        let data = bincode::serialize(&hnsw_with_row_ids).map_err(|e| {
             ILError::IndexError(format!("Failed to serialize Hnsw and row ids: {e}"))
         })?;
         let writer = output_file.writer();
-        writer.write(json).await?;
+        writer.write(data).await?;
         output_file.close().await?;
         Ok(())
     }
