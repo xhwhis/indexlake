@@ -32,9 +32,9 @@ pub struct RStarIndex {
 #[async_trait::async_trait]
 impl Index for RStarIndex {
     async fn search(&self, _query: &dyn SearchQuery) -> ILResult<SearchIndexEntries> {
-        Err(ILError::NotSupported(format!(
-            "RStar index does not support search"
-        )))
+        Err(ILError::not_supported(
+            "RStar index does not support search",
+        ))
     }
 
     async fn filter(&self, filters: &[Expr]) -> ILResult<FilterIndexEntries> {
@@ -47,9 +47,9 @@ impl Index for RStarIndex {
                 if name == "intersects" {
                     let scalar = args[1].clone().as_literal()?;
                     let Scalar::Binary(Some(wkb)) = scalar else {
-                        return Err(ILError::InternalError(format!(
-                            "Intersects function must have a literal binary as the second argument"
-                        )));
+                        return Err(ILError::internal(
+                            "Intersects function must have a literal binary as the second argument",
+                        ));
                     };
                     let aabb = compute_aabb(&wkb, self.params.wkb_dialect)?;
                     AABB::from_corners(

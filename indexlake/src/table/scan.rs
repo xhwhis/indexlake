@@ -47,12 +47,12 @@ impl TableScanPartition {
 
     pub fn validate(&self) -> ILResult<()> {
         if self.partition_count == 0 {
-            return Err(ILError::InvalidInput(format!(
-                "Partition count must be greater than 0"
-            )));
+            return Err(ILError::invalid_input(
+                "Partition count must be greater than 0",
+            ));
         }
         if self.partition_idx >= self.partition_count {
-            return Err(ILError::InvalidInput(format!(
+            return Err(ILError::invalid_input(format!(
                 "Partition index out of range: {} >= {}",
                 self.partition_idx, self.partition_count
             )));
@@ -258,12 +258,12 @@ async fn index_scan_inline_rows(
         let index_def = table
             .indexes
             .get(index_name)
-            .ok_or_else(|| ILError::InternalError(format!("Index {index_name} not found")))?;
+            .ok_or_else(|| ILError::internal(format!("Index {index_name} not found")))?;
         let kind = &index_def.kind;
         let index_kind = table
             .index_kinds
             .get(kind)
-            .ok_or_else(|| ILError::InternalError(format!("Index kind {kind} not found")))?;
+            .ok_or_else(|| ILError::internal(format!("Index kind {kind} not found")))?;
 
         let index_builder = index_kind.builder(index_def)?;
         index_builder_map.insert(index_name, index_builder);
@@ -281,7 +281,7 @@ async fn index_scan_inline_rows(
     let mut filter_index_entries_list = Vec::new();
     for (index_name, filter_indices) in index_filter_assignment.iter() {
         let index_builder = index_builder_map.get_mut(index_name).ok_or_else(|| {
-            ILError::InternalError(format!("Index builder not found for index {index_name}"))
+            ILError::internal(format!("Index builder not found for index {index_name}"))
         })?;
 
         let index = index_builder.build()?;
@@ -320,9 +320,7 @@ async fn index_scan_inline_rows(
                 .as_any()
                 .downcast_ref::<Int64Array>()
                 .ok_or_else(|| {
-                    ILError::InternalError(format!(
-                        "Row id array can not be downcasted to Int64Array"
-                    ))
+                    ILError::internal(format!("Row id array can not be downcasted to Int64Array"))
                 })?;
             let row_id = row_id_array.value(i);
             if intersected_row_ids.contains(&row_id) {
@@ -396,15 +394,15 @@ async fn filter_index_files_row_ids(
         let index_def = table
             .indexes
             .get(index_name)
-            .ok_or_else(|| ILError::InternalError(format!("Index {index_name} not found")))?;
+            .ok_or_else(|| ILError::internal(format!("Index {index_name} not found")))?;
         let kind = &index_def.kind;
         let index_kind = table
             .index_kinds
             .get(kind)
-            .ok_or_else(|| ILError::InternalError(format!("Index kind {kind} not found")))?;
+            .ok_or_else(|| ILError::internal(format!("Index kind {kind} not found")))?;
 
         let index_file_record = index_file_records.get(&index_def.index_id).ok_or_else(|| {
-            ILError::InternalError(format!(
+            ILError::internal(format!(
                 "Index file record not found for index {index_name}"
             ))
         })?;
@@ -458,7 +456,7 @@ fn assign_index_filters(
             let kind = &index_def.kind;
             let index_kind = index_kinds
                 .get(kind)
-                .ok_or_else(|| ILError::InternalError(format!("Index kind {kind} not found")))?;
+                .ok_or_else(|| ILError::internal(format!("Index kind {kind} not found")))?;
             let supported = index_kind.supports_filter(index_def, &filter)?;
             if supported {
                 index_filter_assignment

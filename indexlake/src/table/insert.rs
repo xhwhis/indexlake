@@ -4,10 +4,6 @@ use arrow::{
     array::*,
     datatypes::{DataType, TimeUnit, i256},
 };
-use parquet::{
-    arrow::AsyncArrowWriter,
-    file::properties::{WriterProperties, WriterVersion},
-};
 use uuid::Uuid;
 
 use crate::{
@@ -17,7 +13,7 @@ use crate::{
         INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, TransactionHelper,
     },
     index::IndexBuilder,
-    storage::{DataFileFormat, Storage, build_lance_writer, build_parquet_writer},
+    storage::{DataFileFormat, build_lance_writer, build_parquet_writer},
     table::Table,
     utils::{record_batch_with_row_id, schema_without_row_id, serialize_array},
 };
@@ -66,9 +62,10 @@ pub(crate) async fn process_bypass_insert(
 
     let mut index_builders = HashMap::new();
     for (index_name, index_def) in table.indexes.iter() {
-        let index_kind = table.index_kinds.get(&index_def.kind).ok_or_else(|| {
-            ILError::InternalError(format!("Index kind {} not found", index_def.kind))
-        })?;
+        let index_kind = table
+            .index_kinds
+            .get(&index_def.kind)
+            .ok_or_else(|| ILError::internal(format!("Index kind {} not found", index_def.kind)))?;
         let index_builder = index_kind.builder(index_def)?;
         index_builders.insert(index_name.clone(), index_builder);
     }
@@ -115,7 +112,7 @@ pub(crate) async fn process_bypass_insert(
         let index_def = table
             .indexes
             .get(index_name)
-            .ok_or_else(|| ILError::InternalError(format!("Index {index_name} not found")))?;
+            .ok_or_else(|| ILError::internal(format!("Index {index_name} not found")))?;
 
         let index_file_id = Uuid::now_v7();
         let relative_path = IndexFileRecord::build_relative_path(
@@ -172,7 +169,7 @@ pub(crate) async fn reserve_row_ids(
         .scan_inline_row_ids_by_flag(&table.table_id, &flag)
         .await?;
     if row_ids.len() != count {
-        return Err(ILError::InternalError(format!(
+        return Err(ILError::internal(format!(
             "Failed to reserve row ids: expected {} rows, got {}",
             count,
             row_ids.len()
@@ -261,7 +258,7 @@ macro_rules! extract_sql_values {
     ($array:expr, $array_ty:ty, $convert:expr) => {{
         let mut sql_values = Vec::with_capacity($array.len());
         let array = $array.as_any().downcast_ref::<$array_ty>().ok_or_else(|| {
-            ILError::InternalError(format!(
+            ILError::internal(format!(
                 "Failed to downcast array to {}",
                 stringify!($array_ty),
             ))
@@ -373,9 +370,10 @@ pub(crate) fn record_batch_to_sql_values(
             }
             DataType::List(inner_field) => {
                 let mut sql_values = Vec::with_capacity(array.len());
-                let array = array.as_any().downcast_ref::<ListArray>().ok_or_else(|| {
-                    ILError::InternalError(format!("Failed to downcast array to ListArray"))
-                })?;
+                let array = array
+                    .as_any()
+                    .downcast_ref::<ListArray>()
+                    .ok_or_else(|| ILError::internal("Failed to downcast array to ListArray"))?;
                 for v in array.iter() {
                     sql_values.push(match v {
                         Some(v) => {
@@ -392,9 +390,7 @@ pub(crate) fn record_batch_to_sql_values(
                     .as_any()
                     .downcast_ref::<FixedSizeListArray>()
                     .ok_or_else(|| {
-                        ILError::InternalError(format!(
-                            "Failed to downcast array to FixedSizeListArray"
-                        ))
+                        ILError::internal("Failed to downcast array to FixedSizeListArray")
                     })?;
                 for v in array.iter() {
                     sql_values.push(match v {
@@ -412,9 +408,7 @@ pub(crate) fn record_batch_to_sql_values(
                     .as_any()
                     .downcast_ref::<LargeListArray>()
                     .ok_or_else(|| {
-                        ILError::InternalError(format!(
-                            "Failed to downcast array to LargeListArray"
-                        ))
+                        ILError::internal("Failed to downcast array to LargeListArray")
                     })?;
                 for v in array.iter() {
                     sql_values.push(match v {
@@ -433,7 +427,7 @@ pub(crate) fn record_batch_to_sql_values(
                 extract_sql_values!(array, Decimal256Array, |v: i256| format!("'{}'", v))
             }
             _ => {
-                return Err(ILError::NotSupported(format!(
+                return Err(ILError::not_supported(format!(
                     "Unsupported data type: {}",
                     field.data_type()
                 )));

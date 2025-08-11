@@ -37,16 +37,12 @@ pub(crate) async fn process_search(
         .indexes
         .iter()
         .find(|(_, index_def)| index_def.kind == index_kind)
-        .ok_or(ILError::IndexError(format!(
-            "Index kind {index_kind} not found"
-        )))?;
+        .ok_or(ILError::index(format!("Index kind {index_kind} not found")))?;
 
     let index_kind = table
         .index_kinds
         .get(index_kind)
-        .ok_or(ILError::IndexError(format!(
-            "Index kind {index_kind} not found"
-        )))?;
+        .ok_or(ILError::index(format!("Index kind {index_kind} not found")))?;
 
     let catalog_helper = CatalogHelper::new(table.catalog.clone());
 
@@ -85,7 +81,7 @@ pub(crate) async fn process_search(
             let index_file_record = catalog_helper
                 .get_index_file_by_index_id_and_data_file_id(&index_id, &data_file_id)
                 .await?
-                .ok_or(ILError::IndexError(format!(
+                .ok_or(ILError::index(format!(
                     "Index file not found for index {index_id} and data file {data_file_id}"
                 )))?;
 
@@ -288,7 +284,7 @@ async fn read_data_file_rows(
         let data_file_record = data_file_records
             .iter()
             .find(|record| record.data_file_id == data_file_id)
-            .ok_or(ILError::IndexError(format!(
+            .ok_or(ILError::index(format!(
                 "Data file record not found for data file id {data_file_id}"
             )))?;
         let stream = read_data_file_by_record(
@@ -324,15 +320,13 @@ fn sort_batches(
         .column(0)
         .as_any()
         .downcast_ref::<Int64Array>()
-        .ok_or(ILError::IndexError(format!(
-            "Row id column not found in batch"
-        )))?;
+        .ok_or(ILError::index("Row id column not found in batch"))?;
     for row_id in row_id_array.iter() {
-        let row_id = row_id.ok_or(ILError::IndexError(format!("Row id is null")))?;
+        let row_id = row_id.ok_or(ILError::index("Row id is null"))?;
         let row_id_score = row_id_score_locations
             .iter()
             .find(|(row_id_score, _)| row_id_score.row_id == row_id)
-            .ok_or(ILError::IndexError(format!(
+            .ok_or(ILError::index(format!(
                 "Row id score not found for row id {row_id}"
             )))?;
         scores.push(row_id_score.0.score);

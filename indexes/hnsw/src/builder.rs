@@ -55,7 +55,7 @@ impl IndexBuilder for HnswIndexBuilder {
         let key_column = key_column
             .as_any()
             .downcast_ref::<ListArray>()
-            .ok_or_else(|| ILError::IndexError(format!("Key column is not a list array")))?;
+            .ok_or_else(|| ILError::index("Key column is not a list array"))?;
 
         for (row_id, vector_arr) in row_id_array.iter().zip(key_column.iter()) {
             let row_id = row_id.expect("row id is null");
@@ -63,7 +63,7 @@ impl IndexBuilder for HnswIndexBuilder {
                 let vector = arr
                     .as_any()
                     .downcast_ref::<Float32Array>()
-                    .ok_or_else(|| ILError::IndexError(format!("Vector is not a float32 array")))?;
+                    .ok_or_else(|| ILError::index("Vector is not a float32 array"))?;
                 let vector = vector.values().to_vec();
                 self.hnsw.insert(vector, &mut Searcher::default());
                 self.row_ids.push(row_id);
@@ -74,9 +74,8 @@ impl IndexBuilder for HnswIndexBuilder {
 
     async fn read_file(&mut self, input_file: InputFile) -> ILResult<()> {
         let data = input_file.read().await?;
-        let hnsw_with_row_ids: HnswWithRowIds = bincode::deserialize(&data).map_err(|e| {
-            ILError::IndexError(format!("Failed to deserialize Hnsw and row ids: {e}"))
-        })?;
+        let hnsw_with_row_ids: HnswWithRowIds = bincode::deserialize(&data)
+            .map_err(|e| ILError::index(format!("Failed to deserialize Hnsw and row ids: {e}")))?;
         self.hnsw = hnsw_with_row_ids.hnsw;
         self.row_ids = hnsw_with_row_ids.row_ids;
         Ok(())
@@ -87,9 +86,8 @@ impl IndexBuilder for HnswIndexBuilder {
             hnsw: std::mem::take(&mut self.hnsw),
             row_ids: std::mem::take(&mut self.row_ids),
         };
-        let data = bincode::serialize(&hnsw_with_row_ids).map_err(|e| {
-            ILError::IndexError(format!("Failed to serialize Hnsw and row ids: {e}"))
-        })?;
+        let data = bincode::serialize(&hnsw_with_row_ids)
+            .map_err(|e| ILError::index(format!("Failed to serialize Hnsw and row ids: {e}")))?;
         let writer = output_file.writer();
         writer.write(data).await?;
         output_file.close().await?;

@@ -79,22 +79,24 @@ impl Storage {
                 let mut options = HashMap::new();
                 options.insert(
                     "aws_access_key_id".to_string(),
-                    s3.config.access_key_id.clone().ok_or_else(|| {
-                        ILError::InternalError("Access key id is not set".to_string())
-                    })?,
+                    s3.config
+                        .access_key_id
+                        .clone()
+                        .ok_or_else(|| ILError::internal("Access key id is not set"))?,
                 );
                 options.insert(
                     "aws_secret_access_key".to_string(),
-                    s3.config.secret_access_key.clone().ok_or_else(|| {
-                        ILError::InternalError("Secret access key is not set".to_string())
-                    })?,
+                    s3.config
+                        .secret_access_key
+                        .clone()
+                        .ok_or_else(|| ILError::internal("Secret access key is not set"))?,
                 );
                 options.insert(
                     "aws_endpoint".to_string(),
                     s3.config
                         .endpoint
                         .clone()
-                        .ok_or_else(|| ILError::InternalError("Endpoint is not set".to_string()))?,
+                        .ok_or_else(|| ILError::internal("Endpoint is not set"))?,
                 );
                 options.insert("aws_allow_http".to_string(), "true".to_string());
                 options.insert(
@@ -102,7 +104,7 @@ impl Storage {
                     s3.config
                         .region
                         .clone()
-                        .ok_or_else(|| ILError::InternalError("Region is not set".to_string()))?,
+                        .ok_or_else(|| ILError::internal("Region is not set"))?,
                 );
                 options.insert("AWS_EC2_METADATA_DISABLED".to_string(), "true".to_string());
                 options.insert("AWS_S3_ALLOW_UNSAFE_RENAME".to_string(), "true".to_string());
@@ -215,7 +217,7 @@ impl std::str::FromStr for DataFileFormat {
             "ParquetV1" => Ok(DataFileFormat::ParquetV1),
             "ParquetV2" => Ok(DataFileFormat::ParquetV2),
             "LanceV2_0" => Ok(DataFileFormat::LanceV2_0),
-            _ => Err(ILError::InvalidInput(format!(
+            _ => Err(ILError::invalid_input(format!(
                 "Invalid data file format: {s}"
             ))),
         }

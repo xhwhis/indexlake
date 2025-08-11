@@ -55,7 +55,7 @@ impl Index for HnswIndex {
             .as_any()
             .downcast_ref::<HnswSearchQuery>()
             .ok_or_else(|| {
-                ILError::IndexError(format!(
+                ILError::index(format!(
                     "Hnsw index does not support search query: {query:?}"
                 ))
             })?;
@@ -77,8 +77,6 @@ impl Index for HnswIndex {
     }
 
     async fn filter(&self, _filters: &[Expr]) -> ILResult<FilterIndexEntries> {
-        Err(ILError::IndexError(format!(
-            "Hnsw index does not support filter"
-        )))
+        Err(ILError::not_supported("Hnsw index does not support filter"))
     }
 }

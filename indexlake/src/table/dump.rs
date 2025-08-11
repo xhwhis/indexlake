@@ -1,12 +1,7 @@
-use std::{collections::HashMap, path::Path, sync::Arc, time::Instant};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use arrow::datatypes::SchemaRef;
 use futures::StreamExt;
-use lance_file::{
-    v2::writer::{FileWriter, FileWriterOptions},
-    version::LanceFileVersion,
-};
-use lance_io::object_store::ObjectStore;
 use log::{debug, error};
 use uuid::Uuid;
 
@@ -121,7 +116,7 @@ impl DumpTask {
         let mut index_builders = HashMap::new();
         for (index_name, index_def) in self.table_indexes.iter() {
             let index_kind = self.index_kinds.get(&index_def.kind).ok_or_else(|| {
-                ILError::InternalError(format!("Index kind {} not found", index_def.kind))
+                ILError::internal(format!("Index kind {} not found", index_def.kind))
             })?;
             let index_builder = index_kind.builder(index_def)?;
             index_builders.insert(index_name.clone(), index_builder);
@@ -140,7 +135,7 @@ impl DumpTask {
 
         if row_ids.len() != self.table_config.inline_row_count_limit {
             self.storage.delete(&relative_path).await?;
-            return Err(ILError::InternalError(format!(
+            return Err(ILError::internal(format!(
                 "Read row count mismatch: {} rows read, expected {}",
                 row_ids.len(),
                 self.table_config.inline_row_count_limit
@@ -152,7 +147,7 @@ impl DumpTask {
             let index_def = self
                 .table_indexes
                 .get(index_name)
-                .ok_or_else(|| ILError::InternalError(format!("Index {index_name} not found")))?;
+                .ok_or_else(|| ILError::internal(format!("Index {index_name} not found")))?;
 
             let index_file_id = uuid::Uuid::now_v7();
             let relative_path = IndexFileRecord::build_relative_path(
@@ -190,7 +185,7 @@ impl DumpTask {
             .delete_inline_rows_by_row_ids(&self.table_id, &row_ids)
             .await?;
         if deleted_count != row_ids.len() {
-            return Err(ILError::InternalError(format!(
+            return Err(ILError::internal(format!(
                 "Delete row count mismatch: {} inline rows deleted, expected {}",
                 deleted_count,
                 row_ids.len()

@@ -19,32 +19,29 @@ impl IndexKind for HnswIndexKind {
     }
 
     fn decode_params(&self, value: &str) -> ILResult<Arc<dyn IndexParams>> {
-        let params: HnswIndexParams = serde_json::from_str(value).map_err(|e| {
-            ILError::InternalError(format!("Failed to decode HnswIndexParams: {}", e))
-        })?;
+        let params: HnswIndexParams = serde_json::from_str(value)
+            .map_err(|e| ILError::index(format!("Failed to decode HnswIndexParams: {e}")))?;
         Ok(Arc::new(params))
     }
 
     fn supports(&self, index_def: &IndexDefination) -> ILResult<()> {
         if index_def.key_columns.len() != 1 {
-            return Err(ILError::IndexError(format!(
-                "Hnsw index requires exactly one key column"
-            )));
+            return Err(ILError::index("Hnsw index requires exactly one key column"));
         }
         let key_column_name = &index_def.key_columns[0];
         let key_field = index_def.table_schema.field_with_name(&key_column_name)?;
         match key_field.data_type() {
             DataType::List(inner) => {
                 if !matches!(inner.data_type(), DataType::Float32) || inner.is_nullable() {
-                    return Err(ILError::IndexError(format!(
-                        "Hnsw index key column must be a list of non-nullable float32"
-                    )));
+                    return Err(ILError::index(
+                        "Hnsw index key column must be a list of non-nullable float32",
+                    ));
                 }
             }
             _ => {
-                return Err(ILError::IndexError(format!(
-                    "Hnsw index key column must be a list of non-nullable float32"
-                )));
+                return Err(ILError::index(
+                    "Hnsw index key column must be a list of non-nullable float32",
+                ));
             }
         }
         Ok(())
@@ -66,9 +63,7 @@ impl IndexKind for HnswIndexKind {
     }
 
     fn supports_filter(&self, _index_def: &IndexDefination, _filter: &Expr) -> ILResult<bool> {
-        Err(ILError::NotSupported(
-            "HnswIndex does not support filter".to_string(),
-        ))
+        Err(ILError::not_supported("HnswIndex does not support filter"))
     }
 }
 
@@ -83,9 +78,8 @@ impl IndexParams for HnswIndexParams {
     }
 
     fn encode(&self) -> ILResult<String> {
-        let json = serde_json::to_string(self).map_err(|e| {
-            ILError::InternalError(format!("Failed to encode HnswIndexParams: {}", e))
-        })?;
+        let json = serde_json::to_string(self)
+            .map_err(|e| ILError::index(format!("Failed to encode HnswIndexParams: {e}")))?;
         Ok(json)
     }
 }

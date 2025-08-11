@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use arrow::{
     array::{ArrayRef, RecordBatch, RecordBatchOptions},
-    util::pretty::{pretty_format_batches, pretty_format_batches_with_schema},
+    util::pretty::pretty_format_batches_with_schema,
 };
 use futures::TryStreamExt;
 use indexlake::{
@@ -14,7 +14,7 @@ use indexlake::{
 
 pub fn sort_record_batches(batches: &[RecordBatch], sort_col: &str) -> ILResult<RecordBatch> {
     if batches.is_empty() {
-        return Err(ILError::InvalidInput("record batches is empty".to_string()));
+        return Err(ILError::invalid_input("record batches is empty"));
     }
     let record = arrow::compute::concat_batches(&batches[0].schema(), batches)?;
 

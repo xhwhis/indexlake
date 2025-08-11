@@ -90,25 +90,17 @@ impl IndexBuilder for Bm25IndexBuilder {
                 .column(0)
                 .as_any()
                 .downcast_ref::<Int64Array>()
-                .ok_or(ILError::IndexError(
-                    "Failed to downcast row id to Int64Array".to_string(),
-                ))?;
-            let indices_array =
-                batch
-                    .column(1)
-                    .as_any()
-                    .downcast_ref::<ListArray>()
-                    .ok_or(ILError::IndexError(
-                        "Failed to downcast indices to ListArray".to_string(),
-                    ))?;
-            let values_array =
-                batch
-                    .column(2)
-                    .as_any()
-                    .downcast_ref::<ListArray>()
-                    .ok_or(ILError::IndexError(
-                        "Failed to downcast values to ListArray".to_string(),
-                    ))?;
+                .ok_or(ILError::index("Failed to downcast row id to Int64Array"))?;
+            let indices_array = batch
+                .column(1)
+                .as_any()
+                .downcast_ref::<ListArray>()
+                .ok_or(ILError::index("Failed to downcast indices to ListArray"))?;
+            let values_array = batch
+                .column(2)
+                .as_any()
+                .downcast_ref::<ListArray>()
+                .ok_or(ILError::index("Failed to downcast values to ListArray"))?;
             self.embeddings.push((
                 row_id_array.clone(),
                 indices_array.clone(),
@@ -226,7 +218,7 @@ fn compute_embeddings(
             }
         }
         _ => {
-            return Err(ILError::IndexError(format!(
+            return Err(ILError::not_supported(format!(
                 "Unsupported data type to compute embeddings: {data_type}"
             )));
         }

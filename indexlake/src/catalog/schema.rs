@@ -102,7 +102,7 @@ impl CatalogDataType {
             DataType::LargeListView(_) => Ok(CatalogDataType::Binary),
             DataType::Decimal128(_, _) => Ok(CatalogDataType::Utf8),
             DataType::Decimal256(_, _) => Ok(CatalogDataType::Utf8),
-            _ => Err(ILError::NotSupported(format!(
+            _ => Err(ILError::not_supported(format!(
                 "Unsupported datatype: {datatype}"
             ))),
         }

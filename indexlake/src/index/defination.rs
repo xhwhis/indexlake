@@ -36,7 +36,7 @@ impl IndexDefination {
 
     pub fn downcast_params<T: 'static>(&self) -> ILResult<&T> {
         self.params.as_any().downcast_ref::<T>().ok_or_else(|| {
-            ILError::InternalError(format!(
+            ILError::internal(format!(
                 "Index params is not {}",
                 std::any::type_name::<T>()
             ))
@@ -53,7 +53,7 @@ impl IndexDefination {
         let mut key_columns = Vec::new();
         for key_field_id in index_record.key_field_ids.iter() {
             let field = field_map.get(key_field_id).ok_or_else(|| {
-                ILError::InternalError(format!(
+                ILError::internal(format!(
                     "Key field id {key_field_id} not found in field map"
                 ))
             })?;
@@ -61,7 +61,7 @@ impl IndexDefination {
         }
 
         let index_kind = index_kinds.get(&index_record.index_kind).ok_or_else(|| {
-            ILError::InternalError(format!("Index kind {} not found", index_record.index_kind))
+            ILError::internal(format!("Index kind {} not found", index_record.index_kind))
         })?;
         let params = index_kind.decode_params(&index_record.params)?;
 

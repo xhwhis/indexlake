@@ -47,7 +47,7 @@ impl Client {
             if if_not_exists {
                 return Ok(namespace_id);
             } else {
-                return Err(ILError::InvalidInput(format!(
+                return Err(ILError::invalid_input(format!(
                     "Namespace {namespace_name} already exists"
                 )));
             }
@@ -83,14 +83,14 @@ impl Client {
             .get_namespace_id(namespace_name)
             .await?
             .ok_or_else(|| {
-                ILError::InvalidInput(format!("Namespace {namespace_name} not found"))
+                ILError::invalid_input(format!("Namespace {namespace_name} not found"))
             })?;
 
         let table_record = catalog_helper
             .get_table(&namespace_id, table_name)
             .await?
             .ok_or_else(|| {
-                ILError::InvalidInput(format!(
+                ILError::invalid_input(format!(
                     "Table {table_name} not found in namespace {namespace_name}"
                 ))
             })?;

@@ -78,7 +78,7 @@ pub(crate) async fn update_data_file_rows_by_matched_rows(
             .column(0)
             .as_primitive_opt::<Int64Type>()
             .ok_or_else(|| {
-                ILError::InternalError(format!(
+                ILError::internal(format!(
                     "row id array should be Int64Array, but got {:?}",
                     batch.column(0).data_type()
                 ))
@@ -133,7 +133,7 @@ pub(crate) async fn update_data_file_rows_by_condition(
             .column(0)
             .as_primitive_opt::<Int64Type>()
             .ok_or_else(|| {
-                ILError::InternalError(format!(
+                ILError::internal(format!(
                     "row id array should be Int64Array, but got {:?}",
                     batch.column(0).data_type()
                 ))
@@ -212,9 +212,7 @@ pub(crate) async fn parallel_find_matched_data_file_rows(
     }
     let mut matched_rows = HashMap::new();
     for handle in handles {
-        let (data_file_id, stream) = handle
-            .await
-            .map_err(|e| ILError::InternalError(e.to_string()))??;
+        let (data_file_id, stream) = handle.await??;
         matched_rows.insert(data_file_id, stream);
     }
     Ok(matched_rows)

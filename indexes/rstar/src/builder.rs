@@ -188,7 +188,7 @@ fn compute_aabbs(
             }
         }
         _ => {
-            return Err(ILError::IndexError(format!(
+            return Err(ILError::index(format!(
                 "Unsupported data type to compute AABB: {data_type}"
             )));
         }
@@ -199,13 +199,11 @@ fn compute_aabbs(
 pub(crate) fn compute_aabb(wkb: &[u8], wkb_dialect: WkbDialect) -> ILResult<AABB<geo::Coord<f64>>> {
     let mut rdr = std::io::Cursor::new(wkb);
     let geom = geo::Geometry::from_wkb(&mut rdr, wkb_dialect.to_geozero())
-        .map_err(|e| ILError::IndexError(format!("Failed to parse ewkb: {:?}", e)))?;
+        .map_err(|e| ILError::index(format!("Failed to parse ewkb: {:?}", e)))?;
     if let Some(rect) = geom.bounding_rect() {
         Ok(AABB::from_corners(rect.min(), rect.max()))
     } else {
-        Err(ILError::IndexError(format!(
-            "Failed to compute AABB of geometry"
-        )))
+        Err(ILError::index("Failed to compute AABB of geometry"))
     }
 }
 

@@ -44,7 +44,7 @@ impl Index for BM25Index {
         let query = query
             .as_any()
             .downcast_ref::<BM25SearchQuery>()
-            .ok_or(ILError::IndexError("Invalid query type".to_string()))?;
+            .ok_or(ILError::index("Invalid query type"))?;
         let query_embedding = self.embedder.embed(&query.query);
         let mut matches = self.scorer.matches(&query_embedding);
         if let Some(limit) = query.limit {
@@ -66,9 +66,7 @@ impl Index for BM25Index {
     }
 
     async fn filter(&self, _filters: &[Expr]) -> ILResult<FilterIndexEntries> {
-        Err(ILError::IndexError(
-            "BM25 index does not support filter".to_string(),
-        ))
+        Err(ILError::not_supported("BM25 index does not support filter"))
     }
 }
 

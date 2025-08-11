@@ -127,9 +127,7 @@ pub(crate) async fn parallel_find_matched_data_file_row_ids(
 
     let mut matched_row_ids = HashMap::new();
     for handle in handles {
-        let (data_file_id, row_ids) = handle
-            .await
-            .map_err(|e| ILError::InternalError(e.to_string()))??;
+        let (data_file_id, row_ids) = handle.await??;
         matched_row_ids.insert(data_file_id, row_ids);
     }
     Ok(matched_row_ids)

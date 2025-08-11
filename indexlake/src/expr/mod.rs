@@ -76,7 +76,7 @@ impl Expr {
             Expr::Not(expr) => match expr.eval(batch)? {
                 ColumnarValue::Array(array) => {
                     let array = array.as_boolean_opt().ok_or_else(|| {
-                        ILError::InternalError(format!(
+                        ILError::internal(format!(
                             "Expected boolean array, got {}",
                             array.data_type()
                         ))
@@ -127,8 +127,8 @@ impl Expr {
 
                 Ok(ColumnarValue::Array(Arc::new(r)))
             }
-            Expr::Function(_) => Err(ILError::InvalidInput(
-                "Function can only be used for index".to_string(),
+            Expr::Function(_) => Err(ILError::invalid_input(
+                "Function can only be used for index",
             )),
             Expr::Like(like) => like.eval(batch),
             Expr::Cast(cast) => {
@@ -158,7 +158,7 @@ impl Expr {
     pub fn check_data_type(&self, schema: &Schema, expected: &DataType) -> ILResult<()> {
         let return_type = self.data_type(schema)?;
         if &return_type != expected {
-            return Err(ILError::InvalidInput(format!(
+            return Err(ILError::invalid_input(format!(
                 "expr {self} should return {expected} instead of {return_type}"
             )));
         }
@@ -170,7 +170,7 @@ impl Expr {
 
         let array = self.eval(batch)?.into_array(batch.num_rows())?;
         let bool_array = array.as_boolean_opt().ok_or_else(|| {
-            ILError::InternalError(format!(
+            ILError::internal(format!(
                 "condition should return BooleanArray, but got {}",
                 array.data_type()
             ))
@@ -180,7 +180,7 @@ impl Expr {
 
     pub(crate) fn constant_eval(&self) -> ILResult<Scalar> {
         if !visited_columns(self).is_empty() {
-            return Err(ILError::InvalidInput(format!(
+            return Err(ILError::invalid_input(format!(
                 "expr {self} is not constant"
             )));
         }
@@ -195,7 +195,7 @@ impl Expr {
                 if array.len() == 1 {
                     Scalar::try_from_array(&array, 0)
                 } else {
-                    Err(ILError::InvalidInput(format!(
+                    Err(ILError::invalid_input(format!(
                         "expr {self} is not constant"
                     )))
                 }
@@ -206,7 +206,7 @@ impl Expr {
     pub fn as_literal(self) -> ILResult<Scalar> {
         match self {
             Expr::Literal(scalar) => Ok(scalar),
-            _ => Err(ILError::InternalError(format!("Expr is not a literal"))),
+            _ => Err(ILError::internal("Expr is not a literal")),
         }
     }
 
@@ -247,8 +247,8 @@ impl Expr {
                     .join(", ");
                 Ok(format!("{} IN ({})", in_list.expr.to_sql(database)?, list))
             }
-            Expr::Function(_) => Err(ILError::InvalidInput(
-                "Function can only be used for index".to_string(),
+            Expr::Function(_) => Err(ILError::invalid_input(
+                "Function can only be used for index",
             )),
             Expr::Like(like) => like.to_sql(database),
             Expr::Cast(cast) => {
@@ -260,9 +260,7 @@ impl Expr {
                     catalog_datatype.to_sql(database)
                 ))
             }
-            Expr::TryCast(_) => Err(ILError::InvalidInput(format!(
-                "TRY_CAST is not supported in SQL"
-            ))),
+            Expr::TryCast(_) => Err(ILError::invalid_input("TRY_CAST is not supported in SQL")),
             Expr::Negative(expr) => Ok(format!("-{}", expr.to_sql(database)?)),
         }
     }

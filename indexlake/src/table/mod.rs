@@ -251,7 +251,7 @@ impl Table {
             if if_exists {
                 return Ok(());
             }
-            return Err(ILError::InvalidInput(format!(
+            return Err(ILError::invalid_input(format!(
                 "Index {index_name} not found"
             )));
         };
@@ -286,7 +286,7 @@ impl Table {
                     let index_kind =
                         self.index_kinds
                             .get(&index_def.kind)
-                            .ok_or(ILError::InvalidInput(format!(
+                            .ok_or(ILError::invalid_input(format!(
                                 "Index kind {} not found",
                                 index_def.kind
                             )))?;
@@ -352,7 +352,7 @@ impl Default for TableConfig {
 
 fn check_insert_batch_schema(batch_schema: &Schema, expected_schema: &Schema) -> ILResult<()> {
     if batch_schema.fields().len() != expected_schema.fields().len() {
-        return Err(ILError::InvalidInput(format!(
+        return Err(ILError::invalid_input(format!(
             "Invalid record schema: {batch_schema:?}, expected schema: {expected_schema:?}",
         )));
     }
@@ -366,7 +366,7 @@ fn check_insert_batch_schema(batch_schema: &Schema, expected_schema: &Schema) ->
             || table_field.data_type() != batch_field.data_type()
             || table_field.is_nullable() != batch_field.is_nullable()
         {
-            return Err(ILError::InvalidInput(format!(
+            return Err(ILError::invalid_input(format!(
                 "Invalid record schema: {batch_schema:?}, expected schema: {expected_schema:?}",
             )));
         }

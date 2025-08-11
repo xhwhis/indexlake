@@ -31,7 +31,7 @@ impl Row {
     pub fn int8(&self, index: usize) -> ILResult<Option<i8>> {
         match self.values[index] {
             Scalar::Int8(v) => Ok(v),
-            _ => Err(ILError::InternalError(format!(
+            _ => Err(ILError::internal(format!(
                 "Expected Int8 at index {index} for row {self:?}"
             ))),
         }
@@ -40,7 +40,7 @@ impl Row {
     pub fn int16(&self, index: usize) -> ILResult<Option<i16>> {
         match self.values[index] {
             Scalar::Int16(v) => Ok(v),
-            _ => Err(ILError::InternalError(format!(
+            _ => Err(ILError::internal(format!(
                 "Expected Int16 at index {index} for row {self:?}"
             ))),
         }
@@ -48,7 +48,7 @@ impl Row {
     pub fn int32(&self, index: usize) -> ILResult<Option<i32>> {
         match self.values[index] {
             Scalar::Int32(v) => Ok(v),
-            _ => Err(ILError::InternalError(format!(
+            _ => Err(ILError::internal(format!(
                 "Expected Int32 at index {index} for row {self:?}"
             ))),
         }
@@ -57,7 +57,7 @@ impl Row {
     pub fn int64(&self, index: usize) -> ILResult<Option<i64>> {
         match self.values[index] {
             Scalar::Int64(v) => Ok(v),
-            _ => Err(ILError::InternalError(format!(
+            _ => Err(ILError::internal(format!(
                 "Expected BigInt at index {index} for row {self:?}"
             ))),
         }
@@ -66,7 +66,7 @@ impl Row {
     pub fn uint8(&self, index: usize) -> ILResult<Option<u8>> {
         match self.values[index] {
             Scalar::UInt8(v) => Ok(v),
-            _ => Err(ILError::InternalError(format!(
+            _ => Err(ILError::internal(format!(
                 "Expected UInt8 at index {index} for row {self:?}"
             ))),
         }
@@ -75,7 +75,7 @@ impl Row {
     pub fn uint16(&self, index: usize) -> ILResult<Option<u16>> {
         match self.values[index] {
             Scalar::UInt16(v) => Ok(v),
-            _ => Err(ILError::InternalError(format!(
+            _ => Err(ILError::internal(format!(
                 "Expected UInt16 at index {index} for row {self:?}"
             ))),
         }
@@ -84,7 +84,7 @@ impl Row {
     pub fn uint32(&self, index: usize) -> ILResult<Option<u32>> {
         match self.values[index] {
             Scalar::UInt32(v) => Ok(v),
-            _ => Err(ILError::InternalError(format!(
+            _ => Err(ILError::internal(format!(
                 "Expected UInt32 at index {index} for row {self:?}"
             ))),
         }
@@ -93,7 +93,7 @@ impl Row {
     pub fn uint64(&self, index: usize) -> ILResult<Option<u64>> {
         match self.values[index] {
             Scalar::UInt64(v) => Ok(v),
-            _ => Err(ILError::InternalError(format!(
+            _ => Err(ILError::internal(format!(
                 "Expected UInt64 at index {index} for row {self:?}"
             ))),
         }
@@ -102,7 +102,7 @@ impl Row {
     pub fn float32(&self, index: usize) -> ILResult<Option<f32>> {
         match self.values[index] {
             Scalar::Float32(v) => Ok(v),
-            _ => Err(ILError::InternalError(format!(
+            _ => Err(ILError::internal(format!(
                 "Expected Float32 at index {index} for row {self:?}"
             ))),
         }
@@ -111,7 +111,7 @@ impl Row {
     pub fn float64(&self, index: usize) -> ILResult<Option<f64>> {
         match self.values[index] {
             Scalar::Float64(v) => Ok(v),
-            _ => Err(ILError::InternalError(format!(
+            _ => Err(ILError::internal(format!(
                 "Expected Float64 at index {index} for row {self:?}"
             ))),
         }
@@ -120,7 +120,7 @@ impl Row {
     pub fn utf8(&self, index: usize) -> ILResult<Option<&String>> {
         match &self.values[index] {
             Scalar::Utf8(v) => Ok(v.as_ref()),
-            _ => Err(ILError::InternalError(format!(
+            _ => Err(ILError::internal(format!(
                 "Expected Varchar at index {index} for row {self:?}"
             ))),
         }
@@ -129,7 +129,7 @@ impl Row {
     pub fn binary(&self, index: usize) -> ILResult<Option<&Vec<u8>>> {
         match &self.values[index] {
             Scalar::Binary(v) => Ok(v.as_ref()),
-            _ => Err(ILError::InternalError(format!(
+            _ => Err(ILError::internal(format!(
                 "Expected Binary at index {index} for row {self:?}"
             ))),
         }
@@ -139,12 +139,12 @@ impl Row {
         match &self.values[index] {
             Scalar::Binary(Some(v)) => {
                 let uuid = Uuid::from_slice(v).map_err(|e| {
-                    ILError::InternalError(format!("Failed to parse UUID from binary value: {e:?}"))
+                    ILError::internal(format!("Failed to parse UUID from binary value: {e:?}"))
                 })?;
                 Ok(Some(uuid))
             }
             Scalar::Binary(None) => Ok(None),
-            _ => Err(ILError::InternalError(format!(
+            _ => Err(ILError::internal(format!(
                 "Expected Binary at index {index} for row {self:?}"
             ))),
         }
@@ -153,7 +153,7 @@ impl Row {
     pub fn boolean(&self, index: usize) -> ILResult<Option<bool>> {
         match self.values[index] {
             Scalar::Boolean(v) => Ok(v),
-            _ => Err(ILError::InternalError(format!(
+            _ => Err(ILError::internal(format!(
                 "Expected Boolean at index {index} for row {self:?}"
             ))),
         }
@@ -206,7 +206,7 @@ macro_rules! builder_append {
                 )
             });
         let v = $row.$row_method($index).map_err(|e| {
-            ILError::InternalError(format!(
+            ILError::internal(format!(
                 "Failed to get {} value for {:?}: {e:?}",
                 stringify!($value_ty),
                 $field,
@@ -233,7 +233,7 @@ macro_rules! list_builder_append {
                 )
             });
         let v = $row.binary($index).map_err(|e| {
-            ILError::InternalError(format!(
+            ILError::internal(format!(
                 "Failed to get {} value for {:?}: {e:?}",
                 stringify!($value_ty),
                 $field,
@@ -388,7 +388,7 @@ macro_rules! list_builder_append {
                         );
                     }
                     _ => {
-                        return Err(ILError::NotSupported(format!(
+                        return Err(ILError::not_supported(format!(
                             "Not supported data type: {}",
                             $field.data_type()
                         )));
@@ -414,7 +414,7 @@ macro_rules! values_builder_append {
             });
 
         let array = $array.as_any().downcast_ref::<$array_ty>().ok_or_else(|| {
-            ILError::InternalError(format!(
+            ILError::internal(format!(
                 "Failed to downcast inner array to {}",
                 stringify!($array_ty),
             ))
@@ -702,7 +702,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                             )
                         });
                     let v = row.binary(i).map_err(|e| {
-                        ILError::InternalError(format!(
+                        ILError::internal(format!(
                             "Failed to get binary value for {field:?}: {e:?}"
                         ))
                     })?;
@@ -787,7 +787,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                             )
                         });
                     let v = row.binary(i).map_err(|e| {
-                        ILError::InternalError(format!(
+                        ILError::internal(format!(
                             "Failed to get binary value for {field:?}: {e:?}"
                         ))
                     })?;
@@ -884,7 +884,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                             );
                         }
                         _ => {
-                            return Err(ILError::NotSupported(format!(
+                            return Err(ILError::not_supported(format!(
                                 "Not supported data type: {}",
                                 inner_field.data_type()
                             )));
@@ -911,7 +911,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         i,
                         |v: &String| {
                             let v = v.parse::<i128>().map_err(|e| {
-                                ILError::InternalError(format!(
+                                ILError::internal(format!(
                                     "Failed to parse decimal128 value: {e:?}"
                                 ))
                             })?;
@@ -929,7 +929,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         i,
                         |v: &String| {
                             let v = v.parse::<i256>().map_err(|e| {
-                                ILError::InternalError(format!(
+                                ILError::internal(format!(
                                     "Failed to parse decimal256 value: {e:?}"
                                 ))
                             })?;
@@ -938,7 +938,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                     );
                 }
                 _ => {
-                    return Err(ILError::NotSupported(format!(
+                    return Err(ILError::not_supported(format!(
                         "Not supported data type: {}",
                         field.data_type()
                     )));
@@ -951,6 +951,6 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
         .into_iter()
         .map(|mut builder| builder.finish())
         .collect();
-    RecordBatch::try_new(schema.clone(), columns)
-        .map_err(|e| ILError::InternalError(format!("Failed to create record batch: {e:?}")))
+    let batch = RecordBatch::try_new(schema.clone(), columns)?;
+    Ok(batch)
 }

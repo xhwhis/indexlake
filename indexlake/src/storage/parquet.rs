@@ -1,8 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    ops::Range,
-    sync::Arc,
-};
+use std::{collections::HashSet, ops::Range, sync::Arc};
 
 use arrow::{
     array::{ArrayRef, AsArray, Int64Array, RecordBatch, UInt64Array},
@@ -12,7 +8,7 @@ use futures::{StreamExt, TryStreamExt, future::BoxFuture};
 use parquet::{
     arrow::{
         ArrowSchemaConverter, AsyncArrowWriter, ParquetRecordBatchStreamBuilder, ProjectionMask,
-        arrow_reader::{ArrowReaderOptions, RowFilter, RowSelection},
+        arrow_reader::{ArrowReaderOptions, RowFilter},
         async_reader::AsyncFileReader,
         async_writer::AsyncFileWriter,
     },
@@ -101,7 +97,7 @@ pub(crate) fn build_parquet_writer<W: AsyncFileWriter>(
             DataFileFormat::ParquetV1 => WriterVersion::PARQUET_1_0,
             DataFileFormat::ParquetV2 => WriterVersion::PARQUET_2_0,
             DataFileFormat::LanceV2_0 => {
-                return Err(ILError::InternalError(format!(
+                return Err(ILError::internal(format!(
                     "Cannot build parquet writer for {data_file_format}"
                 )));
             }
@@ -184,7 +180,7 @@ pub(crate) async fn read_parquet_file_by_record_and_row_id_condition(
 
     let take_array = arrow::compute::take(valid_row_ids_array.as_ref(), &index_array, None)?;
     let match_row_id_array = take_array.as_primitive_opt::<Int64Type>().ok_or_else(|| {
-        ILError::InternalError(format!(
+        ILError::internal(format!(
             "match row id array should be Int64Array, but got {:?}",
             take_array.data_type()
         ))
@@ -238,7 +234,7 @@ pub(crate) async fn find_matched_row_ids_from_parquet_file(
             .column(0)
             .as_primitive_opt::<Int64Type>()
             .ok_or_else(|| {
-                ILError::InternalError(format!(
+                ILError::internal(format!(
                     "row id array should be Int64Array, but got {:?}",
                     batch.column(0).data_type()
                 ))

@@ -25,15 +25,15 @@ impl IndexKind for RStarIndexKind {
 
     fn decode_params(&self, value: &str) -> ILResult<Arc<dyn IndexParams>> {
         let params = serde_json::from_str::<RStarIndexParams>(value)
-            .map_err(|e| ILError::IndexError(format!("Failed to parse RStarIndexParams: {e}")))?;
+            .map_err(|e| ILError::index(format!("Failed to parse RStarIndexParams: {e}")))?;
         Ok(Arc::new(params))
     }
 
     fn supports(&self, index_def: &IndexDefination) -> ILResult<()> {
         if index_def.key_columns.len() != 1 {
-            return Err(ILError::IndexError(format!(
-                "RStar index requires exactly one key column"
-            )));
+            return Err(ILError::index(
+                "RStar index requires exactly one key column",
+            ));
         }
         let key_column_name = &index_def.key_columns[0];
         let key_field = index_def.table_schema.field_with_name(&key_column_name)?;
@@ -41,9 +41,9 @@ impl IndexKind for RStarIndexKind {
             key_field.data_type(),
             DataType::Binary | DataType::LargeBinary | DataType::BinaryView
         ) {
-            return Err(ILError::IndexError(format!(
-                "RStar index key column must be a binary / large binary / binary view column"
-            )));
+            return Err(ILError::index(
+                "RStar index key column must be a binary / large binary / binary view column",
+            ));
         }
         Ok(())
     }
@@ -81,35 +81,35 @@ fn check_intersects_function(
     return_type: &DataType,
 ) -> ILResult<bool> {
     if args.len() != 2 {
-        return Err(ILError::IndexError(format!(
-            "Intersects function must have two arguments"
-        )));
+        return Err(ILError::index(
+            "Intersects function must have two arguments",
+        ));
     }
 
     let arg0 = &args[0];
     let Expr::Column(col) = arg0 else {
-        return Err(ILError::IndexError(format!(
-            "Intersects function must have a column as the first argument"
-        )));
+        return Err(ILError::index(
+            "Intersects function must have a column as the first argument",
+        ));
     };
     let key_column_name = &index_def.key_columns[0];
     let key_field = index_def.table_schema.field_with_name(&key_column_name)?;
     if key_field.name() != col {
-        return Err(ILError::IndexError(format!(
-            "Intersects function must have a column with the same name as the key column"
-        )));
+        return Err(ILError::index(
+            "Intersects function must have a column with the same name as the key column",
+        ));
     }
 
     let arg1 = &args[1];
     let Expr::Literal(scalar) = arg1 else {
-        return Err(ILError::IndexError(format!(
-            "Intersects function must have a literal binary as the second argument"
-        )));
+        return Err(ILError::index(
+            "Intersects function must have a literal binary as the second argument",
+        ));
     };
     if !matches!(scalar, Scalar::Binary(Some(_))) {
-        return Err(ILError::IndexError(format!(
-            "Intersects function must have a literal binary as the second argument"
-        )));
+        return Err(ILError::index(
+            "Intersects function must have a literal binary as the second argument",
+        ));
     }
     Ok(true)
 }
@@ -147,6 +147,6 @@ impl IndexParams for RStarIndexParams {
 
     fn encode(&self) -> ILResult<String> {
         serde_json::to_string(self)
-            .map_err(|e| ILError::IndexError(format!("Failed to serialize RStarIndexParams: {e}")))
+            .map_err(|e| ILError::index(format!("Failed to serialize RStarIndexParams: {e}")))
     }
 }

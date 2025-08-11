@@ -62,7 +62,7 @@ pub fn extract_row_id_array_from_record_batch(record_batch: &RecordBatch) -> ILR
         .column(index)
         .as_any()
         .downcast_ref::<Int64Array>()
-        .ok_or_else(|| ILError::InternalError(format!("Row id column is not an Int64Array")))?;
+        .ok_or_else(|| ILError::internal("Row id column is not an Int64Array"))?;
     Ok(row_id_array.clone())
 }
 
@@ -103,10 +103,10 @@ pub fn deserialize_array(buf: &[u8], field: FieldRef) -> ILResult<ArrayRef> {
     let schema = Arc::new(Schema::new(vec![field]));
     let reader = StreamReader::try_new(buf, None)?;
     if reader.schema() != schema {
-        return Err(ILError::InternalError(format!(
+        return Err(ILError::internal(format!(
             "Schema mismatch when deserializing array: {:?}, {:?}",
             reader.schema(),
-            schema
+            schema,
         )));
     }
     let mut arrays = Vec::new();

@@ -55,7 +55,7 @@ impl PostgresCatalogBuilder {
             .max_size(self.pool_size as u32)
             .build(manager)
             .await
-            .map_err(|e| ILError::CatalogError(format!("failed to build postgres pool: {e}")))?;
+            .map_err(|e| ILError::catalog(format!("failed to build postgres pool: {e}")))?;
         Ok(PostgresCatalog::new(pool))
     }
 }

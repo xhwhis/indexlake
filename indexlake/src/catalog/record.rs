@@ -26,9 +26,8 @@ pub(crate) struct TableRecord {
 
 impl TableRecord {
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> ILResult<String> {
-        let config_str = serde_json::to_string(&self.config).map_err(|e| {
-            ILError::InternalError(format!("Failed to serialize table config: {e:?}"))
-        })?;
+        let config_str = serde_json::to_string(&self.config)
+            .map_err(|e| ILError::internal(format!("Failed to serialize table config: {e:?}")))?;
         Ok(format!(
             "({}, '{}', {}, '{}')",
             database.sql_uuid_value(&self.table_id),
@@ -52,9 +51,8 @@ impl TableRecord {
         let table_name = row.utf8(1)?.expect("table_name is not null");
         let namespace_id = row.uuid(2)?.expect("namespace_id is not null");
         let config_str = row.utf8(3)?.expect("config is not null");
-        let config: TableConfig = serde_json::from_str(&config_str).map_err(|e| {
-            ILError::InternalError(format!("Failed to deserialize table config: {e:?}"))
-        })?;
+        let config: TableConfig = serde_json::from_str(&config_str)
+            .map_err(|e| ILError::internal(format!("Failed to deserialize table config: {e:?}")))?;
         Ok(TableRecord {
             table_id,
             table_name: table_name.clone(),
@@ -88,10 +86,9 @@ impl FieldRecord {
 
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> ILResult<String> {
         let data_type_str = serde_json::to_string(&self.data_type)
-            .map_err(|e| ILError::InternalError(format!("Failed to serialize data type: {e:?}")))?;
-        let metadata_str = serde_json::to_string(&self.metadata).map_err(|e| {
-            ILError::InternalError(format!("Failed to serialize field metadata: {e:?}"))
-        })?;
+            .map_err(|e| ILError::internal(format!("Failed to serialize data type: {e:?}")))?;
+        let metadata_str = serde_json::to_string(&self.metadata)
+            .map_err(|e| ILError::internal(format!("Failed to serialize field metadata: {e:?}")))?;
         Ok(format!(
             "({}, {}, '{}', '{}', {}, '{}')",
             database.sql_uuid_value(&self.field_id),
@@ -123,14 +120,13 @@ impl FieldRecord {
         let table_id = row.uuid(1)?.expect("table_id is not null");
         let field_name = row.utf8(2)?.expect("field_name is not null");
         let data_type_str = row.utf8(3)?.expect("data_type is not null");
-        let data_type: DataType = serde_json::from_str(&data_type_str).map_err(|e| {
-            ILError::InternalError(format!("Failed to deserialize data type: {e:?}"))
-        })?;
+        let data_type: DataType = serde_json::from_str(&data_type_str)
+            .map_err(|e| ILError::internal(format!("Failed to deserialize data type: {e:?}")))?;
         let nullable = row.boolean(4)?.expect("nullable is not null");
         let metadata_str = row.utf8(5)?.expect("metadata is not null");
         let metadata: HashMap<String, String> =
             serde_json::from_str(&metadata_str).map_err(|e| {
-                ILError::InternalError(format!("Failed to deserialize field metadata: {e:?}"))
+                ILError::internal(format!("Failed to deserialize field metadata: {e:?}"))
             })?;
         Ok(FieldRecord {
             field_id,
@@ -221,9 +217,7 @@ impl DataFileRecord {
             .utf8(2)?
             .expect("format is not null")
             .parse::<DataFileFormat>()
-            .map_err(|e| {
-                ILError::InternalError(format!("Failed to parse data file format: {e:?}"))
-            })?;
+            .map_err(|e| ILError::internal(format!("Failed to parse data file format: {e:?}")))?;
         let relative_path = row.utf8(3)?.expect("relative_path is not null").to_string();
         let file_size_bytes = row.int64(4)?.expect("file_size_bytes is not null");
         let record_count = row.int64(5)?.expect("record_count is not null");
@@ -233,7 +227,7 @@ impl DataFileRecord {
         let mut row_ids = Vec::with_capacity(record_count as usize);
         for chunk in row_ids_chunks {
             row_ids.push(i64::from_le_bytes(chunk.try_into().map_err(|e| {
-                ILError::InternalError(format!("Invalid row ids bytes: {e:?}"))
+                ILError::internal(format!("Invalid row ids bytes: {e:?}"))
             })?));
         }
 
@@ -357,7 +351,7 @@ impl IndexRecord {
             .split(",")
             .map(|id| Uuid::parse_str(id))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| ILError::InternalError(format!("Failed to parse key field ids: {e:?}")))?;
+            .map_err(|e| ILError::internal(format!("Failed to parse key field ids: {e:?}")))?;
         let params = row.utf8(5)?.expect("params is not null");
         Ok(IndexRecord {
             index_id,

@@ -31,7 +31,7 @@ pub fn compare_op_for_nested(
     let r_len = r.len();
 
     if l_len != r_len && !is_l_scalar && !is_r_scalar {
-        return Err(ILError::InternalError("len mismatch".to_string()));
+        return Err(ILError::internal("len mismatch"));
     }
 
     let len = match is_l_scalar {

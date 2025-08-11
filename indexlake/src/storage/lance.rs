@@ -50,7 +50,7 @@ pub(crate) async fn build_lance_writer(
     let version = match data_file_format {
         DataFileFormat::LanceV2_0 => LanceFileVersion::V2_0,
         _ => {
-            return Err(ILError::InvalidInput(format!(
+            return Err(ILError::invalid_input(format!(
                 "Cannot build lance writer for file format: {data_file_format}",
             )));
         }
@@ -194,7 +194,7 @@ pub(crate) async fn read_lance_file_by_record_and_row_id_condition(
 
     let take_array = arrow::compute::take(valid_row_ids_array.as_ref(), &index_array, None)?;
     let match_row_id_array = take_array.as_primitive_opt::<Int64Type>().ok_or_else(|| {
-        ILError::InternalError(format!(
+        ILError::internal(format!(
             "match row id array should be Int64Array, but got {:?}",
             take_array.data_type()
         ))
@@ -248,7 +248,7 @@ pub(crate) async fn find_matched_row_ids_from_lance_file(
             .column(0)
             .as_primitive_opt::<Int64Type>()
             .ok_or_else(|| {
-                ILError::InternalError(format!(
+                ILError::internal(format!(
                     "row id array should be Int64Array, but got {:?}",
                     batch.column(0).data_type()
                 ))

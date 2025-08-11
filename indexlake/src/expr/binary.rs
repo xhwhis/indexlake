@@ -143,7 +143,7 @@ impl BinaryExpr {
                 if left_type == right_type {
                     Ok(left_type)
                 } else {
-                    Err(ILError::InternalError(format!(
+                    Err(ILError::internal(format!(
                         "Cannot get data type of {} {} {}",
                         left_type, self.op, right_type
                     )))
@@ -201,10 +201,10 @@ pub fn apply_boolean(
     match (&lhs, &rhs) {
         (ColumnarValue::Array(left), ColumnarValue::Array(right)) => {
             let left_bool_arr = left.as_boolean_opt().ok_or_else(|| {
-                ILError::InternalError(format!("Expected boolean array, got {}", left.data_type()))
+                ILError::internal(format!("Expected boolean array, got {}", left.data_type()))
             })?;
             let right_bool_arr = right.as_boolean_opt().ok_or_else(|| {
-                ILError::InternalError(format!("Expected boolean array, got {}", right.data_type()))
+                ILError::internal(format!("Expected boolean array, got {}", right.data_type()))
             })?;
             Ok(ColumnarValue::Array(Arc::new(f(
                 &left_bool_arr,
@@ -215,13 +215,13 @@ pub fn apply_boolean(
             let array_size = right.len();
             let left_arr = left.to_array_of_size(array_size)?;
             let left_bool_arr = left_arr.as_boolean_opt().ok_or_else(|| {
-                ILError::InternalError(format!(
+                ILError::internal(format!(
                     "Expected boolean array, got {}",
                     left_arr.data_type()
                 ))
             })?;
             let right_bool_arr = right.as_boolean_opt().ok_or_else(|| {
-                ILError::InternalError(format!("Expected boolean array, got {}", right.data_type()))
+                ILError::internal(format!("Expected boolean array, got {}", right.data_type()))
             })?;
             Ok(ColumnarValue::Array(Arc::new(f(
                 &left_bool_arr,
@@ -232,10 +232,10 @@ pub fn apply_boolean(
             let array_size = left.len();
             let right_arr = right.to_array_of_size(array_size)?;
             let left_bool_arr = left.as_boolean_opt().ok_or_else(|| {
-                ILError::InternalError(format!("Expected boolean array, got {}", left.data_type()))
+                ILError::internal(format!("Expected boolean array, got {}", left.data_type()))
             })?;
             let right_bool_arr = right_arr.as_boolean_opt().ok_or_else(|| {
-                ILError::InternalError(format!(
+                ILError::internal(format!(
                     "Expected boolean array, got {}",
                     right_arr.data_type()
                 ))
@@ -250,13 +250,13 @@ pub fn apply_boolean(
             let left_arr = left.to_array_of_size(array_size)?;
             let right_arr = right.to_array_of_size(array_size)?;
             let left_bool_arr = left_arr.as_boolean_opt().ok_or_else(|| {
-                ILError::InternalError(format!(
+                ILError::internal(format!(
                     "Expected boolean array, got {}",
                     left_arr.data_type()
                 ))
             })?;
             let right_bool_arr = right_arr.as_boolean_opt().ok_or_else(|| {
-                ILError::InternalError(format!(
+                ILError::internal(format!(
                     "Expected boolean array, got {}",
                     right_arr.data_type()
                 ))

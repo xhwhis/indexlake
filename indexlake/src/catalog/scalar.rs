@@ -51,9 +51,8 @@ impl Scalar {
             DataType::Utf8 => Scalar::Utf8(None),
             DataType::Binary => Scalar::Binary(None),
             _ => {
-                return Err(ILError::NotSupported(format!(
-                    "Cannot create null scalar for data type: {:?}",
-                    data_type
+                return Err(ILError::not_supported(format!(
+                    "Cannot create null scalar for data type: {data_type}",
                 )));
             }
         })
@@ -79,9 +78,8 @@ impl Scalar {
     pub fn as_bool(&self) -> ILResult<Option<bool>> {
         match self {
             Scalar::Boolean(v) => Ok(*v),
-            _ => Err(ILError::InvalidInput(format!(
-                "Expected boolean, got {:?}",
-                self
+            _ => Err(ILError::invalid_input(format!(
+                "Expected boolean, got {self:?}",
             ))),
         }
     }
@@ -256,8 +254,8 @@ impl Scalar {
                 Scalar::Binary(Some(array.value(index).to_vec()))
             }
             _ => {
-                return Err(ILError::NotSupported(format!(
-                    "Unsupported array: {:?}",
+                return Err(ILError::not_supported(format!(
+                    "Unsupported array: {}",
                     array.data_type()
                 )));
             }
@@ -307,7 +305,7 @@ impl Scalar {
             Scalar::Int16(Some(v)) => Ok(Scalar::Int16(Some(v.neg_checked()?))),
             Scalar::Int32(Some(v)) => Ok(Scalar::Int32(Some(v.neg_checked()?))),
             Scalar::Int64(Some(v)) => Ok(Scalar::Int64(Some(v.neg_checked()?))),
-            _ => Err(ILError::InvalidInput(format!(
+            _ => Err(ILError::invalid_input(format!(
                 "Can not run arithmetic negative on scalar value {self:?}",
             ))),
         }

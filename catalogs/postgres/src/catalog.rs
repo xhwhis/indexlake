@@ -27,29 +27,33 @@ impl Catalog for PostgresCatalog {
 
     async fn query(&self, sql: &str, schema: CatalogSchemaRef) -> ILResult<RowStream<'static>> {
         trace!("postgres query: {sql}");
-        let conn = self.pool.get_owned().await.map_err(|e| {
-            ILError::CatalogError(format!("failed to get postgres connection: {e}"))
-        })?;
+        let conn = self
+            .pool
+            .get_owned()
+            .await
+            .map_err(|e| ILError::catalog(format!("failed to get postgres connection: {e}")))?;
         let pg_row_stream = conn
             .query_raw(sql, Vec::<String>::new())
             .await
-            .map_err(|e| ILError::CatalogError(format!("failed to query postgres: {sql} {e}")))?;
+            .map_err(|e| ILError::catalog(format!("failed to query postgres: {sql} {e}")))?;
 
         let stream = pg_row_stream.map(move |row| {
             let pg_row =
-                row.map_err(|e| ILError::CatalogError(format!("failed to get postgres row: {e}")))?;
+                row.map_err(|e| ILError::catalog(format!("failed to get postgres row: {e}")))?;
             pg_row_to_row(&pg_row, &schema)
         });
         Ok(Box::pin(stream))
     }
 
     async fn transaction(&self) -> ILResult<Box<dyn Transaction>> {
-        let conn = self.pool.get_owned().await.map_err(|e| {
-            ILError::CatalogError(format!("failed to get postgres connection: {e}"))
-        })?;
+        let conn = self
+            .pool
+            .get_owned()
+            .await
+            .map_err(|e| ILError::catalog(format!("failed to get postgres connection: {e}")))?;
         conn.batch_execute("START TRANSACTION")
             .await
-            .map_err(|e| ILError::CatalogError(format!("failed to start postgres txn: {e}")))?;
+            .map_err(|e| ILError::catalog(format!("failed to start postgres txn: {e}")))?;
         Ok(Box::new(PostgresTransaction { conn, done: false }))
     }
 }
@@ -63,8 +67,8 @@ pub struct PostgresTransaction {
 impl PostgresTransaction {
     fn check_done(&self) -> ILResult<()> {
         if self.done {
-            return Err(ILError::CatalogError(
-                "Transaction already committed or rolled back".to_string(),
+            return Err(ILError::catalog(
+                "Transaction already committed or rolled back",
             ));
         }
         Ok(())
@@ -81,11 +85,11 @@ impl Transaction for PostgresTransaction {
             .conn
             .query_raw(sql, Vec::<String>::new())
             .await
-            .map_err(|e| ILError::CatalogError(format!("failed to query postgres: {sql} {e}")))?;
+            .map_err(|e| ILError::catalog(format!("failed to query postgres: {sql} {e}")))?;
 
         let stream = pg_row_stream.map(move |row| {
             let pg_row =
-                row.map_err(|e| ILError::CatalogError(format!("failed to get postgres row: {e}")))?;
+                row.map_err(|e| ILError::catalog(format!("failed to get postgres row: {e}")))?;
             pg_row_to_row(&pg_row, &schema)
         });
         Ok(Box::pin(stream))
@@ -98,16 +102,17 @@ impl Transaction for PostgresTransaction {
             .execute(sql, &[])
             .await
             .map(|r| r as usize)
-            .map_err(|e| ILError::CatalogError(format!("failed to execute postgres: {sql} {e}")))
+            .map_err(|e| ILError::catalog(format!("failed to execute postgres: {sql} {e}")))
     }
 
     async fn execute_batch(&mut self, sqls: &[String]) -> ILResult<()> {
         trace!("postgres txn execute batch: {:?}", sqls);
         self.check_done()?;
         let sql = sqls.join(";");
-        self.conn.batch_execute(&sql).await.map_err(|e| {
-            ILError::CatalogError(format!("failed to execute batch postgres: {sql} {e}"))
-        })
+        self.conn
+            .batch_execute(&sql)
+            .await
+            .map_err(|e| ILError::catalog(format!("failed to execute batch postgres: {sql} {e}")))
     }
 
     async fn commit(&mut self) -> ILResult<()> {
@@ -116,7 +121,7 @@ impl Transaction for PostgresTransaction {
         self.conn
             .batch_execute("COMMIT")
             .await
-            .map_err(|e| ILError::CatalogError(format!("failed to commit postgres txn: {e}")))?;
+            .map_err(|e| ILError::catalog(format!("failed to commit postgres txn: {e}")))?;
         self.done = true;
         Ok(())
     }
@@ -127,7 +132,7 @@ impl Transaction for PostgresTransaction {
         self.conn
             .batch_execute("ROLLBACK")
             .await
-            .map_err(|e| ILError::CatalogError(format!("failed to rollback postgres txn: {e}")))?;
+            .map_err(|e| ILError::catalog(format!("failed to rollback postgres txn: {e}")))?;
         self.done = true;
         Ok(())
     }
@@ -153,95 +158,70 @@ fn pg_row_to_row(
     schema: &CatalogSchemaRef,
 ) -> ILResult<Row> {
     let mut values = Vec::new();
+    let err_mapping = |e: bb8_postgres::tokio_postgres::error::Error| {
+        ILError::catalog(format!("failed to get row value: {e}"))
+    };
     for (idx, field) in schema.columns.iter().enumerate() {
         let scalar = match field.data_type {
             CatalogDataType::Boolean => {
-                let v: Option<bool> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                let v: Option<bool> = pg_row.try_get(idx).map_err(err_mapping)?;
                 Scalar::Boolean(v)
             }
             CatalogDataType::Int8 => {
-                let v: Option<i16> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                let v: Option<i16> = pg_row.try_get(idx).map_err(err_mapping)?;
                 Scalar::Int8(v.map(|v| v as i8))
             }
             CatalogDataType::Int16 => {
-                let v: Option<i16> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                let v: Option<i16> = pg_row.try_get(idx).map_err(err_mapping)?;
                 Scalar::Int16(v)
             }
             CatalogDataType::Int32 => {
-                let v: Option<i32> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                let v: Option<i32> = pg_row.try_get(idx).map_err(err_mapping)?;
                 Scalar::Int32(v)
             }
             CatalogDataType::Int64 => {
-                let v: Option<i64> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                let v: Option<i64> = pg_row.try_get(idx).map_err(err_mapping)?;
                 Scalar::Int64(v)
             }
             CatalogDataType::UInt8 => {
-                let v: Option<i16> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                let v: Option<i16> = pg_row.try_get(idx).map_err(err_mapping)?;
                 Scalar::UInt8(v.map(|v| v as u8))
             }
             CatalogDataType::UInt16 => {
-                let v: Option<i32> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                let v: Option<i32> = pg_row.try_get(idx).map_err(err_mapping)?;
                 Scalar::UInt16(v.map(|v| v as u16))
             }
             CatalogDataType::UInt32 => {
-                let v: Option<i64> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                let v: Option<i64> = pg_row.try_get(idx).map_err(err_mapping)?;
                 Scalar::UInt32(v.map(|v| v as u32))
             }
             CatalogDataType::UInt64 => {
-                let v: Option<f32> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                let v: Option<f32> = pg_row.try_get(idx).map_err(err_mapping)?;
                 Scalar::UInt64(v.map(|v| v as u64))
             }
             CatalogDataType::Float32 => {
-                let v: Option<f32> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                let v: Option<f32> = pg_row.try_get(idx).map_err(err_mapping)?;
                 Scalar::Float32(v)
             }
             CatalogDataType::Float64 => {
-                let v: Option<f64> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                let v: Option<f64> = pg_row.try_get(idx).map_err(err_mapping)?;
                 Scalar::Float64(v)
             }
             CatalogDataType::Utf8 => {
-                let v: Option<String> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                let v: Option<String> = pg_row.try_get(idx).map_err(err_mapping)?;
                 Scalar::Utf8(v)
             }
             CatalogDataType::Binary => {
-                let v: Option<Vec<u8>> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                let v: Option<Vec<u8>> = pg_row.try_get(idx).map_err(err_mapping)?;
                 Scalar::Binary(v)
             }
             CatalogDataType::Uuid => {
-                let v: Option<uuid::Uuid> = pg_row
-                    .try_get(idx)
-                    .map_err(|e| ILError::CatalogError(e.to_string()))?;
+                let v: Option<uuid::Uuid> = pg_row.try_get(idx).map_err(err_mapping)?;
                 Scalar::Binary(v.map(|v| v.as_bytes().to_vec()))
             }
         };
         if !field.nullable && scalar.is_null() {
-            return Err(ILError::CatalogError(format!(
+            return Err(ILError::catalog(format!(
                 "column {} is not nullable but got null value",
                 field.name
             )));

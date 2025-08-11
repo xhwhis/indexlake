@@ -29,7 +29,7 @@ pub(crate) async fn process_create_table(
         .get_namespace_id(&creation.namespace_name)
         .await?
         .ok_or_else(|| {
-            ILError::InvalidInput(format!("Namespace {} not found", creation.namespace_name))
+            ILError::invalid_input(format!("Namespace {} not found", creation.namespace_name))
         })?;
 
     if let Some(table_id) = tx_helper
@@ -39,7 +39,7 @@ pub(crate) async fn process_create_table(
         return if creation.if_not_exists {
             Ok(table_id)
         } else {
-            Err(ILError::InvalidInput(format!(
+            Err(ILError::invalid_input(format!(
                 "Table {} already exists in namespace {}",
                 creation.table_name, creation.namespace_name
             )))
@@ -98,7 +98,7 @@ pub(crate) async fn process_create_index(
     let index_kind = table
         .index_kinds
         .get(&creation.kind)
-        .ok_or_else(|| ILError::InvalidInput(format!("Index kind {} not found", creation.kind)))?;
+        .ok_or_else(|| ILError::invalid_input(format!("Index kind {} not found", creation.kind)))?;
     index_kind.supports(&index_def)?;
 
     if let Some(index_id) = tx_helper
@@ -108,7 +108,7 @@ pub(crate) async fn process_create_index(
         return if creation.if_not_exists {
             Ok(index_id)
         } else {
-            Err(ILError::InvalidInput(format!(
+            Err(ILError::invalid_input(format!(
                 "Index name {} already exists in table {}",
                 creation.name, table.table_name
             )))
@@ -195,7 +195,7 @@ fn field_names_to_ids(
         if let Some(field_id) = field_id_opt {
             field_ids.push(field_id);
         } else {
-            return Err(ILError::InvalidInput(format!(
+            return Err(ILError::invalid_input(format!(
                 "Field name {name} not found in table schema"
             )));
         }

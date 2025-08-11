@@ -21,17 +21,14 @@ impl IndexKind for BM25IndexKind {
     }
 
     fn decode_params(&self, params: &str) -> ILResult<Arc<dyn IndexParams>> {
-        let params: BM25IndexParams = serde_json::from_str(params).map_err(|e| {
-            ILError::IndexError(format!("Failed to decode BM25 index params: {}", e))
-        })?;
+        let params: BM25IndexParams = serde_json::from_str(params)
+            .map_err(|e| ILError::index(format!("Failed to decode BM25 index params: {e}")))?;
         Ok(Arc::new(params))
     }
 
     fn supports(&self, index_def: &IndexDefination) -> ILResult<()> {
         if index_def.key_columns.len() != 1 {
-            return Err(ILError::IndexError(format!(
-                "BM25 index requires exactly one key column"
-            )));
+            return Err(ILError::index("BM25 index requires exactly one key column"));
         }
         let key_column_name = &index_def.key_columns[0];
         let key_field = index_def.table_schema.field_with_name(&key_column_name)?;
@@ -39,9 +36,9 @@ impl IndexKind for BM25IndexKind {
             key_field.data_type(),
             DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View
         ) {
-            return Err(ILError::IndexError(format!(
-                "BM25 index key column must be a utf8 / large utf8 / utf8 view column"
-            )));
+            return Err(ILError::index(
+                "BM25 index key column must be a utf8 / large utf8 / utf8 view column",
+            ));
         }
         Ok(())
     }
@@ -74,6 +71,6 @@ impl IndexParams for BM25IndexParams {
     }
 
     fn encode(&self) -> ILResult<String> {
-        Ok(serde_json::to_string(self).map_err(|e| ILError::IndexError(e.to_string()))?)
+        Ok(serde_json::to_string(self).map_err(|e| ILError::index(e.to_string()))?)
     }
 }
