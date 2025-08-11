@@ -12,16 +12,18 @@ use indexlake_integration_tests::{data::prepare_simple_testing_table, utils::ful
 use std::sync::Arc;
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_0)]
+#[case(async { catalog_sqlite() }, async { storage_fs() }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
 async fn delete_table_by_condition(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
     #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
@@ -48,16 +50,18 @@ async fn delete_table_by_condition(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_0)]
+#[case(async { catalog_sqlite() }, async { storage_fs() }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
 async fn delete_table_by_row_id(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
     #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
@@ -85,16 +89,18 @@ async fn delete_table_by_row_id(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_0)]
+#[case(async { catalog_sqlite() }, async { storage_fs() }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
 async fn delete_table_by_constant_condition(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
     #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();

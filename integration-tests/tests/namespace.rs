@@ -3,14 +3,16 @@ use indexlake_integration_tests::{catalog_postgres, catalog_sqlite, storage_fs, 
 use std::sync::Arc;
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, async { storage_fs() })]
+#[case(async { catalog_postgres().await }, async { storage_s3().await })]
 #[tokio::test(flavor = "multi_thread")]
 async fn create_namespace(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new(catalog, storage);
 
@@ -27,20 +29,22 @@ async fn create_namespace(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, async { storage_fs() })]
+#[case(async { catalog_postgres().await }, async { storage_s3().await })]
 #[tokio::test(flavor = "multi_thread")]
 async fn duplicated_namespace_name(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new(catalog, storage);
 
-    let namespace_name = "duplicated_namespace_name";
-    client.create_namespace(namespace_name, false).await?;
-    let result = client.create_namespace(namespace_name, false).await;
+    let namespace_name = uuid::Uuid::new_v4().to_string();
+    client.create_namespace(&namespace_name, false).await?;
+    let result = client.create_namespace(&namespace_name, false).await;
     assert!(result.is_err());
 
     Ok(())

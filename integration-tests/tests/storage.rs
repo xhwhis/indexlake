@@ -3,10 +3,14 @@ use indexlake_integration_tests::{storage_fs, storage_s3};
 use std::sync::Arc;
 
 #[rstest::rstest]
-#[case(storage_fs())]
-#[case(storage_s3())]
+#[case(async { storage_fs() })]
+#[case(async { storage_s3().await })]
 #[tokio::test(flavor = "multi_thread")]
-async fn file_operations(#[case] storage: Arc<Storage>) -> Result<(), Box<dyn std::error::Error>> {
+async fn file_operations(
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let file_path = "test/test.txt";
     if storage.exists(file_path).await? {
         storage.delete(file_path).await?;

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use opendal::{Operator, services::FsConfig};
+use opendal::{Operator, layers::RetryLayer, services::FsConfig};
 
 use crate::ILResult;
 
@@ -17,6 +17,8 @@ impl FsStorage {
     pub fn new_operator(&self) -> ILResult<Operator> {
         let mut cfg = FsConfig::default();
         cfg.root = Some(self.root.to_string_lossy().to_string());
-        Ok(Operator::from_config(cfg)?.finish())
+        Ok(Operator::from_config(cfg)?
+            .layer(RetryLayer::new())
+            .finish())
     }
 }

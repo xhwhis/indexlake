@@ -130,6 +130,12 @@ impl Storage {
             reader,
         })
     }
+
+    pub async fn connectivity_check(&self) -> ILResult<()> {
+        let op = self.new_operator()?;
+        op.list("").await?;
+        Ok(())
+    }
 }
 
 /// Output file is used for writing to files.

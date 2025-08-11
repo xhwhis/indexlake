@@ -15,7 +15,7 @@ use indexlake_integration_tests::{catalog_postgres, storage_s3};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
     let catalog = catalog_postgres().await;
-    let storage = storage_s3();
+    let storage = storage_s3().await;
 
     let client = Client::new(catalog, storage);
 

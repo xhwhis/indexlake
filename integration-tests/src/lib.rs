@@ -7,8 +7,11 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
-use indexlake::{catalog::Catalog, storage::Storage};
-use indexlake_catalog_postgres::{PostgresCatalog, PostgresCatalogBuilder};
+use indexlake::{
+    catalog::{Catalog, CatalogDataType, CatalogSchema, Column},
+    storage::Storage,
+};
+use indexlake_catalog_postgres::PostgresCatalogBuilder;
 use indexlake_catalog_sqlite::SqliteCatalog;
 use opendal::services::S3Config;
 
@@ -49,9 +52,7 @@ pub fn setup_postgres_db() -> DockerCompose {
         "postgres",
         format!("{}/testdata/postgres", env!("CARGO_MANIFEST_DIR")),
     );
-    docker_compose.down();
     docker_compose.up();
-    std::thread::sleep(std::time::Duration::from_secs(5));
     docker_compose
 }
 
@@ -60,9 +61,7 @@ pub fn setup_minio() -> DockerCompose {
         "minio",
         format!("{}/testdata/minio", env!("CARGO_MANIFEST_DIR")),
     );
-    docker_compose.down();
     docker_compose.up();
-    std::thread::sleep(std::time::Duration::from_secs(5));
     docker_compose
 }
 
@@ -76,8 +75,24 @@ pub async fn catalog_postgres() -> Arc<dyn Catalog> {
     let builder = PostgresCatalogBuilder::new("localhost", 5432, "postgres", "password")
         .dbname("postgres")
         .pool_size(50);
-    let catalog = builder.build().await.unwrap();
-    Arc::new(catalog)
+    let catalog = Arc::new(builder.build().await.unwrap());
+
+    let schema = Arc::new(CatalogSchema::new(vec![Column::new(
+        "1",
+        CatalogDataType::Int64,
+        false,
+    )]));
+
+    let mut retry_count = 0;
+    while let Err(_e) = catalog.query("select 1", schema.clone()).await {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        retry_count += 1;
+        if retry_count > 100 {
+            panic!("Postgres catalog connectivity check failed");
+        }
+    }
+
+    catalog
 }
 
 pub fn storage_fs() -> Arc<Storage> {
@@ -85,7 +100,7 @@ pub fn storage_fs() -> Arc<Storage> {
     Arc::new(Storage::new_fs(home))
 }
 
-pub fn storage_s3() -> Arc<Storage> {
+pub async fn storage_s3() -> Arc<Storage> {
     let _ = MINIO.get_or_init(|| setup_minio());
     let mut config = S3Config::default();
     config.endpoint = Some("http://127.0.0.1:9000".to_string());
@@ -94,5 +109,16 @@ pub fn storage_s3() -> Arc<Storage> {
     config.region = Some("us-east-1".to_string());
     config.disable_config_load = true;
     config.disable_ec2_metadata = true;
-    Arc::new(Storage::new_s3(config, "indexlake"))
+    let storage = Arc::new(Storage::new_s3(config, "indexlake"));
+
+    let mut retry_count = 0;
+    while let Err(_e) = storage.connectivity_check().await {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        retry_count += 1;
+        if retry_count > 100 {
+            panic!("S3 storage connectivity check failed");
+        }
+    }
+
+    storage
 }

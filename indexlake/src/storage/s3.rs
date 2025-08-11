@@ -1,6 +1,6 @@
-use opendal::{Configurator, Operator, services::S3Config};
+use opendal::{Configurator, Operator, layers::RetryLayer, services::S3Config};
 
-use crate::{ILError, ILResult};
+use crate::ILResult;
 
 #[derive(Debug, Clone)]
 pub struct S3Storage {
@@ -15,6 +15,6 @@ impl S3Storage {
 
     pub fn new_operator(&self) -> ILResult<Operator> {
         let builder = self.config.clone().into_builder().bucket(&self.bucket);
-        Ok(Operator::new(builder)?.finish())
+        Ok(Operator::new(builder)?.layer(RetryLayer::new()).finish())
     }
 }

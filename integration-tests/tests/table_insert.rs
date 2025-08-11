@@ -17,17 +17,17 @@ use std::sync::Arc;
 use std::time::Duration;
 
 #[rstest::rstest]
-// TODO fix sqlite test
-// #[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_0)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
 async fn parallel_insert_table(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
     #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
@@ -97,16 +97,18 @@ async fn parallel_insert_table(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_0)]
+#[case(async { catalog_sqlite() }, async { storage_fs() }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
 async fn bypass_insert_table(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
     #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();

@@ -24,16 +24,18 @@ use indexlake_index_rstar::{RStarIndexKind, RStarIndexParams, WkbDialect};
 use indexlake_integration_tests::utils::table_scan;
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV1)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::ParquetV2)]
-#[case(async { catalog_postgres().await }, storage_s3(), DataFileFormat::LanceV2_0)]
+#[case(async { catalog_sqlite() }, async { storage_fs() }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
 async fn create_rstar_index_on_existing_table(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
     #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();

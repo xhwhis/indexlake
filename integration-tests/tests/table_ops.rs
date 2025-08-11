@@ -21,14 +21,16 @@ use std::i128;
 use std::sync::Arc;
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, async { storage_fs() })]
+#[case(async { catalog_postgres().await }, async { storage_s3().await })]
 #[tokio::test(flavor = "multi_thread")]
 async fn create_table(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
@@ -70,14 +72,16 @@ async fn create_table(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, async { storage_fs() })]
+#[case(async { catalog_postgres().await }, async { storage_s3().await })]
 #[tokio::test(flavor = "multi_thread")]
 async fn table_data_types(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
@@ -337,14 +341,16 @@ async fn table_data_types(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, async { storage_fs() })]
+#[case(async { catalog_postgres().await }, async { storage_s3().await })]
 #[tokio::test(flavor = "multi_thread")]
 async fn duplicated_table_name(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
@@ -379,14 +385,16 @@ async fn duplicated_table_name(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, async { storage_fs() })]
+#[case(async { catalog_postgres().await }, async { storage_s3().await })]
 #[tokio::test(flavor = "multi_thread")]
 async fn truncate_table(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
@@ -404,14 +412,16 @@ async fn truncate_table(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, async { storage_fs() })]
+#[case(async { catalog_postgres().await }, async { storage_s3().await })]
 #[tokio::test(flavor = "multi_thread")]
 async fn drop_table(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
@@ -474,14 +484,16 @@ async fn drop_table(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, async { storage_fs() })]
+#[case(async { catalog_postgres().await }, async { storage_s3().await })]
 #[tokio::test(flavor = "multi_thread")]
 async fn duplicated_index_name(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
@@ -527,14 +539,16 @@ async fn duplicated_index_name(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, async { storage_fs() })]
+#[case(async { catalog_postgres().await }, async { storage_s3().await })]
 #[tokio::test(flavor = "multi_thread")]
 async fn unsupported_index_kind(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
@@ -558,14 +572,16 @@ async fn unsupported_index_kind(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, async { storage_fs() })]
+#[case(async { catalog_postgres().await }, async { storage_s3().await })]
 #[tokio::test(flavor = "multi_thread")]
 async fn load_index(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
@@ -609,14 +625,16 @@ async fn load_index(
 }
 
 #[rstest::rstest]
-#[case(async { catalog_sqlite() }, storage_fs())]
-#[case(async { catalog_postgres().await }, storage_s3())]
+#[case(async { catalog_sqlite() }, async { storage_fs() })]
+#[case(async { catalog_postgres().await }, async { storage_s3().await })]
 #[tokio::test(flavor = "multi_thread")]
 async fn drop_index(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
-    #[case] storage: Arc<Storage>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_env_logger();
 
