@@ -1,5 +1,6 @@
 mod binary;
 mod builder;
+mod case;
 mod compute;
 mod like;
 mod utils;
@@ -7,13 +8,14 @@ mod visitor;
 
 pub use binary::*;
 pub use builder::*;
+pub use case::*;
 pub use compute::*;
 pub use like::*;
 pub use utils::*;
 pub use visitor::*;
 
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, LazyLock, OnceLock};
+use std::sync::{Arc, LazyLock};
 
 use arrow::{
     array::{ArrayRef, AsArray, BooleanArray, RecordBatch},
@@ -62,6 +64,7 @@ pub enum Expr {
     Cast(Cast),
     TryCast(TryCast),
     Negative(Box<Expr>),
+    Case(CaseExpr),
 }
 
 impl Expr {
@@ -152,6 +155,28 @@ impl Expr {
                     Ok(ColumnarValue::Scalar(scalar.arithmetic_negate()?))
                 }
             },
+            Expr::Case(case) => case.eval(batch),
+        }
+    }
+
+    /// Evaluate an expression against a RecordBatch after first applying a
+    /// validity array
+    pub fn eval_selection(
+        &self,
+        batch: &RecordBatch,
+        selection: &BooleanArray,
+    ) -> ILResult<ColumnarValue> {
+        let tmp_batch = arrow::compute::filter_record_batch(batch, selection)?;
+
+        let tmp_result = self.eval(&tmp_batch)?;
+
+        if batch.num_rows() == tmp_batch.num_rows() {
+            // All values from the `selection` filter are true.
+            Ok(tmp_result)
+        } else if let ColumnarValue::Array(a) = tmp_result {
+            scatter(selection, a.as_ref()).map(ColumnarValue::Array)
+        } else {
+            Ok(tmp_result)
         }
     }
 
@@ -227,6 +252,7 @@ impl Expr {
             Expr::Cast(cast) => Ok(cast.cast_type.clone()),
             Expr::TryCast(try_cast) => Ok(try_cast.cast_type.clone()),
             Expr::Negative(expr) => expr.data_type(schema),
+            Expr::Case(case) => case.data_type(schema),
         }
     }
 
@@ -262,6 +288,7 @@ impl Expr {
             }
             Expr::TryCast(_) => Err(ILError::invalid_input("TRY_CAST is not supported in SQL")),
             Expr::Negative(expr) => Ok(format!("-{}", expr.to_sql(database)?)),
+            Expr::Case(case) => case.to_sql(database),
         }
     }
 
@@ -307,6 +334,7 @@ impl std::fmt::Display for Expr {
                 write!(f, "TRY_CAST({} AS {})", try_cast.expr, try_cast.cast_type)
             }
             Expr::Negative(expr) => write!(f, "-{}", expr),
+            Expr::Case(case) => write!(f, "{}", case),
         }
     }
 }

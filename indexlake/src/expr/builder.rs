@@ -1,8 +1,10 @@
-use arrow::datatypes::DataType;
+use arrow::{compute::can_cast_types, datatypes::DataType};
+use arrow_schema::Schema;
 
 use crate::{
+    ILError, ILResult,
     catalog::Scalar,
-    expr::{BinaryExpr, BinaryOp, Expr, Function, like::Like},
+    expr::{BinaryExpr, BinaryOp, Expr, Function, TryCast, like::Like},
 };
 
 impl Expr {
@@ -113,4 +115,20 @@ pub fn func(name: impl Into<String>, args: Vec<Expr>, return_type: DataType) -> 
         args,
         return_type,
     })
+}
+
+pub fn try_cast(expr: Expr, schema: &Schema, cast_type: DataType) -> ILResult<Expr> {
+    let expr_type = expr.data_type(schema)?;
+    if expr_type == cast_type {
+        Ok(expr)
+    } else if can_cast_types(&expr_type, &cast_type) {
+        Ok(Expr::TryCast(TryCast {
+            expr: Box::new(expr),
+            cast_type,
+        }))
+    } else {
+        Err(ILError::not_supported(format!(
+            "Unsupported TRY_CAST from {expr_type} to {cast_type}"
+        )))
+    }
 }

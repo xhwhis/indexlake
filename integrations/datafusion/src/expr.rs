@@ -142,6 +142,41 @@ pub fn datafusion_expr_to_indexlake_expr(
             let expr = Box::new(datafusion_expr_to_indexlake_expr(expr, schema)?);
             Ok(ILExpr::Negative(expr))
         }
+        Expr::Case(case) => {
+            let when_then = match &case.expr {
+                Some(expr) => {
+                    let expr = datafusion_expr_to_indexlake_expr(expr, schema)?;
+                    case.when_then_expr
+                        .iter()
+                        .map(|(when, then)| {
+                            let when = expr
+                                .clone()
+                                .eq(datafusion_expr_to_indexlake_expr(when, schema)?);
+                            let then = datafusion_expr_to_indexlake_expr(then, schema)?;
+                            Ok::<_, DataFusionError>((Box::new(when), Box::new(then)))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?
+                }
+                None => case
+                    .when_then_expr
+                    .iter()
+                    .map(|(when, then)| {
+                        Ok::<_, DataFusionError>((
+                            Box::new(datafusion_expr_to_indexlake_expr(when, schema)?),
+                            Box::new(datafusion_expr_to_indexlake_expr(then, schema)?),
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            };
+            let else_expr = match &case.else_expr {
+                Some(expr) => Some(Box::new(datafusion_expr_to_indexlake_expr(expr, schema)?)),
+                None => None,
+            };
+            Ok(ILExpr::Case(indexlake::expr::CaseExpr {
+                when_then,
+                else_expr,
+            }))
+        }
         Expr::ScalarFunction(func) => {
             let mut arg_types = Vec::with_capacity(func.args.len());
             for arg in func.args.iter() {
