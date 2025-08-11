@@ -5,6 +5,7 @@ edition.workspace = true
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 description = "An experimental table format with extensible index support."
 
 [dependencies]

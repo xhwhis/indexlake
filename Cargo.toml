@@ -19,6 +19,7 @@ edition = "2024"
 homepage = "https://github.com/lewiszlw/indexlake"
 license = "MIT"
 repository = "https://github.com/lewiszlw/indexlake"
+rust-version = "1.88.0"
 
 [workspace.dependencies]
 indexlake = { path = "indexlake" }
