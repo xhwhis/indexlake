@@ -122,7 +122,7 @@ impl DumpTask {
             index_builders.insert(index_name.clone(), index_builder);
         }
 
-        let (row_ids, file_size_bytes) = match self.table_config.preferred_data_file_format {
+        let row_ids = match self.table_config.preferred_data_file_format {
             DataFileFormat::ParquetV1 | DataFileFormat::ParquetV2 => {
                 self.write_parquet_file(row_stream, &relative_path, &mut index_builders)
                     .await?
@@ -172,7 +172,6 @@ impl DumpTask {
                 table_id: self.table_id,
                 format: self.table_config.preferred_data_file_format,
                 relative_path: relative_path.clone(),
-                file_size_bytes: file_size_bytes as i64,
                 record_count: row_ids.len() as i64,
                 row_ids: row_ids.clone(),
                 validity: vec![true; row_ids.len()],
@@ -211,7 +210,7 @@ impl DumpTask {
         row_stream: RowStream<'_>,
         relative_path: &str,
         index_builders: &mut HashMap<String, Box<dyn IndexBuilder>>,
-    ) -> ILResult<(Vec<i64>, usize)> {
+    ) -> ILResult<Vec<i64>> {
         let mut row_ids = Vec::new();
 
         let output_file = self.storage.create_file(relative_path).await?;
@@ -241,10 +240,9 @@ impl DumpTask {
             arrow_writer.write(&record_batch).await?;
         }
 
-        let file_size_bytes = arrow_writer.bytes_written();
         arrow_writer.close().await?;
 
-        Ok((row_ids, file_size_bytes))
+        Ok(row_ids)
     }
 
     async fn write_lance_file(
@@ -252,7 +250,7 @@ impl DumpTask {
         row_stream: RowStream<'_>,
         relative_path: &str,
         index_builders: &mut HashMap<String, Box<dyn IndexBuilder>>,
-    ) -> ILResult<(Vec<i64>, usize)> {
+    ) -> ILResult<Vec<i64>> {
         let mut row_ids = Vec::new();
 
         let mut writer = build_lance_writer(
@@ -283,8 +281,7 @@ impl DumpTask {
         }
 
         writer.finish().await?;
-        let file_size_bytes = writer.tell().await?;
 
-        Ok((row_ids, file_size_bytes as usize))
+        Ok(row_ids)
     }
 }

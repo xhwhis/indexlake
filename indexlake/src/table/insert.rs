@@ -70,7 +70,7 @@ pub(crate) async fn process_bypass_insert(
         index_builders.insert(index_name.clone(), index_builder);
     }
 
-    let file_size_bytes = match table.config.preferred_data_file_format {
+    match table.config.preferred_data_file_format {
         DataFileFormat::ParquetV1 | DataFileFormat::ParquetV2 => {
             write_parquet_file(
                 table,
@@ -99,7 +99,6 @@ pub(crate) async fn process_bypass_insert(
             table_id: table.table_id,
             format: table.config.preferred_data_file_format,
             relative_path: relative_path.clone(),
-            file_size_bytes: file_size_bytes as i64,
             record_count: total_rows as i64,
             row_ids: reserved_row_ids,
             validity: vec![true; total_rows],
@@ -189,7 +188,7 @@ async fn write_parquet_file(
     reserved_row_ids: &[i64],
     batches: &[RecordBatch],
     index_builders: &mut HashMap<String, Box<dyn IndexBuilder>>,
-) -> ILResult<usize> {
+) -> ILResult<()> {
     let output_file = table.storage.create_file(&relative_path).await?;
 
     let mut arrow_writer = build_parquet_writer(
@@ -213,10 +212,9 @@ async fn write_parquet_file(
         idx += batch.num_rows();
     }
 
-    let file_size_bytes = arrow_writer.bytes_written();
     arrow_writer.close().await?;
 
-    Ok(file_size_bytes)
+    Ok(())
 }
 
 async fn write_lance_file(
@@ -225,7 +223,7 @@ async fn write_lance_file(
     reserved_row_ids: &[i64],
     batches: &[RecordBatch],
     index_builders: &mut HashMap<String, Box<dyn IndexBuilder>>,
-) -> ILResult<usize> {
+) -> ILResult<()> {
     let mut writer = build_lance_writer(
         &table.storage,
         relative_path,
@@ -248,10 +246,9 @@ async fn write_lance_file(
         idx += batch.num_rows();
     }
 
-    let file_size_bytes = writer.tell().await?;
     writer.finish().await?;
 
-    Ok(file_size_bytes as usize)
+    Ok(())
 }
 
 macro_rules! extract_sql_values {

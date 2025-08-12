@@ -29,7 +29,6 @@ CREATE TABLE indexlake_data_file (
     table_id BLOB NOT NULL,
     format VARCHAR NOT NULL,
     relative_path VARCHAR NOT NULL,
-    file_size_bytes BIGINT NOT NULL,
     record_count BIGINT NOT NULL,
     row_ids BLOB NOT NULL,
     validity BLOB NOT NULL
