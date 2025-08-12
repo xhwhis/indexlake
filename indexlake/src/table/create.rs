@@ -53,6 +53,7 @@ pub(crate) async fn process_create_table(
             table_name: creation.table_name,
             namespace_id,
             config: creation.config,
+            schema_metadata: creation.schema.metadata().clone(),
         })
         .await?;
 

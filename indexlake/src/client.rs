@@ -101,8 +101,10 @@ impl Client {
 
         let mut fields = field_map.values().cloned().collect::<Vec<_>>();
         fields.insert(0, INTERNAL_ROW_ID_FIELD_REF.clone());
-        // TODO support schema metadata
-        let schema = Arc::new(Schema::new(fields));
+        let schema = Arc::new(Schema::new_with_metadata(
+            fields,
+            table_record.schema_metadata,
+        ));
 
         let index_records = catalog_helper
             .get_table_indexes(&table_record.table_id)

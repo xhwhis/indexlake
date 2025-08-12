@@ -125,26 +125,6 @@ pub fn deserialize_array(buf: &[u8], field: FieldRef) -> ILResult<ArrayRef> {
     Ok(array)
 }
 
-#[macro_export]
-macro_rules! retry {
-    ($fn:expr) => {{
-        let mut retry_count = 0;
-        loop {
-            let result = $fn().await;
-            if result.is_ok() {
-                break result;
-            }
-            retry_count += 1;
-            if retry_count > 3 {
-                break result;
-            }
-            use rand::Rng;
-            let rand = rand::rng().random_range(50..100u64);
-            tokio::time::sleep(std::time::Duration::from_millis(rand)).await;
-        }
-    }};
-}
-
 #[cfg(test)]
 mod tests {
 

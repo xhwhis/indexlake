@@ -22,18 +22,23 @@ pub(crate) struct TableRecord {
     pub(crate) table_name: String,
     pub(crate) namespace_id: Uuid,
     pub(crate) config: TableConfig,
+    pub(crate) schema_metadata: HashMap<String, String>,
 }
 
 impl TableRecord {
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> ILResult<String> {
         let config_str = serde_json::to_string(&self.config)
             .map_err(|e| ILError::internal(format!("Failed to serialize table config: {e:?}")))?;
+        let schema_metadata_str = serde_json::to_string(&self.schema_metadata).map_err(|e| {
+            ILError::internal(format!("Failed to serialize table schema metadata: {e:?}"))
+        })?;
         Ok(format!(
-            "({}, '{}', {}, '{}')",
+            "({}, '{}', {}, '{}', '{}')",
             database.sql_uuid_value(&self.table_id),
             self.table_name,
             database.sql_uuid_value(&self.namespace_id),
-            config_str
+            config_str,
+            schema_metadata_str,
         ))
     }
 
@@ -43,6 +48,7 @@ impl TableRecord {
             Column::new("table_name", CatalogDataType::Utf8, false),
             Column::new("namespace_id", CatalogDataType::Uuid, false),
             Column::new("config", CatalogDataType::Utf8, false),
+            Column::new("schema_metadata", CatalogDataType::Utf8, false),
         ])
     }
 
@@ -53,11 +59,19 @@ impl TableRecord {
         let config_str = row.utf8(3)?.expect("config is not null");
         let config: TableConfig = serde_json::from_str(&config_str)
             .map_err(|e| ILError::internal(format!("Failed to deserialize table config: {e:?}")))?;
+        let schema_metadata_str = row.utf8(4)?.expect("schema_metadata is not null");
+        let schema_metadata: HashMap<String, String> = serde_json::from_str(&schema_metadata_str)
+            .map_err(|e| {
+            ILError::internal(format!(
+                "Failed to deserialize table schema metadata: {e:?}"
+            ))
+        })?;
         Ok(TableRecord {
             table_id,
             table_name: table_name.clone(),
             namespace_id,
             config,
+            schema_metadata,
         })
     }
 }

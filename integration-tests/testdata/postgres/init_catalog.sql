@@ -7,7 +7,8 @@ CREATE TABLE indexlake_table (
     table_id UUID PRIMARY KEY,
     table_name VARCHAR NOT NULL,
     namespace_id UUID NOT NULL,
-    config VARCHAR NOT NULL
+    config VARCHAR NOT NULL,
+    schema_metadata VARCHAR NOT NULL
 );
 
 CREATE TABLE indexlake_field (
