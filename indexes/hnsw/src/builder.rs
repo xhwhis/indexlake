@@ -45,6 +45,10 @@ impl std::fmt::Debug for HnswIndexBuilder {
 
 #[async_trait::async_trait]
 impl IndexBuilder for HnswIndexBuilder {
+    fn mergeable(&self) -> bool {
+        false
+    }
+
     fn append(&mut self, batch: &RecordBatch) -> ILResult<()> {
         let row_id_array = extract_row_id_array_from_record_batch(&batch)?;
 
@@ -94,8 +98,23 @@ impl IndexBuilder for HnswIndexBuilder {
         Ok(())
     }
 
-    fn serialize(&self) -> ILResult<Vec<u8>> {
-        todo!()
+    fn read_bytes(&mut self, buf: &[u8]) -> ILResult<()> {
+        let hnsw_with_row_ids: HnswWithRowIds = bincode::deserialize(buf)
+            .map_err(|e| ILError::index(format!("Failed to deserialize Hnsw and row ids: {e}")))?;
+        self.hnsw = hnsw_with_row_ids.hnsw;
+        self.row_ids = hnsw_with_row_ids.row_ids;
+        Ok(())
+    }
+
+    fn write_bytes(&mut self, buf: &mut Vec<u8>) -> ILResult<()> {
+        let hnsw_with_row_ids = HnswWithRowIds {
+            hnsw: std::mem::take(&mut self.hnsw),
+            row_ids: std::mem::take(&mut self.row_ids),
+        };
+        let writer = std::io::Cursor::new(buf);
+        bincode::serialize_into(writer, &hnsw_with_row_ids)
+            .map_err(|e| ILError::index(format!("Failed to serialize Hnsw and row ids: {e}")))?;
+        Ok(())
     }
 
     fn build(&mut self) -> ILResult<Box<dyn Index>> {

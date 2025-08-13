@@ -3,8 +3,8 @@ use uuid::Uuid;
 use crate::{
     ILError, ILResult,
     catalog::{
-        DataFileRecord, FieldRecord, IndexFileRecord, IndexRecord, TableRecord, TransactionHelper,
-        inline_row_table_name,
+        DataFileRecord, FieldRecord, IndexFileRecord, IndexRecord, InlineIndexRecord, TableRecord,
+        TransactionHelper, inline_row_table_name,
     },
 };
 
@@ -135,6 +135,28 @@ impl TransactionHelper {
             .execute(&format!(
                 "INSERT INTO indexlake_index_file ({}) VALUES {}",
                 IndexFileRecord::catalog_schema()
+                    .select_items(self.database)
+                    .join(", "),
+                values.join(", ")
+            ))
+            .await
+    }
+
+    pub(crate) async fn insert_inline_indexes(
+        &mut self,
+        inline_indexes: &[InlineIndexRecord],
+    ) -> ILResult<usize> {
+        if inline_indexes.is_empty() {
+            return Ok(0);
+        }
+        let values = inline_indexes
+            .iter()
+            .map(|r| r.to_sql(self.database))
+            .collect::<Vec<_>>();
+        self.transaction
+            .execute(&format!(
+                "INSERT INTO indexlake_inline_index ({}) VALUES {}",
+                InlineIndexRecord::catalog_schema()
                     .select_items(self.database)
                     .join(", "),
                 values.join(", ")

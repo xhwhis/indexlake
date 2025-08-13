@@ -1,11 +1,12 @@
 use std::collections::BTreeMap;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
-use arrow::datatypes::{DataType, Field, FieldRef};
+use arrow::datatypes::FieldRef;
 use uuid::Uuid;
 
 use crate::catalog::{
-    CatalogHelper, DataFileRecord, FieldRecord, IndexFileRecord, IndexRecord, inline_row_table_name,
+    CatalogHelper, DataFileRecord, FieldRecord, IndexFileRecord, IndexRecord, InlineIndexRecord,
+    inline_row_table_name,
 };
 use crate::expr::Expr;
 use crate::{
@@ -15,7 +16,6 @@ use crate::{
         INTERNAL_ROW_ID_FIELD_NAME, Row,
     },
     catalog::{RowStream, TableRecord, TransactionHelper},
-    table::TableConfig,
 };
 
 impl TransactionHelper {
@@ -146,7 +146,7 @@ impl TransactionHelper {
             .await?;
         let mut data_files = Vec::with_capacity(rows.len());
         for row in rows {
-            data_files.push(DataFileRecord::from_row(&row)?);
+            data_files.push(DataFileRecord::from_row(row)?);
         }
         Ok(data_files)
     }
@@ -199,7 +199,7 @@ impl CatalogHelper {
         table_name: &str,
     ) -> ILResult<Option<TableRecord>> {
         let schema = Arc::new(TableRecord::catalog_schema());
-        let rows = self
+        let mut rows = self
             .query_rows(
                 &format!(
                     "SELECT {} FROM indexlake_table WHERE namespace_id = {} AND table_name = '{table_name}'",
@@ -212,7 +212,7 @@ impl CatalogHelper {
         if rows.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(TableRecord::from_row(&rows[0])?))
+            Ok(Some(TableRecord::from_row(rows.remove(0))?))
         }
     }
 
@@ -235,7 +235,7 @@ impl CatalogHelper {
             .await?;
         let mut field_map = BTreeMap::new();
         for row in rows {
-            let field_record = FieldRecord::from_row(&row)?;
+            let field_record = FieldRecord::from_row(row)?;
             let field_id = field_record.field_id;
             let field = field_record.into_field();
             field_map.insert(field_id, Arc::new(field));
@@ -259,7 +259,7 @@ impl CatalogHelper {
             .await?;
         let mut indexes = Vec::with_capacity(rows.len());
         for row in rows {
-            indexes.push(IndexRecord::from_row(&row)?);
+            indexes.push(IndexRecord::from_row(row)?);
         }
         Ok(indexes)
     }
@@ -283,51 +283,43 @@ impl CatalogHelper {
     pub(crate) async fn scan_inline_rows(
         &self,
         table_id: &Uuid,
-        schema: &CatalogSchemaRef,
+        table_schema: &CatalogSchemaRef,
+        row_ids: Option<&[i64]>,
         filters: &[Expr],
     ) -> ILResult<RowStream<'static>> {
+        if let Some(row_ids) = row_ids
+            && row_ids.is_empty()
+        {
+            return Ok(Box::pin(futures::stream::empty::<ILResult<Row>>()));
+        }
+
         let mut filter_strs = filters
             .iter()
             .map(|f| f.to_sql(self.catalog.database()))
             .collect::<Result<Vec<_>, _>>()?;
+
         filter_strs.push(format!("{INTERNAL_FLAG_FIELD_NAME} IS NULL"));
+
+        if let Some(row_ids) = row_ids {
+            filter_strs.push(format!(
+                "{INTERNAL_ROW_ID_FIELD_NAME} IN ({})",
+                row_ids
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
 
         self.catalog
             .query(
                 &format!(
                     "SELECT {} FROM {} WHERE {}",
-                    schema.select_items(self.catalog.database()).join(", "),
-                    inline_row_table_name(table_id),
-                    filter_strs.join(" AND ")
-                ),
-                Arc::clone(schema),
-            )
-            .await
-    }
-
-    pub(crate) async fn scan_inline_rows_by_row_ids(
-        &self,
-        table_id: &Uuid,
-        table_schema: &CatalogSchemaRef,
-        row_ids: &[i64],
-    ) -> ILResult<RowStream> {
-        if row_ids.is_empty() {
-            return Ok(Box::pin(futures::stream::empty::<ILResult<Row>>()));
-        }
-        self.catalog
-            .query(
-                &format!(
-                    "SELECT {} FROM {} WHERE {} IN ({})",
                     table_schema
                         .select_items(self.catalog.database())
                         .join(", "),
                     inline_row_table_name(table_id),
-                    INTERNAL_ROW_ID_FIELD_NAME,
-                    row_ids
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
+                    filter_strs.join(" AND ")
                 ),
                 Arc::clone(table_schema),
             )
@@ -372,7 +364,7 @@ impl CatalogHelper {
             .await?;
         let mut data_files = Vec::with_capacity(rows.len());
         for row in rows {
-            data_files.push(DataFileRecord::from_row(&row)?);
+            data_files.push(DataFileRecord::from_row(row)?);
         }
         Ok(data_files)
     }
@@ -391,7 +383,7 @@ impl CatalogHelper {
             .await?;
         let mut data_files = Vec::with_capacity(rows.len());
         for row in rows {
-            data_files.push(DataFileRecord::from_row(&row)?);
+            data_files.push(DataFileRecord::from_row(row)?);
         }
         Ok(data_files)
     }
@@ -413,7 +405,7 @@ impl CatalogHelper {
             .await?;
         let mut index_files = Vec::with_capacity(rows.len());
         for row in rows {
-            index_files.push(IndexFileRecord::from_row(&row)?);
+            index_files.push(IndexFileRecord::from_row(row)?);
         }
         Ok(index_files)
     }
@@ -435,7 +427,7 @@ impl CatalogHelper {
             .await?;
         let mut index_files = Vec::with_capacity(rows.len());
         for row in rows {
-            index_files.push(IndexFileRecord::from_row(&row)?);
+            index_files.push(IndexFileRecord::from_row(row)?);
         }
         Ok(index_files)
     }
@@ -457,7 +449,7 @@ impl CatalogHelper {
             .await?;
         let mut index_files = Vec::with_capacity(rows.len());
         for row in rows {
-            index_files.push(IndexFileRecord::from_row(&row)?);
+            index_files.push(IndexFileRecord::from_row(row)?);
         }
         Ok(index_files)
     }
@@ -468,7 +460,7 @@ impl CatalogHelper {
         data_file_id: &Uuid,
     ) -> ILResult<Option<IndexFileRecord>> {
         let schema = Arc::new(IndexFileRecord::catalog_schema());
-        let rows = self
+        let mut rows = self
             .query_rows(
                 &format!(
                     "SELECT {} FROM indexlake_index_file WHERE index_id = {} AND data_file_id = {}",
@@ -482,7 +474,7 @@ impl CatalogHelper {
         if rows.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(IndexFileRecord::from_row(&rows[0])?))
+            Ok(Some(IndexFileRecord::from_row(rows.remove(0))?))
         }
     }
 
@@ -502,5 +494,34 @@ impl CatalogHelper {
             )
             .await?;
         Ok(rows.len() > 0)
+    }
+
+    pub(crate) async fn get_inline_indexes(
+        &self,
+        index_ids: &[Uuid],
+    ) -> ILResult<Vec<InlineIndexRecord>> {
+        if index_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let schema = Arc::new(InlineIndexRecord::catalog_schema());
+        let rows = self
+            .query_rows(
+                &format!(
+                    "SELECT {} FROM indexlake_inline_index WHERE index_id IN ({})",
+                    schema.select_items(self.catalog.database()).join(", "),
+                    index_ids
+                        .iter()
+                        .map(|id| self.catalog.database().sql_uuid_value(id))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                schema,
+            )
+            .await?;
+        let mut inline_indexes = Vec::with_capacity(rows.len());
+        for row in rows {
+            inline_indexes.push(InlineIndexRecord::from_row(row)?);
+        }
+        Ok(inline_indexes)
     }
 }

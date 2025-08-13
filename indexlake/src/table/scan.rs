@@ -14,7 +14,8 @@ use uuid::Uuid;
 use crate::{
     ILError, ILResult, RecordBatchStream,
     catalog::{
-        CatalogHelper, CatalogSchema, DataFileRecord, IndexFileRecord, rows_to_record_batch,
+        CatalogHelper, CatalogSchema, DataFileRecord, IndexFileRecord, InlineIndexRecord,
+        rows_to_record_batch,
     },
     expr::{Expr, split_conjunction_filters},
     index::{IndexDefinationRef, IndexKind},
@@ -130,7 +131,7 @@ async fn process_table_scan(
         let projected_schema = Arc::new(project_schema(table_schema, scan.projection.as_ref())?);
         let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
         let row_stream = catalog_helper
-            .scan_inline_rows(&table_id, &catalog_schema, &scan.filters)
+            .scan_inline_rows(&table_id, &catalog_schema, None, &scan.filters)
             .await?;
         let inline_stream = Box::pin(row_stream.chunks(scan.batch_size).map(move |rows| {
             let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
@@ -234,7 +235,6 @@ async fn process_index_scan(
     Ok(Box::pin(futures::stream::select_all(streams)))
 }
 
-// TODO save inline data index to catalog
 async fn index_scan_inline_rows(
     catalog_helper: &CatalogHelper,
     table: &Table,
@@ -242,18 +242,8 @@ async fn index_scan_inline_rows(
     index_filter_assignment: &HashMap<String, Vec<usize>>,
     non_index_filters: &[Expr],
 ) -> ILResult<RecordBatchStream> {
-    let projected_schema = Arc::new(project_schema(&table.schema, scan.projection.as_ref())?);
-    let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
-    let row_stream = catalog_helper
-        .scan_inline_rows(&table.table_id, &catalog_schema, &non_index_filters)
-        .await?;
-    let mut inline_stream = row_stream.chunks(scan.batch_size).map(move |rows| {
-        let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
-        let batch = rows_to_record_batch(&projected_schema, &rows)?;
-        Ok::<_, ILError>(batch)
-    });
-
     let mut index_builder_map = HashMap::new();
+    let mut index_ids = Vec::new();
     for (index_name, _) in index_filter_assignment.iter() {
         let index_def = table
             .indexes
@@ -267,17 +257,39 @@ async fn index_scan_inline_rows(
 
         let index_builder = index_kind.builder(index_def)?;
         index_builder_map.insert(index_name, index_builder);
+        index_ids.push(index_def.index_id);
     }
 
-    let mut inline_batches = Vec::new();
-    while let Some(batch) = inline_stream.next().await {
-        let batch = batch?;
-        for (_, index_builder) in index_builder_map.iter_mut() {
-            index_builder.append(&batch)?;
+    // read inline index records
+    let inline_index_records = catalog_helper.get_inline_indexes(&index_ids).await?;
+    let mut inline_index_records_map: HashMap<Uuid, Vec<InlineIndexRecord>> = HashMap::new();
+    for record in inline_index_records {
+        inline_index_records_map
+            .entry(record.index_id)
+            .or_default()
+            .push(record);
+    }
+
+    // append index builders
+    for (index_name, builder) in index_builder_map.iter_mut() {
+        let index_def = table
+            .indexes
+            .get(*index_name)
+            .ok_or_else(|| ILError::internal(format!("Index {index_name} not found")))?;
+
+        if let Some(records) = inline_index_records_map.get(&index_def.index_id) {
+            if records.len() > 1 && !builder.mergeable() {
+                return Err(ILError::internal(format!(
+                    "Index {index_name} is not mergeable but has multi inline index records"
+                )));
+            }
+            for record in records {
+                builder.read_bytes(&record.index_data)?;
+            }
         }
-        inline_batches.push(batch);
     }
 
+    // filter row ids by indexes
     let mut filter_index_entries_list = Vec::new();
     for (index_name, filter_indices) in index_filter_assignment.iter() {
         let index_builder = index_builder_map.get_mut(index_name).ok_or_else(|| {
@@ -294,7 +306,6 @@ async fn index_scan_inline_rows(
         let filter_index_entries = index.filter(&filters).await?;
         filter_index_entries_list.push(filter_index_entries);
     }
-
     let mut intersected_row_ids = filter_index_entries_list[0]
         .row_ids
         .values()
@@ -311,30 +322,28 @@ async fn index_scan_inline_rows(
         intersected_row_ids = intersected_row_ids.intersection(&set).cloned().collect();
     }
 
-    let mut selected_batches = Vec::new();
-    for batch in inline_batches {
-        let mut indicies = Vec::new();
-        for i in 0..batch.num_rows() {
-            let row_id_array = batch
-                .column(0)
-                .as_any()
-                .downcast_ref::<Int64Array>()
-                .ok_or_else(|| {
-                    ILError::internal(format!("Row id array can not be downcasted to Int64Array"))
-                })?;
-            let row_id = row_id_array.value(i);
-            if intersected_row_ids.contains(&row_id) {
-                indicies.push(i as i32);
-            }
-        }
-        let selected_batch =
-            arrow::compute::take_record_batch(&batch, &Int32Array::from(indicies))?;
-        selected_batches.push(selected_batch);
-    }
+    let projected_schema = Arc::new(project_schema(&table.schema, scan.projection.as_ref())?);
+    let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
+    let row_stream = catalog_helper
+        .scan_inline_rows(
+            &table.table_id,
+            &catalog_schema,
+            Some(
+                intersected_row_ids
+                    .into_iter()
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+            ),
+            &non_index_filters,
+        )
+        .await?;
+    let inline_stream = row_stream.chunks(scan.batch_size).map(move |rows| {
+        let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
+        let batch = rows_to_record_batch(&projected_schema, &rows)?;
+        Ok::<_, ILError>(batch)
+    });
 
-    Ok(Box::pin(futures::stream::iter(
-        selected_batches.into_iter().map(Ok),
-    )))
+    Ok(Box::pin(inline_stream) as RecordBatchStream)
 }
 
 async fn index_scan_data_file(

@@ -25,10 +25,21 @@ pub struct IndexDefination {
 }
 
 impl IndexDefination {
-    pub fn key_fields(&self) -> ILResult<Vec<&Field>> {
+    pub fn key_fields(&self) -> ILResult<Vec<FieldRef>> {
         let mut key_fields = Vec::new();
-        for key_field_id in self.key_columns.iter() {
-            let field = self.table_schema.field_with_name(key_field_id)?;
+        for name in self.key_columns.iter() {
+            let index = self.table_schema.index_of(name)?;
+            let field = self
+                .table_schema
+                .fields
+                .get(index)
+                .cloned()
+                .ok_or_else(|| {
+                    ILError::internal(format!(
+                        "Key field {} not found in table schema {}",
+                        name, self.table_schema
+                    ))
+                })?;
             key_fields.push(field);
         }
         Ok(key_fields)

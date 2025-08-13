@@ -51,6 +51,10 @@ impl RStarIndexBuilder {
 
 #[async_trait::async_trait]
 impl IndexBuilder for RStarIndexBuilder {
+    fn mergeable(&self) -> bool {
+        true
+    }
+
     fn append(&mut self, batch: &RecordBatch) -> ILResult<()> {
         let params = self.index_def.downcast_params::<RStarIndexParams>()?;
 
@@ -100,8 +104,23 @@ impl IndexBuilder for RStarIndexBuilder {
         Ok(())
     }
 
-    fn serialize(&self) -> ILResult<Vec<u8>> {
-        todo!()
+    fn read_bytes(&mut self, buf: &[u8]) -> ILResult<()> {
+        let stream_reader = arrow::ipc::reader::StreamReader::try_new(buf, None)?;
+        for batch in stream_reader {
+            let batch = batch?;
+            self.index_batches.push(batch);
+        }
+        Ok(())
+    }
+
+    fn write_bytes(&mut self, buf: &mut Vec<u8>) -> ILResult<()> {
+        let mut stream_writer =
+            arrow::ipc::writer::StreamWriter::try_new(buf, &RSTAR_INDEX_SCHEMA)?;
+        for batch in self.index_batches.iter() {
+            stream_writer.write(batch)?;
+        }
+        stream_writer.finish()?;
+        Ok(())
     }
 
     fn build(&mut self) -> ILResult<Box<dyn Index>> {

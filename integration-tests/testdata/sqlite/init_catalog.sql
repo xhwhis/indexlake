@@ -50,3 +50,8 @@ CREATE TABLE indexlake_index_file (
     data_file_id BLOB NOT NULL,
     relative_path VARCHAR NOT NULL
 );
+
+CREATE TABLE indexlake_inline_index (
+    index_id BLOB NOT NULL,
+    index_data BLOB NOT NULL
+);

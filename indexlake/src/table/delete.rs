@@ -21,7 +21,7 @@ pub(crate) async fn process_delete_by_condition(
 ) -> ILResult<()> {
     // Directly delete inline rows
     tx_helper
-        .delete_inline_rows_by_condition(table_id, condition)
+        .delete_inline_rows(table_id, &[condition.clone()], None)
         .await?;
 
     let data_file_records = tx_helper.get_data_files(table_id).await?;
@@ -68,7 +68,7 @@ pub(crate) async fn process_delete_by_row_id_condition(
     row_id_condition: &Expr,
 ) -> ILResult<()> {
     tx_helper
-        .delete_inline_rows_by_condition(table_id, row_id_condition)
+        .delete_inline_rows(table_id, &[row_id_condition.clone()], None)
         .await?;
 
     let data_file_records = tx_helper.get_data_files(table_id).await?;

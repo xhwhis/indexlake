@@ -8,8 +8,8 @@ use uuid::Uuid;
 use crate::{
     ILError, ILResult,
     catalog::{
-        Catalog, CatalogHelper, CatalogSchema, DataFileRecord, IndexFileRecord, RowStream,
-        TransactionHelper, rows_to_record_batch,
+        Catalog, CatalogHelper, CatalogSchema, DataFileRecord, IndexFileRecord, InlineIndexRecord,
+        RowStream, TransactionHelper, rows_to_record_batch,
     },
     index::{IndexBuilder, IndexDefinationRef, IndexKind},
     storage::{DataFileFormat, Storage, build_lance_writer, build_parquet_writer},
@@ -181,7 +181,7 @@ impl DumpTask {
         tx_helper.insert_index_files(&index_file_records).await?;
 
         let deleted_count = tx_helper
-            .delete_inline_rows_by_row_ids(&self.table_id, &row_ids)
+            .delete_inline_rows(&self.table_id, &[], Some(&row_ids))
             .await?;
         if deleted_count != row_ids.len() {
             return Err(ILError::internal(format!(
@@ -190,6 +190,15 @@ impl DumpTask {
                 row_ids.len()
             )));
         }
+
+        rebuild_inline_indexes(
+            &mut tx_helper,
+            &self.table_id,
+            &self.table_schema,
+            &self.table_indexes,
+            &self.index_kinds,
+        )
+        .await?;
 
         tx_helper.delete_dump_task(&self.table_id).await?;
 
@@ -284,4 +293,60 @@ impl DumpTask {
 
         Ok(row_ids)
     }
+}
+
+pub(crate) async fn rebuild_inline_indexes(
+    tx_helper: &mut TransactionHelper,
+    table_id: &Uuid,
+    table_schema: &SchemaRef,
+    table_indexes: &HashMap<String, IndexDefinationRef>,
+    index_kinds: &HashMap<String, Arc<dyn IndexKind>>,
+) -> ILResult<()> {
+    // index builders
+    let mut index_builder_map = HashMap::new();
+    for (_, index_def) in table_indexes.iter() {
+        let index_kind = index_kinds
+            .get(&index_def.kind)
+            .ok_or_else(|| ILError::internal(format!("Index kind {} not found", index_def.kind)))?;
+        let index_builder = index_kind.builder(index_def)?;
+        index_builder_map.insert(index_def.index_id, index_builder);
+    }
+
+    // append index builders
+    let catalog_schema = Arc::new(CatalogSchema::from_arrow(table_schema)?);
+    let row_stream = tx_helper
+        .scan_inline_rows(table_id, &catalog_schema, &[], None)
+        .await?;
+    let mut chunk_stream = row_stream.chunks(100);
+    while let Some(row_chunk) = chunk_stream.next().await {
+        let rows = row_chunk.into_iter().collect::<ILResult<Vec<_>>>()?;
+        let record_batch = rows_to_record_batch(table_schema, &rows)?;
+        for (_, index_builder) in index_builder_map.iter_mut() {
+            index_builder.append(&record_batch)?;
+        }
+    }
+    drop(chunk_stream);
+
+    // build inline index records
+    let mut inline_index_records = Vec::new();
+    for (index_id, index_builder) in index_builder_map.iter_mut() {
+        let mut index_data = Vec::new();
+        index_builder.write_bytes(&mut index_data)?;
+        inline_index_records.push(InlineIndexRecord {
+            index_id: *index_id,
+            index_data,
+        });
+    }
+
+    // delete old inline index records
+    tx_helper
+        .delete_inline_indexes(&index_builder_map.keys().cloned().collect::<Vec<_>>())
+        .await?;
+
+    // insert inline index records
+    tx_helper
+        .insert_inline_indexes(&inline_index_records)
+        .await?;
+
+    Ok(())
 }

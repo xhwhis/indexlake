@@ -126,9 +126,27 @@ impl Row {
         }
     }
 
+    pub fn utf8_owned(&mut self, index: usize) -> ILResult<Option<String>> {
+        match &mut self.values[index] {
+            Scalar::Utf8(v) => Ok(std::mem::take(v)),
+            _ => Err(ILError::internal(format!(
+                "Expected Varchar at index {index} for row {self:?}"
+            ))),
+        }
+    }
+
     pub fn binary(&self, index: usize) -> ILResult<Option<&Vec<u8>>> {
         match &self.values[index] {
             Scalar::Binary(v) => Ok(v.as_ref()),
+            _ => Err(ILError::internal(format!(
+                "Expected Binary at index {index} for row {self:?}"
+            ))),
+        }
+    }
+
+    pub fn binary_owned(&mut self, index: usize) -> ILResult<Option<Vec<u8>>> {
+        match &mut self.values[index] {
+            Scalar::Binary(v) => Ok(std::mem::take(v)),
             _ => Err(ILError::internal(format!(
                 "Expected Binary at index {index} for row {self:?}"
             ))),

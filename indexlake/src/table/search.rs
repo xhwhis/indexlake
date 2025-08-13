@@ -46,8 +46,6 @@ pub(crate) async fn process_search(
 
     let catalog_helper = CatalogHelper::new(table.catalog.clone());
 
-    let table_id = table.table_id;
-    let table_schema = table.schema.clone();
     let catalog_helper_captured = catalog_helper.clone();
     let index_kind_captured = index_kind.clone();
     let index_def_captured = index_def.clone();
@@ -55,8 +53,6 @@ pub(crate) async fn process_search(
     let inline_handle = tokio::spawn(async move {
         let inline_search_entries = search_inline_rows(
             &catalog_helper_captured,
-            &table_id,
-            &table_schema,
             index_kind_captured.as_ref(),
             &index_def_captured,
             &search_captured,
@@ -144,28 +140,24 @@ pub(crate) async fn process_search(
 
 async fn search_inline_rows(
     catalog_helper: &CatalogHelper,
-    table_id: &Uuid,
-    table_schema: &Schema,
     index_kind: &dyn IndexKind,
     index_def: &IndexDefinationRef,
     search: &TableSearch,
 ) -> ILResult<SearchIndexEntries> {
-    let projected_schema = Arc::new(project_schema(table_schema, search.projection.as_ref())?);
-    let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
-    let row_stream = catalog_helper
-        .scan_inline_rows(table_id, &catalog_schema, &[])
-        .await?;
-    let mut inline_stream = row_stream.chunks(1024).map(move |rows| {
-        let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
-        let batch = rows_to_record_batch(&projected_schema, &rows)?;
-        Ok::<_, ILError>(batch)
-    });
-
     let mut index_builder = index_kind.builder(index_def)?;
 
-    while let Some(batch) = inline_stream.next().await {
-        let batch = batch?;
-        index_builder.append(&batch)?;
+    let inline_index_records = catalog_helper
+        .get_inline_indexes(&[index_def.index_id])
+        .await?;
+    if inline_index_records.len() > 1 && !index_builder.mergeable() {
+        return Err(ILError::internal(format!(
+            "Index {} is not mergeable but has multi inline index records",
+            index_def.name
+        )));
+    }
+
+    for record in inline_index_records {
+        index_builder.read_bytes(&record.index_data)?;
     }
 
     let index = index_builder.build()?;
@@ -252,7 +244,7 @@ async fn read_inline_rows(
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
 
     let row_stream = catalog_helper
-        .scan_inline_rows_by_row_ids(&table.table_id, &catalog_schema, &inline_row_ids)
+        .scan_inline_rows(&table.table_id, &catalog_schema, Some(&inline_row_ids), &[])
         .await?;
     let rows: Vec<Row> = row_stream.try_collect::<Vec<_>>().await?;
     let batch = rows_to_record_batch(&projected_schema, &rows)?;

@@ -76,7 +76,14 @@ impl Table {
             tx_helper.commit().await?;
         } else {
             let mut tx_helper = self.transaction_helper().await?;
-            process_insert_into_inline_rows(&mut tx_helper, &self.table_id, batches).await?;
+            process_insert_into_inline_rows(
+                &mut tx_helper,
+                &self.table_id,
+                &self.indexes,
+                &self.index_kinds,
+                batches,
+            )
+            .await?;
             tx_helper.commit().await?;
 
             try_run_dump_task(self).await?;
@@ -147,11 +154,14 @@ impl Table {
         .await?;
 
         let mut tx_helper = self.transaction_helper().await?;
+        // TODO reduce function parameters
         process_update_by_condition(
             &mut tx_helper,
             self.storage.clone(),
             self.table_id,
             &self.schema,
+            &self.indexes,
+            &self.index_kinds,
             set_map,
             condition,
             matched_data_file_rows,

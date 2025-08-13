@@ -14,7 +14,7 @@ impl TransactionHelper {
         table_id: &Uuid,
         set_map: &HashMap<String, Expr>,
         condition: &Expr,
-    ) -> ILResult<()> {
+    ) -> ILResult<usize> {
         let mut set_strs = Vec::new();
         for (field_name, new_value) in set_map {
             set_strs.push(format!(
@@ -31,9 +31,7 @@ impl TransactionHelper {
                 set_strs.join(", "),
                 condition.to_sql(self.database)?
             ))
-            .await?;
-
-        Ok(())
+            .await
     }
 
     pub(crate) async fn update_data_file_validity(

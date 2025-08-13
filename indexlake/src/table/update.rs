@@ -15,8 +15,9 @@ use crate::{
     ILError, ILResult, RecordBatchStream,
     catalog::{DataFileRecord, TransactionHelper},
     expr::Expr,
+    index::{IndexDefinationRef, IndexKind},
     storage::{Storage, read_data_file_by_record, read_data_file_by_record_and_row_id_condition},
-    table::process_insert_into_inline_rows,
+    table::{process_insert_into_inline_rows, rebuild_inline_indexes},
 };
 
 pub(crate) async fn process_update_by_condition(
@@ -24,13 +25,19 @@ pub(crate) async fn process_update_by_condition(
     storage: Arc<Storage>,
     table_id: Uuid,
     table_schema: &SchemaRef,
+    indexes: &HashMap<String, IndexDefinationRef>,
+    index_kinds: &HashMap<String, Arc<dyn IndexKind>>,
     set_map: HashMap<String, Expr>,
     condition: &Expr,
     mut matched_data_file_rows: HashMap<Uuid, RecordBatchStream>,
 ) -> ILResult<()> {
-    tx_helper
+    let updated_row_count = tx_helper
         .update_inline_rows(&table_id, &set_map, condition)
         .await?;
+
+    if updated_row_count != 0 {
+        rebuild_inline_indexes(tx_helper, &table_id, table_schema, indexes, index_kinds).await?;
+    }
 
     let data_file_records = tx_helper.get_data_files(&table_id).await?;
 
@@ -39,6 +46,8 @@ pub(crate) async fn process_update_by_condition(
             update_data_file_rows_by_matched_rows(
                 tx_helper,
                 &table_id,
+                indexes,
+                index_kinds,
                 &set_map,
                 stream,
                 data_file_record,
@@ -50,6 +59,8 @@ pub(crate) async fn process_update_by_condition(
                 &storage,
                 &table_id,
                 table_schema,
+                indexes,
+                index_kinds,
                 &set_map,
                 condition,
                 data_file_record,
@@ -64,6 +75,8 @@ pub(crate) async fn process_update_by_condition(
 pub(crate) async fn update_data_file_rows_by_matched_rows(
     tx_helper: &mut TransactionHelper,
     table_id: &Uuid,
+    indexes: &HashMap<String, IndexDefinationRef>,
+    index_kinds: &HashMap<String, Arc<dyn IndexKind>>,
     set_map: &HashMap<String, Expr>,
     matched_data_file_rows: &mut RecordBatchStream,
     data_file_record: DataFileRecord,
@@ -85,7 +98,14 @@ pub(crate) async fn update_data_file_rows_by_matched_rows(
             })?;
         updated_row_ids.extend(row_id_array.values());
         let updated_batch = update_record_batch(&batch, set_map)?;
-        process_insert_into_inline_rows(tx_helper, table_id, &[updated_batch]).await?;
+        process_insert_into_inline_rows(
+            tx_helper,
+            table_id,
+            indexes,
+            index_kinds,
+            &[updated_batch],
+        )
+        .await?;
     }
     // TODO parallel update bug
     tx_helper
@@ -99,6 +119,8 @@ pub(crate) async fn update_data_file_rows_by_condition(
     storage: &Storage,
     table_id: &Uuid,
     table_schema: &SchemaRef,
+    indexes: &HashMap<String, IndexDefinationRef>,
+    index_kinds: &HashMap<String, Arc<dyn IndexKind>>,
     set_map: &HashMap<String, Expr>,
     condition: &Expr,
     data_file_record: DataFileRecord,
@@ -141,7 +163,14 @@ pub(crate) async fn update_data_file_rows_by_condition(
 
         updated_row_ids.extend(row_id_array.values());
         let updated_batch = update_record_batch(&batch, set_map)?;
-        process_insert_into_inline_rows(tx_helper, table_id, &[updated_batch]).await?;
+        process_insert_into_inline_rows(
+            tx_helper,
+            table_id,
+            indexes,
+            index_kinds,
+            &[updated_batch],
+        )
+        .await?;
     }
 
     tx_helper

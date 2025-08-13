@@ -10,35 +10,39 @@ use crate::{
 };
 
 impl TransactionHelper {
-    pub(crate) async fn delete_inline_rows_by_row_ids(
+    pub(crate) async fn delete_inline_rows(
         &mut self,
         table_id: &Uuid,
-        row_ids: &[i64],
+        filters: &[Expr],
+        row_ids: Option<&[i64]>,
     ) -> ILResult<usize> {
-        self.transaction
-            .execute(&format!(
-                "DELETE FROM {} WHERE {} IN ({})",
-                inline_row_table_name(table_id),
-                INTERNAL_ROW_ID_FIELD_NAME,
+        if let Some(row_ids) = row_ids
+            && row_ids.is_empty()
+        {
+            return Ok(0);
+        }
+
+        let mut filter_strs = filters
+            .iter()
+            .map(|f| f.to_sql(self.database))
+            .collect::<Result<Vec<_>, _>>()?;
+        filter_strs.push(format!("{INTERNAL_FLAG_FIELD_NAME} IS NULL"));
+        if let Some(row_ids) = row_ids {
+            filter_strs.push(format!(
+                "{INTERNAL_ROW_ID_FIELD_NAME} IN ({})",
                 row_ids
                     .iter()
                     .map(|id| id.to_string())
                     .collect::<Vec<_>>()
                     .join(", ")
-            ))
-            .await
-    }
+            ));
+        }
 
-    pub(crate) async fn delete_inline_rows_by_condition(
-        &mut self,
-        table_id: &Uuid,
-        condition: &Expr,
-    ) -> ILResult<usize> {
         self.transaction
             .execute(&format!(
-                "DELETE FROM {} WHERE {} AND {INTERNAL_FLAG_FIELD_NAME} IS NULL",
+                "DELETE FROM {} WHERE {}",
                 inline_row_table_name(table_id),
-                condition.to_sql(self.database)?
+                filter_strs.join(" AND ")
             ))
             .await
     }
@@ -124,6 +128,23 @@ impl TransactionHelper {
             .execute(&format!(
                 "DELETE FROM indexlake_index WHERE index_id = {}",
                 self.database.sql_uuid_value(index_id)
+            ))
+            .await
+    }
+
+    pub(crate) async fn delete_inline_indexes(&mut self, index_ids: &[Uuid]) -> ILResult<usize> {
+        if index_ids.is_empty() {
+            return Ok(0);
+        }
+
+        self.transaction
+            .execute(&format!(
+                "DELETE FROM indexlake_inline_index WHERE index_id IN ({})",
+                index_ids
+                    .iter()
+                    .map(|id| self.database.sql_uuid_value(id))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ))
             .await
     }

@@ -66,6 +66,10 @@ impl Bm25IndexBuilder {
 
 #[async_trait::async_trait]
 impl IndexBuilder for Bm25IndexBuilder {
+    fn mergeable(&self) -> bool {
+        true
+    }
+
     fn append(&mut self, batch: &RecordBatch) -> ILResult<()> {
         let row_id_array = extract_row_id_array_from_record_batch(&batch)?;
 
@@ -138,8 +142,49 @@ impl IndexBuilder for Bm25IndexBuilder {
         Ok(())
     }
 
-    fn serialize(&self) -> ILResult<Vec<u8>> {
-        todo!()
+    fn read_bytes(&mut self, buf: &[u8]) -> ILResult<()> {
+        let stream_reader = arrow::ipc::reader::StreamReader::try_new(buf, None)?;
+        for batch in stream_reader {
+            let batch = batch?;
+            let row_id_array = batch
+                .column(0)
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .ok_or(ILError::index("Failed to downcast row id to Int64Array"))?;
+            let indices_array = batch
+                .column(1)
+                .as_any()
+                .downcast_ref::<ListArray>()
+                .ok_or(ILError::index("Failed to downcast indices to ListArray"))?;
+            let values_array = batch
+                .column(2)
+                .as_any()
+                .downcast_ref::<ListArray>()
+                .ok_or(ILError::index("Failed to downcast values to ListArray"))?;
+            self.embeddings.push((
+                row_id_array.clone(),
+                indices_array.clone(),
+                values_array.clone(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn write_bytes(&mut self, buf: &mut Vec<u8>) -> ILResult<()> {
+        let mut stream_writer = arrow::ipc::writer::StreamWriter::try_new(buf, &BM25_INDEX_SCHEMA)?;
+        for (row_id_array, indices_array, values_array) in self.embeddings.iter() {
+            let batch = RecordBatch::try_new(
+                BM25_INDEX_SCHEMA.clone(),
+                vec![
+                    Arc::new(row_id_array.clone()),
+                    Arc::new(indices_array.clone()),
+                    Arc::new(values_array.clone()),
+                ],
+            )?;
+            stream_writer.write(&batch)?;
+        }
+        stream_writer.finish()?;
+        Ok(())
     }
 
     fn build(&mut self) -> ILResult<Box<dyn Index>> {

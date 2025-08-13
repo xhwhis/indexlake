@@ -9,9 +9,7 @@ use uuid::Uuid;
 
 use crate::{
     ILError, ILResult,
-    catalog::{
-        CatalogDataType, CatalogDatabase, CatalogSchema, Column, INTERNAL_ROW_ID_FIELD_NAME, Row,
-    },
+    catalog::{CatalogDataType, CatalogDatabase, CatalogSchema, Column, Row},
     storage::DataFileFormat,
     table::TableConfig,
 };
@@ -52,9 +50,9 @@ impl TableRecord {
         ])
     }
 
-    pub(crate) fn from_row(row: &Row) -> ILResult<Self> {
+    pub(crate) fn from_row(mut row: Row) -> ILResult<Self> {
         let table_id = row.uuid(0)?.expect("table_id is not null");
-        let table_name = row.utf8(1)?.expect("table_name is not null");
+        let table_name = row.utf8_owned(1)?.expect("table_name is not null");
         let namespace_id = row.uuid(2)?.expect("namespace_id is not null");
         let config_str = row.utf8(3)?.expect("config is not null");
         let config: TableConfig = serde_json::from_str(&config_str)
@@ -68,7 +66,7 @@ impl TableRecord {
         })?;
         Ok(TableRecord {
             table_id,
-            table_name: table_name.clone(),
+            table_name,
             namespace_id,
             config,
             schema_metadata,
@@ -129,12 +127,12 @@ impl FieldRecord {
         ])
     }
 
-    pub(crate) fn from_row(row: &Row) -> ILResult<Self> {
+    pub(crate) fn from_row(mut row: Row) -> ILResult<Self> {
         let field_id = row.uuid(0)?.expect("field_id is not null");
         let table_id = row.uuid(1)?.expect("table_id is not null");
-        let field_name = row.utf8(2)?.expect("field_name is not null");
+        let field_name = row.utf8_owned(2)?.expect("field_name is not null");
         let data_type_str = row.utf8(3)?.expect("data_type is not null");
-        let data_type: DataType = serde_json::from_str(&data_type_str)
+        let data_type: DataType = serde_json::from_str(data_type_str)
             .map_err(|e| ILError::internal(format!("Failed to deserialize data type: {e:?}")))?;
         let nullable = row.boolean(4)?.expect("nullable is not null");
         let metadata_str = row.utf8(5)?.expect("metadata is not null");
@@ -145,7 +143,7 @@ impl FieldRecord {
         Ok(FieldRecord {
             field_id,
             table_id,
-            field_name: field_name.clone(),
+            field_name,
             data_type,
             nullable,
             metadata,
@@ -221,7 +219,7 @@ impl DataFileRecord {
         )
     }
 
-    pub(crate) fn from_row(row: &Row) -> ILResult<Self> {
+    pub(crate) fn from_row(mut row: Row) -> ILResult<Self> {
         let data_file_id = row.uuid(0)?.expect("data_file_id is not null");
         let table_id = row.uuid(1)?.expect("table_id is not null");
         let format = row
@@ -229,7 +227,7 @@ impl DataFileRecord {
             .expect("format is not null")
             .parse::<DataFileFormat>()
             .map_err(|e| ILError::internal(format!("Failed to parse data file format: {e:?}")))?;
-        let relative_path = row.utf8(3)?.expect("relative_path is not null").to_string();
+        let relative_path = row.utf8_owned(3)?.expect("relative_path is not null");
         let record_count = row.int64(4)?.expect("record_count is not null");
 
         let row_ids_bytes = row.binary(5)?.expect("row_ids is not null");
@@ -350,25 +348,25 @@ impl IndexRecord {
         ])
     }
 
-    pub(crate) fn from_row(row: &Row) -> ILResult<Self> {
+    pub(crate) fn from_row(mut row: Row) -> ILResult<Self> {
         let index_id = row.uuid(0)?.expect("index_id is not null");
         let table_id = row.uuid(1)?.expect("table_id is not null");
-        let index_name = row.utf8(2)?.expect("index_name is not null");
-        let kind = row.utf8(3)?.expect("kind is not null");
+        let index_name = row.utf8_owned(2)?.expect("index_name is not null");
+        let index_kind = row.utf8_owned(3)?.expect("kind is not null");
         let key_field_ids_str = row.utf8(4)?.expect("key_field_ids is not null");
         let key_field_ids = key_field_ids_str
             .split(",")
             .map(|id| Uuid::parse_str(id))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| ILError::internal(format!("Failed to parse key field ids: {e:?}")))?;
-        let params = row.utf8(5)?.expect("params is not null");
+        let params = row.utf8_owned(5)?.expect("params is not null");
         Ok(IndexRecord {
             index_id,
-            index_name: index_name.clone(),
-            index_kind: kind.clone(),
+            index_name,
+            index_kind,
             table_id,
             key_field_ids,
-            params: params.clone(),
+            params,
         })
     }
 }
@@ -416,18 +414,49 @@ impl IndexFileRecord {
         )
     }
 
-    pub(crate) fn from_row(row: &Row) -> ILResult<Self> {
+    pub(crate) fn from_row(mut row: Row) -> ILResult<Self> {
         let index_file_id = row.uuid(0)?.expect("index_file_id is not null");
         let table_id = row.uuid(1)?.expect("table_id is not null");
         let index_id = row.uuid(2)?.expect("index_id is not null");
         let data_file_id = row.uuid(3)?.expect("data_file_id is not null");
-        let relative_path = row.utf8(4)?.expect("relative_path is not null").to_string();
+        let relative_path = row.utf8_owned(4)?.expect("relative_path is not null");
         Ok(Self {
             index_file_id,
             table_id,
             index_id,
             data_file_id,
             relative_path,
+        })
+    }
+}
+
+pub(crate) struct InlineIndexRecord {
+    pub(crate) index_id: Uuid,
+    pub(crate) index_data: Vec<u8>,
+}
+
+impl InlineIndexRecord {
+    pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
+        format!(
+            "({}, {})",
+            database.sql_uuid_value(&self.index_id),
+            database.sql_binary_value(&self.index_data)
+        )
+    }
+
+    pub(crate) fn catalog_schema() -> CatalogSchema {
+        CatalogSchema::new(vec![
+            Column::new("index_id", CatalogDataType::Uuid, false),
+            Column::new("index_data", CatalogDataType::Binary, false),
+        ])
+    }
+
+    pub(crate) fn from_row(mut row: Row) -> ILResult<Self> {
+        let index_id = row.uuid(0)?.expect("index_id is not null");
+        let index_data = row.binary_owned(1)?.expect("index_data is not null");
+        Ok(Self {
+            index_id,
+            index_data,
         })
     }
 }

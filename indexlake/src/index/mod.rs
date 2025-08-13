@@ -7,7 +7,7 @@ use crate::{
     expr::Expr,
     storage::{InputFile, OutputFile},
 };
-use arrow::array::{Float64Array, Int64Array, RecordBatch};
+use arrow::array::{Int64Array, RecordBatch};
 use std::{any::Any, fmt::Debug, sync::Arc};
 
 pub trait IndexKind: Debug + Send + Sync {
@@ -31,13 +31,17 @@ pub trait IndexKind: Debug + Send + Sync {
 
 #[async_trait::async_trait]
 pub trait IndexBuilder: Debug + Send + Sync {
+    fn mergeable(&self) -> bool;
+
     fn append(&mut self, batch: &RecordBatch) -> ILResult<()>;
 
     async fn read_file(&mut self, input_file: InputFile) -> ILResult<()>;
 
     async fn write_file(&mut self, output_file: OutputFile) -> ILResult<()>;
 
-    fn serialize(&self) -> ILResult<Vec<u8>>;
+    fn read_bytes(&mut self, buf: &[u8]) -> ILResult<()>;
+
+    fn write_bytes(&mut self, buf: &mut Vec<u8>) -> ILResult<()>;
 
     fn build(&mut self) -> ILResult<Box<dyn Index>>;
 }
