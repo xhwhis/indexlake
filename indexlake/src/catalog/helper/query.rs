@@ -69,7 +69,7 @@ impl TransactionHelper {
         schema: &CatalogSchemaRef,
         filters: &[Expr],
         limit: Option<usize>,
-    ) -> ILResult<RowStream> {
+    ) -> ILResult<RowStream<'_>> {
         let mut filter_strs = filters
             .iter()
             .map(|f| f.to_sql(self.database))

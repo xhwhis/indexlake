@@ -76,11 +76,9 @@ impl ArrowScorer {
             {
                 let row_id = row_id_opt.expect("Row id should not be null");
                 if relevant_row_ids.contains(&row_id)
-                    && index_array_opt.is_some()
-                    && value_array_opt.is_some()
+                    && let Some(index_array) = index_array_opt
+                    && let Some(value_array) = value_array_opt
                 {
-                    let index_array = index_array_opt.expect("Index array should not be null");
-                    let value_array = value_array_opt.expect("Value array should not be null");
                     let index_array = index_array
                         .as_any()
                         .downcast_ref::<UInt32Array>()

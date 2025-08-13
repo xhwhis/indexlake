@@ -32,10 +32,10 @@ impl CaseExpr {
             }
         }
         // if all then results are null, we use data type of else expr instead if possible.
-        if data_type.equals_datatype(&DataType::Null) {
-            if let Some(e) = &self.else_expr {
-                data_type = e.data_type(schema)?;
-            }
+        if data_type.equals_datatype(&DataType::Null)
+            && let Some(e) = &self.else_expr
+        {
+            data_type = e.data_type(schema)?;
         }
 
         Ok(data_type)
