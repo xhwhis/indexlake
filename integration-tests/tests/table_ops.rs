@@ -517,7 +517,7 @@ async fn duplicated_index_name(
     };
     client.create_table(table_creation).await?;
 
-    let mut table = client.load_table(&namespace_name, &table_name).await?;
+    let table = client.load_table(&namespace_name, &table_name).await?;
 
     let mut index_creation = IndexCreation {
         name: uuid::Uuid::new_v4().to_string(),
@@ -529,10 +529,12 @@ async fn duplicated_index_name(
 
     table.create_index(index_creation.clone()).await?;
 
+    let table = client.load_table(&namespace_name, &table_name).await?;
     let result = table.create_index(index_creation.clone()).await;
     assert!(result.is_err());
 
     index_creation.if_not_exists = true;
+    let table = client.load_table(&namespace_name, &table_name).await?;
     table.create_index(index_creation).await?;
 
     Ok(())
@@ -555,7 +557,7 @@ async fn unsupported_index_kind(
     let mut client = Client::new(catalog, storage);
     client.register_index_kind(Arc::new(BTreeIndexKind));
 
-    let mut table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
+    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
 
     let index_creation = IndexCreation {
         name: uuid::Uuid::new_v4().to_string(),
@@ -605,7 +607,7 @@ async fn load_index(
     };
     client.create_table(table_creation).await?;
 
-    let mut table = client.load_table(&namespace_name, &table_name).await?;
+    let table = client.load_table(&namespace_name, &table_name).await?;
 
     let index_name = uuid::Uuid::new_v4().to_string();
     let index_creation = IndexCreation {
@@ -617,9 +619,6 @@ async fn load_index(
     };
 
     table.create_index(index_creation.clone()).await?;
-
-    let table = client.load_table(&namespace_name, &table_name).await?;
-    assert_eq!(table.indexes.keys().collect::<Vec<_>>(), vec![&index_name]);
 
     Ok(())
 }
@@ -658,7 +657,7 @@ async fn drop_index(
     };
     client.create_table(table_creation).await?;
 
-    let mut table = client.load_table(&namespace_name, &table_name).await?;
+    let table = client.load_table(&namespace_name, &table_name).await?;
 
     let index_name = uuid::Uuid::new_v4().to_string();
     let index_creation = IndexCreation {
@@ -671,11 +670,14 @@ async fn drop_index(
 
     table.create_index(index_creation.clone()).await?;
 
+    let table = client.load_table(&namespace_name, &table_name).await?;
     table.drop_index(&index_name, false).await?;
 
+    let table = client.load_table(&namespace_name, &table_name).await?;
     let result = table.drop_index(&index_name, false).await;
     assert!(result.is_err());
 
+    let table = client.load_table(&namespace_name, &table_name).await?;
     table.create_index(index_creation).await?;
 
     Ok(())

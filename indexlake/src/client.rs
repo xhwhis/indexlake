@@ -6,6 +6,7 @@ use crate::catalog::INTERNAL_ROW_ID_FIELD_REF;
 use crate::catalog::TransactionHelper;
 use crate::index::IndexDefination;
 use crate::index::IndexKind;
+use crate::index::IndexManager;
 use crate::table::{Table, TableCreation, process_create_table};
 use crate::{ILError, ILResult, catalog::Catalog, storage::Storage};
 use std::collections::HashMap;
@@ -109,7 +110,7 @@ impl Client {
         let index_records = catalog_helper
             .get_table_indexes(&table_record.table_id)
             .await?;
-        let mut indexes = HashMap::new();
+        let mut indexes = Vec::new();
         for index_record in index_records {
             let index = IndexDefination::from_index_record(
                 &index_record,
@@ -118,8 +119,10 @@ impl Client {
                 &schema,
                 &self.index_kinds,
             )?;
-            indexes.insert(index_record.index_name.clone(), Arc::new(index));
+            indexes.push(Arc::new(index));
         }
+
+        let index_manager = IndexManager::try_new(indexes, self.index_kinds.clone())?;
 
         Ok(Table {
             namespace_id,
@@ -128,11 +131,10 @@ impl Client {
             table_name: table_name.to_string(),
             field_map,
             schema,
-            indexes,
             config: Arc::new(table_record.config),
             catalog: self.catalog.clone(),
             storage: self.storage.clone(),
-            index_kinds: self.index_kinds.clone(),
+            index_manager: Arc::new(index_manager),
         })
     }
 }

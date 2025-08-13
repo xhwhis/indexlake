@@ -4,18 +4,18 @@ use arrow::{
     array::*,
     datatypes::{DataType, TimeUnit, i256},
 };
-use arrow_schema::Schema;
+use arrow_schema::SchemaRef;
 use futures::StreamExt;
 use uuid::Uuid;
 
 use crate::{
     ILError, ILResult,
     catalog::{
-        CatalogDataType, CatalogDatabase, CatalogSchema, Column, DataFileRecord,
-        INTERNAL_FLAG_FIELD_NAME, INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, InlineIndexRecord,
-        TransactionHelper, rows_to_record_batch,
+        CatalogDatabase, CatalogSchema, DataFileRecord, INTERNAL_FLAG_FIELD_NAME,
+        INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, InlineIndexRecord, TransactionHelper,
+        rows_to_record_batch,
     },
-    index::{IndexBuilder, IndexDefinationRef, IndexKind},
+    index::IndexBuilder,
     storage::{DataFileFormat, build_lance_writer, build_parquet_writer},
     table::Table,
     utils::{record_batch_with_row_id, schema_without_row_id, serialize_array},
@@ -23,29 +23,18 @@ use crate::{
 
 pub(crate) async fn process_insert_into_inline_rows(
     tx_helper: &mut TransactionHelper,
-    table_id: &Uuid,
-    indexes: &HashMap<String, IndexDefinationRef>,
-    index_kinds: &HashMap<String, Arc<dyn IndexKind>>,
+    table: &Table,
     batches: &[RecordBatch],
 ) -> ILResult<()> {
     if batches.is_empty() {
         return Ok(());
     }
 
-    let mut mergeable_index_builders = HashMap::new();
-    let mut non_mergeable_index_builders = HashMap::new();
-    for (index_name, index_def) in indexes.iter() {
-        let index_kind = index_kinds
-            .get(&index_def.kind)
-            .ok_or_else(|| ILError::internal(format!("Index kind {} not found", index_def.kind)))?;
-        let index_builder = index_kind.builder(index_def)?;
-        if index_builder.mergeable() {
-            mergeable_index_builders.insert(index_name.clone(), index_builder);
-        } else {
-            non_mergeable_index_builders.insert(index_name.clone(), index_builder);
-        }
-    }
+    let mut mergeable_index_builders = table.index_manager.new_mergeable_index_builders()?;
+    let mut non_mergeable_index_builders =
+        table.index_manager.new_non_mergeable_index_builders()?;
 
+    // insert inline rows
     for batch in batches {
         let sql_values = record_batch_to_sql_values(batch, tx_helper.database)?;
 
@@ -57,57 +46,51 @@ pub(crate) async fn process_insert_into_inline_rows(
             .collect::<Vec<_>>();
 
         tx_helper
-            .insert_inline_rows(table_id, &inline_field_names, sql_values)
+            .insert_inline_rows(&table.table_id, &inline_field_names, sql_values)
             .await?;
+    }
 
-        for (_, builder) in mergeable_index_builders.iter_mut() {
+    // append index builders
+    for batch in batches {
+        for builder in mergeable_index_builders.iter_mut() {
             builder.append(&batch)?;
         }
     }
-
-    for (index_name, builder) in non_mergeable_index_builders.iter_mut() {
-        let index_def = indexes
-            .get(index_name)
-            .ok_or_else(|| ILError::internal(format!("Index {index_name} not found")))?;
-        append_non_mergeable_index_builder(tx_helper, table_id, index_def, builder).await?;
-    }
+    append_non_mergeable_index_builders(
+        tx_helper,
+        &table.table_id,
+        &table.schema,
+        &mut non_mergeable_index_builders,
+    )
+    .await?;
 
     // build inline index records
     let mut inline_index_records = Vec::new();
-    for (index_name, builder) in mergeable_index_builders.iter_mut() {
-        let index_def = indexes
-            .get(index_name)
-            .ok_or_else(|| ILError::internal(format!("Index {index_name} not found")))?;
+    for builder in mergeable_index_builders.iter_mut() {
         let mut index_data = Vec::new();
         builder.write_bytes(&mut index_data)?;
         inline_index_records.push(InlineIndexRecord {
-            index_id: index_def.index_id,
+            index_id: builder.index_def().index_id,
             index_data,
         });
     }
-    for (index_name, builder) in non_mergeable_index_builders.iter_mut() {
-        let index_def = indexes
-            .get(index_name)
-            .ok_or_else(|| ILError::internal(format!("Index {index_name} not found")))?;
+    for builder in non_mergeable_index_builders.iter_mut() {
         let mut index_data = Vec::new();
         builder.write_bytes(&mut index_data)?;
         inline_index_records.push(InlineIndexRecord {
-            index_id: index_def.index_id,
+            index_id: builder.index_def().index_id,
             index_data,
         });
     }
 
     // clean non-mergeable inline index records
-    let mut non_mergeable_index_ids = Vec::new();
-    for (index_name, _) in non_mergeable_index_builders.iter_mut() {
-        // TODO improve these code
-        let index_def = indexes
-            .get(index_name)
-            .ok_or_else(|| ILError::internal(format!("Index {index_name} not found")))?;
-        non_mergeable_index_ids.push(index_def.index_id);
-    }
     tx_helper
-        .delete_inline_indexes(&non_mergeable_index_ids)
+        .delete_inline_indexes(
+            &non_mergeable_index_builders
+                .iter()
+                .map(|builder| builder.index_def().index_id)
+                .collect::<Vec<_>>(),
+        )
         .await?;
 
     // insert inline index records
@@ -134,15 +117,7 @@ pub(crate) async fn process_bypass_insert(
 
     let reserved_row_ids = reserve_row_ids(tx_helper, table, total_rows).await?;
 
-    let mut index_builders = HashMap::new();
-    for (index_name, index_def) in table.indexes.iter() {
-        let index_kind = table
-            .index_kinds
-            .get(&index_def.kind)
-            .ok_or_else(|| ILError::internal(format!("Index kind {} not found", index_def.kind)))?;
-        let index_builder = index_kind.builder(index_def)?;
-        index_builders.insert(index_name.clone(), index_builder);
-    }
+    let mut index_builders = table.index_manager.new_index_builders()?;
 
     match table.config.preferred_data_file_format {
         DataFileFormat::ParquetV1 | DataFileFormat::ParquetV2 => {
@@ -181,12 +156,7 @@ pub(crate) async fn process_bypass_insert(
 
     // update index files
     let mut index_file_records = Vec::new();
-    for (index_name, index_builder) in index_builders.iter_mut() {
-        let index_def = table
-            .indexes
-            .get(index_name)
-            .ok_or_else(|| ILError::internal(format!("Index {index_name} not found")))?;
-
+    for index_builder in index_builders.iter_mut() {
         let index_file_id = Uuid::now_v7();
         let relative_path = IndexFileRecord::build_relative_path(
             &table.namespace_id,
@@ -198,7 +168,7 @@ pub(crate) async fn process_bypass_insert(
         index_file_records.push(IndexFileRecord {
             index_file_id,
             table_id: table.table_id,
-            index_id: index_def.index_id,
+            index_id: index_builder.index_def().index_id,
             data_file_id,
             relative_path,
         });
@@ -261,7 +231,7 @@ async fn write_parquet_file(
     relative_path: &str,
     reserved_row_ids: &[i64],
     batches: &[RecordBatch],
-    index_builders: &mut HashMap<String, Box<dyn IndexBuilder>>,
+    index_builders: &mut Vec<Box<dyn IndexBuilder>>,
 ) -> ILResult<()> {
     let output_file = table.storage.create_file(&relative_path).await?;
 
@@ -279,7 +249,7 @@ async fn write_parquet_file(
         let batch = record_batch_with_row_id(batch, row_id_array)?;
 
         arrow_writer.write(&batch).await?;
-        for (_, builder) in index_builders.iter_mut() {
+        for builder in index_builders.iter_mut() {
             builder.append(&batch)?;
         }
 
@@ -296,7 +266,7 @@ async fn write_lance_file(
     relative_path: &str,
     reserved_row_ids: &[i64],
     batches: &[RecordBatch],
-    index_builders: &mut HashMap<String, Box<dyn IndexBuilder>>,
+    index_builders: &mut Vec<Box<dyn IndexBuilder>>,
 ) -> ILResult<()> {
     let mut writer = build_lance_writer(
         &table.storage,
@@ -313,7 +283,7 @@ async fn write_lance_file(
         let batch = record_batch_with_row_id(batch, row_id_array)?;
 
         writer.write_batch(&batch).await?;
-        for (_, builder) in index_builders.iter_mut() {
+        for builder in index_builders.iter_mut() {
             builder.append(&batch)?;
         }
 
@@ -518,28 +488,28 @@ pub(crate) fn record_batch_to_sql_values(
     Ok(sql_values)
 }
 
-pub(crate) async fn append_non_mergeable_index_builder(
+pub(crate) async fn append_non_mergeable_index_builders(
     tx_helper: &mut TransactionHelper,
     table_id: &Uuid,
-    index_def: &IndexDefinationRef,
-    index_builder: &mut Box<dyn IndexBuilder>,
+    table_schema: &SchemaRef,
+    index_builders: &mut Vec<Box<dyn IndexBuilder>>,
 ) -> ILResult<()> {
-    let key_fields = index_def.key_fields()?;
-    let projected_schema = Arc::new(Schema::new(key_fields));
-    let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
+    let catalog_schema = Arc::new(CatalogSchema::from_arrow(&table_schema)?);
 
     let row_stream = tx_helper
         .scan_inline_rows(table_id, &catalog_schema, &[], None)
         .await?;
     let mut inline_stream = row_stream.chunks(100).map(move |rows| {
         let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
-        let batch = rows_to_record_batch(&projected_schema, &rows)?;
+        let batch = rows_to_record_batch(&table_schema, &rows)?;
         Ok::<_, ILError>(batch)
     });
 
     while let Some(batch) = inline_stream.next().await {
         let batch = batch?;
-        index_builder.append(&batch)?;
+        for builder in index_builders.iter_mut() {
+            builder.append(&batch)?;
+        }
     }
     Ok(())
 }

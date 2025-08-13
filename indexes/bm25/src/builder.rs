@@ -70,6 +70,10 @@ impl IndexBuilder for Bm25IndexBuilder {
         true
     }
 
+    fn index_def(&self) -> &IndexDefinationRef {
+        &self.index_def
+    }
+
     fn append(&mut self, batch: &RecordBatch) -> ILResult<()> {
         let row_id_array = extract_row_id_array_from_record_batch(&batch)?;
 

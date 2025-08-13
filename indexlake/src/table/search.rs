@@ -33,16 +33,12 @@ pub(crate) async fn process_search(
     search: TableSearch,
 ) -> ILResult<RecordBatchStream> {
     let index_kind = search.query.index_kind();
-    let (_index_name, index_def) = table
-        .indexes
-        .iter()
-        .find(|(_, index_def)| index_def.kind == index_kind)
-        .ok_or(ILError::index(format!("Index kind {index_kind} not found")))?;
 
-    let index_kind = table
-        .index_kinds
-        .get(index_kind)
-        .ok_or(ILError::index(format!("Index kind {index_kind} not found")))?;
+    let (index_def, index_kind) = table
+        .index_manager
+        .iter_index_and_kind()
+        .find(|(index_def, _)| index_def.kind == index_kind)
+        .ok_or_else(|| ILError::index(format!("Index kind {index_kind} not found")))?;
 
     let catalog_helper = CatalogHelper::new(table.catalog.clone());
 

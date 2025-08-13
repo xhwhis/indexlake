@@ -21,7 +21,7 @@ use crate::RecordBatchStream;
 use crate::catalog::IndexFileRecord;
 use crate::catalog::{CatalogHelper, DataFileRecord, Scalar};
 use crate::expr::Expr;
-use crate::index::{IndexDefinationRef, IndexKind};
+use crate::index::{IndexKind, IndexManager};
 use crate::storage::DataFileFormat;
 use crate::utils::schema_without_row_id;
 use crate::{
@@ -43,11 +43,10 @@ pub struct Table {
     pub table_name: String,
     pub field_map: BTreeMap<Uuid, FieldRef>,
     pub schema: SchemaRef,
-    pub indexes: HashMap<String, IndexDefinationRef>,
     pub config: Arc<TableConfig>,
     pub catalog: Arc<dyn Catalog>,
     pub storage: Arc<Storage>,
-    pub index_kinds: HashMap<String, Arc<dyn IndexKind>>,
+    pub index_manager: Arc<IndexManager>,
 }
 
 impl Table {
@@ -55,7 +54,7 @@ impl Table {
         TransactionHelper::new(&self.catalog).await
     }
 
-    pub async fn create_index(&mut self, index_creation: IndexCreation) -> ILResult<()> {
+    pub async fn create_index(self, index_creation: IndexCreation) -> ILResult<()> {
         let mut tx_helper = self.transaction_helper().await?;
         process_create_index(&mut tx_helper, self, index_creation).await?;
         tx_helper.commit().await?;
@@ -76,14 +75,7 @@ impl Table {
             tx_helper.commit().await?;
         } else {
             let mut tx_helper = self.transaction_helper().await?;
-            process_insert_into_inline_rows(
-                &mut tx_helper,
-                &self.table_id,
-                &self.indexes,
-                &self.index_kinds,
-                batches,
-            )
-            .await?;
+            process_insert_into_inline_rows(&mut tx_helper, self, batches).await?;
             tx_helper.commit().await?;
 
             try_run_dump_task(self).await?;
@@ -154,14 +146,9 @@ impl Table {
         .await?;
 
         let mut tx_helper = self.transaction_helper().await?;
-        // TODO reduce function parameters
         process_update_by_condition(
             &mut tx_helper,
-            self.storage.clone(),
-            self.table_id,
-            &self.schema,
-            &self.indexes,
-            &self.index_kinds,
+            self,
             set_map,
             condition,
             matched_data_file_rows,
@@ -256,8 +243,8 @@ impl Table {
         Ok(())
     }
 
-    pub async fn drop_index(&mut self, index_name: &str, if_exists: bool) -> ILResult<()> {
-        let Some(index_def) = self.indexes.get(index_name) else {
+    pub async fn drop_index(self, index_name: &str, if_exists: bool) -> ILResult<()> {
+        let Some(index_def) = self.index_manager.get_index(index_name) else {
             if if_exists {
                 return Ok(());
             }
@@ -279,8 +266,6 @@ impl Table {
         tx_helper.commit().await?;
 
         spawn_storage_index_files_clean_task(self.storage.clone(), index_file_records);
-
-        self.indexes.remove(index_name);
         Ok(())
     }
 
@@ -291,21 +276,7 @@ impl Table {
 
     pub fn supports_filter(&self, filter: &Expr) -> ILResult<bool> {
         match filter {
-            Expr::Function(_) => {
-                for (_, index_def) in &self.indexes {
-                    let index_kind =
-                        self.index_kinds
-                            .get(&index_def.kind)
-                            .ok_or(ILError::invalid_input(format!(
-                                "Index kind {} not found",
-                                index_def.kind
-                            )))?;
-                    if index_kind.supports_filter(index_def, filter)? {
-                        return Ok(true);
-                    }
-                }
-                Ok(false)
-            }
+            Expr::Function(_) => self.index_manager.supports_filter(filter),
             _ => Ok(true),
         }
     }

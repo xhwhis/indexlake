@@ -11,7 +11,7 @@ use crate::{
         Catalog, CatalogHelper, CatalogSchema, DataFileRecord, IndexFileRecord, InlineIndexRecord,
         RowStream, TransactionHelper, rows_to_record_batch,
     },
-    index::{IndexBuilder, IndexDefinationRef, IndexKind},
+    index::{IndexBuilder, IndexDefinationRef, IndexKind, IndexManager},
     storage::{DataFileFormat, Storage, build_lance_writer, build_parquet_writer},
     table::{Table, TableConfig},
 };
@@ -20,8 +20,7 @@ pub(crate) async fn try_run_dump_task(table: &Table) -> ILResult<()> {
     let namespace_id = table.namespace_id;
     let table_id = table.table_id;
     let table_schema = table.schema.clone();
-    let table_indexes = table.indexes.clone();
-    let index_kinds = table.index_kinds.clone();
+    let index_manager = table.index_manager.clone();
     let table_config = table.config.clone();
     let catalog = table.catalog.clone();
     let storage = table.storage.clone();
@@ -40,8 +39,7 @@ pub(crate) async fn try_run_dump_task(table: &Table) -> ILResult<()> {
                 namespace_id,
                 table_id,
                 table_schema: table_schema.clone(),
-                table_indexes: table_indexes.clone(),
-                index_kinds: index_kinds.clone(),
+                index_manager: index_manager.clone(),
                 table_config: table_config.clone(),
                 catalog: catalog.clone(),
                 storage: storage.clone(),
@@ -73,8 +71,7 @@ pub(crate) struct DumpTask {
     namespace_id: Uuid,
     table_id: Uuid,
     table_schema: SchemaRef,
-    table_indexes: HashMap<String, IndexDefinationRef>,
-    index_kinds: HashMap<String, Arc<dyn IndexKind>>,
+    index_manager: Arc<IndexManager>,
     table_config: Arc<TableConfig>,
     catalog: Arc<dyn Catalog>,
     storage: Arc<Storage>,
@@ -113,14 +110,7 @@ impl DumpTask {
             self.table_config.preferred_data_file_format,
         );
 
-        let mut index_builders = HashMap::new();
-        for (index_name, index_def) in self.table_indexes.iter() {
-            let index_kind = self.index_kinds.get(&index_def.kind).ok_or_else(|| {
-                ILError::internal(format!("Index kind {} not found", index_def.kind))
-            })?;
-            let index_builder = index_kind.builder(index_def)?;
-            index_builders.insert(index_name.clone(), index_builder);
-        }
+        let mut index_builders = self.index_manager.new_index_builders()?;
 
         let row_ids = match self.table_config.preferred_data_file_format {
             DataFileFormat::ParquetV1 | DataFileFormat::ParquetV2 => {
@@ -143,12 +133,7 @@ impl DumpTask {
         }
 
         let mut index_file_records = Vec::new();
-        for (index_name, index_builder) in index_builders.iter_mut() {
-            let index_def = self
-                .table_indexes
-                .get(index_name)
-                .ok_or_else(|| ILError::internal(format!("Index {index_name} not found")))?;
-
+        for index_builder in index_builders.iter_mut() {
             let index_file_id = uuid::Uuid::now_v7();
             let relative_path = IndexFileRecord::build_relative_path(
                 &self.namespace_id,
@@ -160,7 +145,7 @@ impl DumpTask {
             index_file_records.push(IndexFileRecord {
                 index_file_id,
                 table_id: self.table_id,
-                index_id: index_def.index_id,
+                index_id: index_builder.index_def().index_id,
                 data_file_id,
                 relative_path,
             });
@@ -195,8 +180,7 @@ impl DumpTask {
             &mut tx_helper,
             &self.table_id,
             &self.table_schema,
-            &self.table_indexes,
-            &self.index_kinds,
+            &self.index_manager,
         )
         .await?;
 
@@ -218,7 +202,7 @@ impl DumpTask {
         &self,
         row_stream: RowStream<'_>,
         relative_path: &str,
-        index_builders: &mut HashMap<String, Box<dyn IndexBuilder>>,
+        index_builders: &mut Vec<Box<dyn IndexBuilder>>,
     ) -> ILResult<Vec<i64>> {
         let mut row_ids = Vec::new();
 
@@ -242,7 +226,7 @@ impl DumpTask {
             }
             let record_batch = rows_to_record_batch(&self.table_schema, &rows)?;
 
-            for (_index_name, index_builder) in index_builders.iter_mut() {
+            for index_builder in index_builders.iter_mut() {
                 index_builder.append(&record_batch)?;
             }
 
@@ -258,7 +242,7 @@ impl DumpTask {
         &self,
         row_stream: RowStream<'_>,
         relative_path: &str,
-        index_builders: &mut HashMap<String, Box<dyn IndexBuilder>>,
+        index_builders: &mut Vec<Box<dyn IndexBuilder>>,
     ) -> ILResult<Vec<i64>> {
         let mut row_ids = Vec::new();
 
@@ -282,7 +266,7 @@ impl DumpTask {
             }
             let record_batch = rows_to_record_batch(&self.table_schema, &rows)?;
 
-            for (_index_name, index_builder) in index_builders.iter_mut() {
+            for index_builder in index_builders.iter_mut() {
                 index_builder.append(&record_batch)?;
             }
 
@@ -299,18 +283,10 @@ pub(crate) async fn rebuild_inline_indexes(
     tx_helper: &mut TransactionHelper,
     table_id: &Uuid,
     table_schema: &SchemaRef,
-    table_indexes: &HashMap<String, IndexDefinationRef>,
-    index_kinds: &HashMap<String, Arc<dyn IndexKind>>,
+    index_manager: &IndexManager,
 ) -> ILResult<()> {
     // index builders
-    let mut index_builder_map = HashMap::new();
-    for (_, index_def) in table_indexes.iter() {
-        let index_kind = index_kinds
-            .get(&index_def.kind)
-            .ok_or_else(|| ILError::internal(format!("Index kind {} not found", index_def.kind)))?;
-        let index_builder = index_kind.builder(index_def)?;
-        index_builder_map.insert(index_def.index_id, index_builder);
-    }
+    let mut index_builders = index_manager.new_index_builders()?;
 
     // append index builders
     let catalog_schema = Arc::new(CatalogSchema::from_arrow(table_schema)?);
@@ -321,7 +297,7 @@ pub(crate) async fn rebuild_inline_indexes(
     while let Some(row_chunk) = chunk_stream.next().await {
         let rows = row_chunk.into_iter().collect::<ILResult<Vec<_>>>()?;
         let record_batch = rows_to_record_batch(table_schema, &rows)?;
-        for (_, index_builder) in index_builder_map.iter_mut() {
+        for index_builder in index_builders.iter_mut() {
             index_builder.append(&record_batch)?;
         }
     }
@@ -329,18 +305,23 @@ pub(crate) async fn rebuild_inline_indexes(
 
     // build inline index records
     let mut inline_index_records = Vec::new();
-    for (index_id, index_builder) in index_builder_map.iter_mut() {
+    for index_builder in index_builders.iter_mut() {
         let mut index_data = Vec::new();
         index_builder.write_bytes(&mut index_data)?;
         inline_index_records.push(InlineIndexRecord {
-            index_id: *index_id,
+            index_id: index_builder.index_def().index_id,
             index_data,
         });
     }
 
     // delete old inline index records
     tx_helper
-        .delete_inline_indexes(&index_builder_map.keys().cloned().collect::<Vec<_>>())
+        .delete_inline_indexes(
+            &index_builders
+                .iter()
+                .map(|builder| builder.index_def().index_id)
+                .collect::<Vec<_>>(),
+        )
         .await?;
 
     // insert inline index records

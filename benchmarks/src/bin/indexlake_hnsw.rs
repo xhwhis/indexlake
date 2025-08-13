@@ -49,8 +49,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     client.create_table(table_creation).await?;
 
-    let mut table = client.load_table(namespace_name, &table_name).await?;
-
     let index_name = "hnsw_index";
     let index_creation = IndexCreation {
         name: index_name.to_string(),
@@ -61,7 +59,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
         if_not_exists: false,
     };
+    let table = client.load_table(namespace_name, &table_name).await?;
     table.create_index(index_creation).await?;
+
+    let table = client.load_table(namespace_name, &table_name).await?;
 
     let start_time = Instant::now();
     let mut handles = Vec::new();

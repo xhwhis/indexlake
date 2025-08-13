@@ -61,7 +61,7 @@ async fn create_hnsw_index(
         if_not_exists: false,
     };
     client.create_table(table_creation).await?;
-    let mut table = client.load_table(&namespace_name, &table_name).await?;
+    let table = client.load_table(&namespace_name, &table_name).await?;
 
     let index_creation = IndexCreation {
         name: "hnsw_index".to_string(),
@@ -73,6 +73,8 @@ async fn create_hnsw_index(
         if_not_exists: false,
     };
     table.create_index(index_creation.clone()).await?;
+
+    let table = client.load_table(&namespace_name, &table_name).await?;
 
     let mut list_builder =
         ListBuilder::new(Float32Builder::new()).with_field(list_inner_field.clone());

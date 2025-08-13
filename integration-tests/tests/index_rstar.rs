@@ -64,7 +64,7 @@ async fn create_rstar_index_on_existing_table(
         if_not_exists: false,
     };
     client.create_table(table_creation).await?;
-    let mut table = client.load_table(&namespace_name, &table_name).await?;
+    let table = client.load_table(&namespace_name, &table_name).await?;
 
     let record_batch = RecordBatch::try_new(
         table_schema.clone(),
@@ -112,6 +112,7 @@ async fn create_rstar_index_on_existing_table(
         DataType::Boolean,
     )]);
 
+    let table = client.load_table(&namespace_name, &table_name).await?;
     let table_str = table_scan(&table, scan).await?;
     println!("{}", table_str);
     assert_eq!(

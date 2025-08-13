@@ -61,7 +61,6 @@ async fn create_bm25_index(
         if_not_exists: false,
     };
     client.create_table(table_creation).await?;
-    let mut table = client.load_table(&namespace_name, &table_name).await?;
 
     let index_creation = IndexCreation {
         name: "bm25_index".to_string(),
@@ -70,7 +69,10 @@ async fn create_bm25_index(
         params: Arc::new(BM25IndexParams { avgdl: 256. }),
         if_not_exists: false,
     };
+    let table = client.load_table(&namespace_name, &table_name).await?;
     table.create_index(index_creation.clone()).await?;
+
+    let table = client.load_table(&namespace_name, &table_name).await?;
 
     let record_batch = RecordBatch::try_new(
         table_schema.clone(),

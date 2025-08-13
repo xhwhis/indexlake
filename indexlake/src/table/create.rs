@@ -81,7 +81,7 @@ pub struct IndexCreation {
 
 pub(crate) async fn process_create_index(
     tx_helper: &mut TransactionHelper,
-    table: &mut Table,
+    table: Table,
     creation: IndexCreation,
 ) -> ILResult<Uuid> {
     let index_id = Uuid::now_v7();
@@ -97,9 +97,11 @@ pub(crate) async fn process_create_index(
     });
 
     let index_kind = table
-        .index_kinds
-        .get(&creation.kind)
-        .ok_or_else(|| ILError::invalid_input(format!("Index kind {} not found", creation.kind)))?;
+        .index_manager
+        .get_index_kind(&creation.kind)
+        .ok_or_else(|| {
+            ILError::invalid_input(format!("Index kind {} not registered", creation.kind))
+        })?;
     index_kind.supports(&index_def)?;
 
     if let Some(index_id) = tx_helper
@@ -175,10 +177,6 @@ pub(crate) async fn process_create_index(
             params: creation.params.encode()?,
         })
         .await?;
-
-    table
-        .indexes
-        .insert(creation.name.clone(), index_def.clone());
 
     Ok(index_id)
 }

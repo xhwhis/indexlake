@@ -18,7 +18,7 @@ use crate::{
         rows_to_record_batch,
     },
     expr::{Expr, split_conjunction_filters},
-    index::{IndexDefinationRef, IndexKind},
+    index::{IndexDefinationRef, IndexKind, IndexManager},
     storage::{Storage, read_data_file_by_record},
     table::Table,
     utils::project_schema,
@@ -106,8 +106,7 @@ pub(crate) async fn process_scan(
     let filters = split_conjunction_filters(scan.filters.clone());
     scan.filters = filters;
 
-    let index_filter_assignment =
-        assign_index_filters(&table.indexes, &table.index_kinds, &scan.filters)?;
+    let index_filter_assignment = assign_index_filters(&table.index_manager, &scan.filters)?;
 
     if index_filter_assignment
         .values()
@@ -246,14 +245,14 @@ async fn index_scan_inline_rows(
     let mut index_ids = Vec::new();
     for (index_name, _) in index_filter_assignment.iter() {
         let index_def = table
-            .indexes
-            .get(index_name)
+            .index_manager
+            .get_index(index_name)
             .ok_or_else(|| ILError::internal(format!("Index {index_name} not found")))?;
         let kind = &index_def.kind;
         let index_kind = table
-            .index_kinds
-            .get(kind)
-            .ok_or_else(|| ILError::internal(format!("Index kind {kind} not found")))?;
+            .index_manager
+            .get_index_kind(kind)
+            .ok_or_else(|| ILError::internal(format!("Index kind {kind} not registered")))?;
 
         let index_builder = index_kind.builder(index_def)?;
         index_builder_map.insert(index_name, index_builder);
@@ -272,10 +271,7 @@ async fn index_scan_inline_rows(
 
     // append index builders
     for (index_name, builder) in index_builder_map.iter_mut() {
-        let index_def = table
-            .indexes
-            .get(*index_name)
-            .ok_or_else(|| ILError::internal(format!("Index {index_name} not found")))?;
+        let index_def = builder.index_def();
 
         if let Some(records) = inline_index_records_map.get(&index_def.index_id) {
             if records.len() > 1 && !builder.mergeable() {
@@ -401,14 +397,14 @@ async fn filter_index_files_row_ids(
     let mut filter_index_entries_list = Vec::new();
     for (index_name, filter_indices) in index_filter_assignment.iter() {
         let index_def = table
-            .indexes
-            .get(index_name)
+            .index_manager
+            .get_index(index_name)
             .ok_or_else(|| ILError::internal(format!("Index {index_name} not found")))?;
         let kind = &index_def.kind;
         let index_kind = table
-            .index_kinds
-            .get(kind)
-            .ok_or_else(|| ILError::internal(format!("Index kind {kind} not found")))?;
+            .index_manager
+            .get_index_kind(kind)
+            .ok_or_else(|| ILError::internal(format!("Index kind {kind} not registered")))?;
 
         let index_file_record = index_file_records.get(&index_def.index_id).ok_or_else(|| {
             ILError::internal(format!(
@@ -455,21 +451,16 @@ async fn filter_index_files_row_ids(
 }
 
 fn assign_index_filters(
-    indexes: &HashMap<String, IndexDefinationRef>,
-    index_kinds: &HashMap<String, Arc<dyn IndexKind>>,
+    index_manager: &IndexManager,
     filters: &[Expr],
 ) -> ILResult<HashMap<String, Vec<usize>>> {
     let mut index_filter_assignment: HashMap<String, Vec<usize>> = HashMap::new();
     for (filter_idx, filter) in filters.iter().enumerate() {
-        for (index_name, index_def) in indexes.iter() {
-            let kind = &index_def.kind;
-            let index_kind = index_kinds
-                .get(kind)
-                .ok_or_else(|| ILError::internal(format!("Index kind {kind} not found")))?;
+        for (index_def, index_kind) in index_manager.iter_index_and_kind() {
             let supported = index_kind.supports_filter(index_def, &filter)?;
             if supported {
                 index_filter_assignment
-                    .entry(index_name.clone())
+                    .entry(index_def.name.clone())
                     .or_default()
                     .push(filter_idx);
             }
