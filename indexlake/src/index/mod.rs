@@ -2,7 +2,7 @@ mod defination;
 mod manager;
 
 pub use defination::*;
-pub(crate) use manager::*;
+pub use manager::*;
 
 use crate::{
     ILResult,

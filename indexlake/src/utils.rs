@@ -25,7 +25,7 @@ pub fn has_duplicated_items(container: impl Iterator<Item = impl Eq + Hash>) -> 
 
 pub(crate) fn schema_with_row_id(schema: &Schema) -> Schema {
     let mut fields = vec![INTERNAL_ROW_ID_FIELD_REF.clone()];
-    fields.extend(schema.fields.iter().map(|field| field.clone()));
+    fields.extend(schema.fields.iter().cloned());
     Schema::new_with_metadata(fields, schema.metadata().clone())
 }
 
@@ -45,7 +45,7 @@ pub(crate) fn record_batch_with_row_id(
 ) -> ILResult<RecordBatch> {
     let schema = schema_with_row_id(&record.schema());
     let mut arrays = vec![Arc::new(row_id_array) as ArrayRef];
-    arrays.extend(record.columns().iter().map(|col| col.clone()));
+    arrays.extend(record.columns().iter().cloned());
     let options = RecordBatchOptions::new().with_row_count(Some(record.num_rows()));
     Ok(RecordBatch::try_new_with_options(
         Arc::new(schema),

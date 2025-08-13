@@ -228,7 +228,7 @@ fn update_record_batch(
 ) -> ILResult<RecordBatch> {
     let mut columns = batch.columns().to_vec();
     for (name, value) in set_map {
-        let idx = batch.schema().index_of(&name)?;
+        let idx = batch.schema().index_of(name)?;
         let new_array = value.eval(batch)?.into_array(batch.num_rows())?;
         columns[idx] = Arc::new(new_array);
     }

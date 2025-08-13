@@ -21,7 +21,7 @@ use crate::RecordBatchStream;
 use crate::catalog::IndexFileRecord;
 use crate::catalog::{CatalogHelper, DataFileRecord, Scalar};
 use crate::expr::Expr;
-use crate::index::{IndexKind, IndexManager};
+use crate::index::IndexManager;
 use crate::storage::DataFileFormat;
 use crate::utils::schema_without_row_id;
 use crate::{
@@ -88,15 +88,7 @@ impl Table {
         scan.partition.validate()?;
 
         let catalog_helper = CatalogHelper::new(self.catalog.clone());
-        let batch_stream = process_scan(
-            &catalog_helper,
-            self.table_id,
-            &self.schema,
-            scan,
-            self.storage.clone(),
-            self,
-        )
-        .await?;
+        let batch_stream = process_scan(&catalog_helper, self, scan).await?;
         Ok(batch_stream)
     }
 
@@ -184,15 +176,8 @@ impl Table {
             .await?;
 
             let mut tx_helper = self.transaction_helper().await?;
-            process_delete_by_condition(
-                &mut tx_helper,
-                self.storage.clone(),
-                &self.table_id,
-                &self.schema,
-                condition,
-                matched_data_file_row_ids,
-            )
-            .await?;
+            process_delete_by_condition(&mut tx_helper, self, condition, matched_data_file_row_ids)
+                .await?;
             tx_helper.commit().await?;
         }
 

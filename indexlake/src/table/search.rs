@@ -38,7 +38,12 @@ pub(crate) async fn process_search(
         .index_manager
         .iter_index_and_kind()
         .find(|(index_def, _)| index_def.kind == index_kind)
-        .ok_or_else(|| ILError::index(format!("Index kind {index_kind} not found")))?;
+        .ok_or_else(|| {
+            ILError::index(format!(
+                "Index not found for search query: {:?}",
+                search.query
+            ))
+        })?;
 
     let catalog_helper = CatalogHelper::new(table.catalog.clone());
 

@@ -8,7 +8,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub(crate) struct IndexManager {
+pub struct IndexManager {
     indexes: Vec<IndexDefinationRef>,
     kinds: HashMap<String, Arc<dyn IndexKind>>,
 }

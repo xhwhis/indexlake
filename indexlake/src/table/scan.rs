@@ -97,11 +97,8 @@ impl Default for TableScan {
 
 pub(crate) async fn process_scan(
     catalog_helper: &CatalogHelper,
-    table_id: Uuid,
-    table_schema: &SchemaRef,
-    mut scan: TableScan,
-    storage: Arc<Storage>,
     table: &Table,
+    mut scan: TableScan,
 ) -> ILResult<RecordBatchStream> {
     let filters = split_conjunction_filters(scan.filters.clone());
     scan.filters = filters;
@@ -114,23 +111,21 @@ pub(crate) async fn process_scan(
     {
         process_index_scan(catalog_helper, table, scan, index_filter_assignment).await
     } else {
-        process_table_scan(catalog_helper, &storage, table_id, table_schema, scan).await
+        process_table_scan(catalog_helper, table, scan).await
     }
 }
 
 async fn process_table_scan(
     catalog_helper: &CatalogHelper,
-    storage: &Arc<Storage>,
-    table_id: Uuid,
-    table_schema: &SchemaRef,
+    table: &Table,
     scan: TableScan,
 ) -> ILResult<RecordBatchStream> {
     let mut streams: Vec<RecordBatchStream> = if scan.partition.partition_idx == 0 {
         // Scan inline rows
-        let projected_schema = Arc::new(project_schema(table_schema, scan.projection.as_ref())?);
+        let projected_schema = Arc::new(project_schema(&table.schema, scan.projection.as_ref())?);
         let catalog_schema = Arc::new(CatalogSchema::from_arrow(&projected_schema)?);
         let row_stream = catalog_helper
-            .scan_inline_rows(&table_id, &catalog_schema, None, &scan.filters)
+            .scan_inline_rows(&table.table_id, &catalog_schema, None, &scan.filters)
             .await?;
         let inline_stream = Box::pin(row_stream.chunks(scan.batch_size).map(move |rows| {
             let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
@@ -142,18 +137,18 @@ async fn process_table_scan(
         vec![]
     };
 
-    let data_file_count = catalog_helper.count_data_files(&table_id).await?;
+    let data_file_count = catalog_helper.count_data_files(&table.table_id).await?;
     let (offset, limit) = scan.partition.offset_limit(data_file_count as usize);
 
     // Scan data files
     let data_file_records = catalog_helper
-        .get_partitioned_data_files(&table_id, offset, limit)
+        .get_partitioned_data_files(&table.table_id, offset, limit)
         .await?;
 
     let mut handles = Vec::with_capacity(data_file_records.len());
     for data_file_record in data_file_records {
-        let storage = storage.clone();
-        let table_schema = table_schema.clone();
+        let storage = table.storage.clone();
+        let table_schema = table.schema.clone();
         let projection = scan.projection.clone();
         let filters = scan.filters.clone();
         let handle = tokio::spawn(async move {
@@ -360,7 +355,7 @@ async fn index_scan_data_file(
         table,
         &scan.filters,
         &index_file_records_map,
-        &index_filter_assignment,
+        index_filter_assignment,
     )
     .await?;
 
@@ -379,7 +374,7 @@ async fn index_scan_data_file(
     read_data_file_by_record(
         &table.storage,
         &table.schema,
-        &data_file_record,
+        data_file_record,
         scan.projection.clone(),
         left_filters,
         Some(&row_ids),
@@ -457,7 +452,7 @@ fn assign_index_filters(
     let mut index_filter_assignment: HashMap<String, Vec<usize>> = HashMap::new();
     for (filter_idx, filter) in filters.iter().enumerate() {
         for (index_def, index_kind) in index_manager.iter_index_and_kind() {
-            let supported = index_kind.supports_filter(index_def, &filter)?;
+            let supported = index_kind.supports_filter(index_def, filter)?;
             if supported {
                 index_filter_assignment
                     .entry(index_def.name.clone())

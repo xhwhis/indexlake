@@ -9,22 +9,21 @@ use uuid::Uuid;
 use crate::catalog::{DataFileRecord, INTERNAL_ROW_ID_FIELD_REF, TransactionHelper};
 use crate::expr::Expr;
 use crate::storage::{Storage, find_matched_row_ids_from_data_file};
+use crate::table::Table;
 use crate::{ILError, ILResult};
 
 pub(crate) async fn process_delete_by_condition(
     tx_helper: &mut TransactionHelper,
-    storage: Arc<Storage>,
-    table_id: &Uuid,
-    table_schema: &SchemaRef,
+    table: &Table,
     condition: &Expr,
     matched_data_file_row_ids: HashMap<Uuid, HashSet<i64>>,
 ) -> ILResult<()> {
     // Directly delete inline rows
     tx_helper
-        .delete_inline_rows(table_id, &[condition.clone()], None)
+        .delete_inline_rows(&table.table_id, &[condition.clone()], None)
         .await?;
 
-    let data_file_records = tx_helper.get_data_files(table_id).await?;
+    let data_file_records = tx_helper.get_data_files(&table.table_id).await?;
     for data_file_record in data_file_records {
         if let Some(matched_row_ids) = matched_data_file_row_ids.get(&data_file_record.data_file_id)
         {
@@ -32,14 +31,8 @@ pub(crate) async fn process_delete_by_condition(
                 .update_data_file_rows_as_invalid(data_file_record, matched_row_ids)
                 .await?;
         } else {
-            delete_data_file_rows_by_condition(
-                tx_helper,
-                &storage,
-                table_schema,
-                condition,
-                data_file_record,
-            )
-            .await?;
+            delete_data_file_rows_by_condition(tx_helper, table, condition, data_file_record)
+                .await?;
         }
     }
     Ok(())
@@ -47,14 +40,17 @@ pub(crate) async fn process_delete_by_condition(
 
 pub(crate) async fn delete_data_file_rows_by_condition(
     tx_helper: &mut TransactionHelper,
-    storage: &Arc<Storage>,
-    table_schema: &SchemaRef,
+    table: &Table,
     condition: &Expr,
     data_file_record: DataFileRecord,
 ) -> ILResult<()> {
-    let deleted_row_ids =
-        find_matched_row_ids_from_data_file(&storage, &table_schema, &condition, &data_file_record)
-            .await?;
+    let deleted_row_ids = find_matched_row_ids_from_data_file(
+        &table.storage,
+        &table.schema,
+        &condition,
+        &data_file_record,
+    )
+    .await?;
 
     tx_helper
         .update_data_file_rows_as_invalid(data_file_record, &deleted_row_ids)
