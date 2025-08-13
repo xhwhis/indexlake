@@ -31,7 +31,7 @@ impl IndexKind for BM25IndexKind {
             return Err(ILError::index("BM25 index requires exactly one key column"));
         }
         let key_column_name = &index_def.key_columns[0];
-        let key_field = index_def.table_schema.field_with_name(&key_column_name)?;
+        let key_field = index_def.table_schema.field_with_name(key_column_name)?;
         if !matches!(
             key_field.data_type(),
             DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View
@@ -71,6 +71,6 @@ impl IndexParams for BM25IndexParams {
     }
 
     fn encode(&self) -> ILResult<String> {
-        Ok(serde_json::to_string(self).map_err(|e| ILError::index(e.to_string()))?)
+        serde_json::to_string(self).map_err(|e| ILError::index(e.to_string()))
     }
 }

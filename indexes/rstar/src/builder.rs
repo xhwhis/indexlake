@@ -62,10 +62,10 @@ impl IndexBuilder for RStarIndexBuilder {
     fn append(&mut self, batch: &RecordBatch) -> ILResult<()> {
         let params = self.index_def.downcast_params::<RStarIndexParams>()?;
 
-        let row_id_array = extract_row_id_array_from_record_batch(&batch)?;
+        let row_id_array = extract_row_id_array_from_record_batch(batch)?;
 
         let key_column_name = &self.index_def.key_columns[0];
-        let key_column_index = batch.schema_ref().index_of(&key_column_name)?;
+        let key_column_index = batch.schema_ref().index_of(key_column_name)?;
         let key_column = batch.column(key_column_index);
         let aabbs = compute_aabbs(key_column, params.wkb_dialect)?;
 
@@ -222,7 +222,7 @@ fn compute_aabbs(
 pub(crate) fn compute_aabb(wkb: &[u8], wkb_dialect: WkbDialect) -> ILResult<AABB<geo::Coord<f64>>> {
     let mut rdr = std::io::Cursor::new(wkb);
     let geom = geo::Geometry::from_wkb(&mut rdr, wkb_dialect.to_geozero())
-        .map_err(|e| ILError::index(format!("Failed to parse ewkb: {:?}", e)))?;
+        .map_err(|e| ILError::index(format!("Failed to parse ewkb: {e:?}")))?;
     if let Some(rect) = geom.bounding_rect() {
         Ok(AABB::from_corners(rect.min(), rect.max()))
     } else {

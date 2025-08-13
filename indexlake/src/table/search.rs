@@ -7,8 +7,7 @@ use arrow::{
     array::{Float64Array, Int64Array, RecordBatch},
     compute::SortOptions,
 };
-use arrow_schema::Schema;
-use futures::{StreamExt, TryStreamExt};
+use futures::TryStreamExt;
 use uuid::Uuid;
 
 use crate::{

@@ -101,7 +101,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let table_search = TableSearch {
         query: Arc::new(HnswSearchQuery {
             vector: vec![500.0; 1024],
-            limit: limit,
+            limit,
         }),
         projection: None,
     };

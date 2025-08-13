@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Instant};
+use std::{sync::Arc, time::Instant};
 
 use arrow::datatypes::SchemaRef;
 use futures::StreamExt;
@@ -11,7 +11,7 @@ use crate::{
         Catalog, CatalogHelper, CatalogSchema, DataFileRecord, IndexFileRecord, InlineIndexRecord,
         RowStream, TransactionHelper, rows_to_record_batch,
     },
-    index::{IndexBuilder, IndexDefinationRef, IndexKind, IndexManager},
+    index::{IndexBuilder, IndexManager},
     storage::{DataFileFormat, Storage, build_lance_writer, build_parquet_writer},
     table::{Table, TableConfig},
 };

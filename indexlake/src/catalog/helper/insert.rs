@@ -1,7 +1,7 @@
 use uuid::Uuid;
 
 use crate::{
-    ILError, ILResult,
+    ILResult,
     catalog::{
         DataFileRecord, FieldRecord, IndexFileRecord, IndexRecord, InlineIndexRecord, TableRecord,
         TransactionHelper, inline_row_table_name,

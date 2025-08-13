@@ -2,7 +2,7 @@ use std::{collections::HashSet, hash::Hash, sync::Arc};
 
 use arrow::{
     array::{Array, ArrayRef, Int64Array, RecordBatch, RecordBatchOptions},
-    datatypes::{Field, FieldRef, Schema},
+    datatypes::{FieldRef, Schema},
     ipc::{reader::StreamReader, writer::StreamWriter},
 };
 
@@ -34,7 +34,7 @@ pub(crate) fn schema_without_row_id(schema: &Schema) -> Schema {
         .fields
         .iter()
         .filter(|field| field.name() != INTERNAL_ROW_ID_FIELD_NAME)
-        .map(|field| field.clone())
+        .cloned()
         .collect::<Vec<_>>();
     Schema::new_with_metadata(fields, schema.metadata().clone())
 }

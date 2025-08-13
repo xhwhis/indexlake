@@ -1,7 +1,4 @@
-use crate::{
-    ILError, ILResult,
-    expr::{BinaryExpr, BinaryOp, Expr, lit},
-};
+use crate::expr::{BinaryExpr, BinaryOp, Expr};
 
 pub fn split_binary_expr(expr: Expr, operator: BinaryOp) -> Vec<Expr> {
     split_binary_expr_impl(expr, operator, Vec::new())

@@ -30,7 +30,6 @@ pub fn init_env_logger() {
     }
     ENV_LOGGER.get_or_init(|| {
         env_logger::init();
-        ()
     });
 }
 
@@ -38,7 +37,7 @@ pub fn setup_sqlite_db() -> String {
     let db_path = format!(
         "{}/tmp/sqlite/{}.db",
         env!("CARGO_MANIFEST_DIR"),
-        uuid::Uuid::new_v4().to_string()
+        uuid::Uuid::new_v4()
     );
     std::fs::create_dir_all(PathBuf::from(&db_path).parent().unwrap()).unwrap();
     let conn = rusqlite::Connection::open(&db_path).unwrap();
@@ -71,7 +70,7 @@ pub fn catalog_sqlite() -> Arc<dyn Catalog> {
 }
 
 pub async fn catalog_postgres() -> Arc<dyn Catalog> {
-    let _ = POSTGRES_DB.get_or_init(|| setup_postgres_db());
+    let _ = POSTGRES_DB.get_or_init(setup_postgres_db);
     let builder = PostgresCatalogBuilder::new("localhost", 5432, "postgres", "password")
         .dbname("postgres")
         .pool_size(50);
@@ -101,7 +100,7 @@ pub fn storage_fs() -> Arc<Storage> {
 }
 
 pub async fn storage_s3() -> Arc<Storage> {
-    let _ = MINIO.get_or_init(|| setup_minio());
+    let _ = MINIO.get_or_init(setup_minio);
     let mut config = S3Config::default();
     config.endpoint = Some("http://127.0.0.1:9000".to_string());
     config.access_key_id = Some("admin".to_string());

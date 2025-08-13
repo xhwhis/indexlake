@@ -35,10 +35,8 @@ impl ArrowScorer {
                     .expect("Indices should be UInt32Array");
                 for token_index in indices.iter() {
                     let token_index = token_index.expect("Token index should not be null");
-                    let documents_containing_token = self
-                        .inverted_token_index
-                        .entry(token_index.clone())
-                        .or_default();
+                    let documents_containing_token =
+                        self.inverted_token_index.entry(token_index).or_default();
                     documents_containing_token.insert(row_id);
                 }
             }

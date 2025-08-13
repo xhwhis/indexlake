@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 
 use jieba_rs::Jieba;
 
-static JIEBA: LazyLock<Jieba> = LazyLock::new(|| Jieba::new());
+static JIEBA: LazyLock<Jieba> = LazyLock::new(Jieba::new);
 
 #[derive(Debug)]
 pub struct JiebaTokenizer;

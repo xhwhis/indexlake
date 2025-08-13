@@ -10,7 +10,7 @@ use crate::catalog::{
 };
 use crate::expr::Expr;
 use crate::{
-    ILError, ILResult,
+    ILResult,
     catalog::{
         CatalogDataType, CatalogSchema, CatalogSchemaRef, Column, INTERNAL_FLAG_FIELD_NAME,
         INTERNAL_ROW_ID_FIELD_NAME, Row,
@@ -493,7 +493,7 @@ impl CatalogHelper {
                 schema,
             )
             .await?;
-        Ok(rows.len() > 0)
+        Ok(!rows.is_empty())
     }
 
     pub(crate) async fn get_inline_indexes(

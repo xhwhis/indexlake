@@ -5,7 +5,7 @@ use arrow::{
     datatypes::Int64Type,
 };
 use arrow_schema::Schema;
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
 use lance_core::cache::LanceCache;
 use lance_encoding::decoder::{DecoderPlugins, FilterExpression};
 use lance_file::{
@@ -40,8 +40,10 @@ pub(crate) async fn build_lance_writer(
 
     let registry = Arc::new(ObjectStoreRegistry::default());
 
-    let mut object_store_params = ObjectStoreParams::default();
-    object_store_params.storage_options = Some(storage.storage_options()?);
+    let object_store_params = ObjectStoreParams {
+        storage_options: Some(storage.storage_options()?),
+        ..Default::default()
+    };
 
     let (object_store, _) =
         ObjectStore::from_uri_and_params(registry, &root_path, &object_store_params).await?;
@@ -81,8 +83,10 @@ pub(crate) async fn read_lance_file_by_record(
 
     let registry = Arc::new(ObjectStoreRegistry::default());
 
-    let mut object_store_params = ObjectStoreParams::default();
-    object_store_params.storage_options = Some(storage.storage_options()?);
+    let object_store_params = ObjectStoreParams {
+        storage_options: Some(storage.storage_options()?),
+        ..Default::default()
+    };
 
     let (object_store, _) =
         ObjectStore::from_uri_and_params(registry, &root_path, &object_store_params).await?;
@@ -202,13 +206,13 @@ pub(crate) async fn read_lance_file_by_record_and_row_id_condition(
     let match_row_ids = match_row_id_array
         .values()
         .iter()
-        .map(|v| *v)
+        .copied()
         .collect::<HashSet<_>>();
 
     let stream = read_lance_file_by_record(
-        &storage,
-        &table_schema,
-        &data_file_record,
+        storage,
+        table_schema,
+        data_file_record,
         projection,
         vec![],
         Some(&match_row_ids),
@@ -224,7 +228,7 @@ pub(crate) async fn find_matched_row_ids_from_lance_file(
     condition: &Expr,
     data_file_record: &DataFileRecord,
 ) -> ILResult<HashSet<i64>> {
-    let mut projection = build_projection_from_condition(table_schema, &condition)?;
+    let mut projection = build_projection_from_condition(table_schema, condition)?;
     // If the condition does not contain the row id column, add it to the projection
     if !projection.contains(&0) {
         projection.insert(0, 0);

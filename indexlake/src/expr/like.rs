@@ -1,4 +1,4 @@
-use arrow::{array::RecordBatch, datatypes::DataType};
+use arrow::array::RecordBatch;
 use derive_visitor::{Drive, DriveMut};
 use serde::{Deserialize, Serialize};
 
@@ -26,14 +26,14 @@ impl Like {
         }
     }
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> ILResult<String> {
-        let expr = self.expr.to_sql(database.clone())?;
+        let expr = self.expr.to_sql(database)?;
         let pattern = self.pattern.to_sql(database)?;
         match database {
             CatalogDatabase::Postgres => match (self.negated, self.case_insensitive) {
-                (true, true) => Ok(format!("{} NOT ILIKE {}", expr, pattern)),
-                (true, false) => Ok(format!("{} NOT LIKE {}", expr, pattern)),
-                (false, true) => Ok(format!("{} ILIKE {}", expr, pattern)),
-                (false, false) => Ok(format!("{} LIKE {}", expr, pattern)),
+                (true, true) => Ok(format!("{expr} NOT ILIKE {pattern}")),
+                (true, false) => Ok(format!("{expr} NOT LIKE {pattern}")),
+                (false, true) => Ok(format!("{expr} ILIKE {pattern}")),
+                (false, false) => Ok(format!("{expr} LIKE {pattern}")),
             },
             CatalogDatabase::Sqlite => {
                 // For case-sensitive LIKE, SQLite requires `PRAGMA case_sensitive_like = ON;`
@@ -42,10 +42,10 @@ impl Like {
                 // For case-insensitive ILIKE, we use the `UPPER()` function on both
                 // the expression and the pattern to ensure case-insensitivity.
                 match (self.negated, self.case_insensitive) {
-                    (false, false) => Ok(format!("{} LIKE {}", expr, pattern)),
-                    (true, false) => Ok(format!("{} NOT LIKE {}", expr, pattern)),
-                    (false, true) => Ok(format!("UPPER({}) LIKE UPPER({})", expr, pattern)),
-                    (true, true) => Ok(format!("UPPER({}) NOT LIKE UPPER({})", expr, pattern)),
+                    (false, false) => Ok(format!("{expr} LIKE {pattern}")),
+                    (true, false) => Ok(format!("{expr} NOT LIKE {pattern}")),
+                    (false, true) => Ok(format!("UPPER({expr}) LIKE UPPER({pattern})")),
+                    (true, true) => Ok(format!("UPPER({expr}) NOT LIKE UPPER({pattern})")),
                 }
             }
         }

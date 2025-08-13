@@ -9,8 +9,8 @@ pub enum CatalogDatabase {
 impl CatalogDatabase {
     pub fn sql_identifier(&self, ident: &str) -> String {
         match self {
-            CatalogDatabase::Sqlite => format!("`{}`", ident),
-            CatalogDatabase::Postgres => format!("\"{}\"", ident),
+            CatalogDatabase::Sqlite => format!("`{ident}`"),
+            CatalogDatabase::Postgres => format!("\"{ident}\""),
         }
     }
 
@@ -24,7 +24,7 @@ impl CatalogDatabase {
     pub fn sql_uuid_value(&self, value: &Uuid) -> String {
         match self {
             CatalogDatabase::Sqlite => self.sql_binary_value(value.as_bytes()),
-            CatalogDatabase::Postgres => format!("'{}'", value.to_string()),
+            CatalogDatabase::Postgres => format!("'{value}'"),
         }
     }
 }

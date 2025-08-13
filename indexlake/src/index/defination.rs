@@ -3,7 +3,7 @@ use crate::{
     catalog::IndexRecord,
     index::{IndexKind, IndexParams},
 };
-use arrow::datatypes::{Field, FieldRef, SchemaRef};
+use arrow::datatypes::{FieldRef, SchemaRef};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,

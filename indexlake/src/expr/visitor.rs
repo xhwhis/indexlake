@@ -18,9 +18,8 @@ impl ColumnRecorder {
     }
 
     pub fn enter_expr(&mut self, expr: &Expr) {
-        match expr {
-            Expr::Column(name) => self.columns.push(name.clone()),
-            _ => {}
+        if let Expr::Column(name) = expr {
+            self.columns.push(name.clone());
         }
     }
 }

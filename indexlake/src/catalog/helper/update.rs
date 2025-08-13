@@ -37,7 +37,7 @@ impl TransactionHelper {
     pub(crate) async fn update_data_file_validity(
         &mut self,
         data_file_id: &Uuid,
-        validity: &Vec<bool>,
+        validity: &[bool],
     ) -> ILResult<usize> {
         let validity_bytes = DataFileRecord::validity_to_bytes(validity);
         self.transaction

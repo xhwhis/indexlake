@@ -42,6 +42,7 @@ impl TransactionHelper {
         self.transaction.commit().await
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn rollback(&mut self) -> ILResult<()> {
         self.transaction.rollback().await
     }

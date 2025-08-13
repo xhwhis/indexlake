@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use arrow::{
     array::*,
@@ -53,7 +53,7 @@ pub(crate) async fn process_insert_into_inline_rows(
     // append index builders
     for batch in batches {
         for builder in mergeable_index_builders.iter_mut() {
-            builder.append(&batch)?;
+            builder.append(batch)?;
         }
     }
     append_non_mergeable_index_builders(
@@ -233,7 +233,7 @@ async fn write_parquet_file(
     batches: &[RecordBatch],
     index_builders: &mut Vec<Box<dyn IndexBuilder>>,
 ) -> ILResult<()> {
-    let output_file = table.storage.create_file(&relative_path).await?;
+    let output_file = table.storage.create_file(relative_path).await?;
 
     let mut arrow_writer = build_parquet_writer(
         output_file,
@@ -401,13 +401,13 @@ pub(crate) fn record_batch_to_sql_values(
                     .sql_binary_value(v))
             }
             DataType::Utf8 => {
-                extract_sql_values!(array, StringArray, |v: &str| format!("'{}'", v))
+                extract_sql_values!(array, StringArray, |v: &str| format!("'{v}'"))
             }
             DataType::LargeUtf8 => {
-                extract_sql_values!(array, LargeStringArray, |v: &str| format!("'{}'", v))
+                extract_sql_values!(array, LargeStringArray, |v: &str| format!("'{v}'"))
             }
             DataType::Utf8View => {
-                extract_sql_values!(array, StringViewArray, |v: &str| format!("'{}'", v))
+                extract_sql_values!(array, StringViewArray, |v: &str| format!("'{v}'"))
             }
             DataType::List(inner_field) => {
                 let mut sql_values = Vec::with_capacity(array.len());
@@ -462,10 +462,10 @@ pub(crate) fn record_batch_to_sql_values(
                 sql_values
             }
             DataType::Decimal128(_, _) => {
-                extract_sql_values!(array, Decimal128Array, |v: i128| format!("'{}'", v))
+                extract_sql_values!(array, Decimal128Array, |v: i128| format!("'{v}'"))
             }
             DataType::Decimal256(_, _) => {
-                extract_sql_values!(array, Decimal256Array, |v: i256| format!("'{}'", v))
+                extract_sql_values!(array, Decimal256Array, |v: i256| format!("'{v}'"))
             }
             _ => {
                 return Err(ILError::not_supported(format!(
@@ -483,7 +483,7 @@ pub(crate) fn record_batch_to_sql_values(
             row_values.push(column_values[row_idx].clone());
         }
         let row_values_str = row_values.join(", ");
-        sql_values.push(format!("({})", row_values_str));
+        sql_values.push(format!("({row_values_str})"));
     }
     Ok(sql_values)
 }
@@ -494,14 +494,14 @@ pub(crate) async fn append_non_mergeable_index_builders(
     table_schema: &SchemaRef,
     index_builders: &mut Vec<Box<dyn IndexBuilder>>,
 ) -> ILResult<()> {
-    let catalog_schema = Arc::new(CatalogSchema::from_arrow(&table_schema)?);
+    let catalog_schema = Arc::new(CatalogSchema::from_arrow(table_schema)?);
 
     let row_stream = tx_helper
         .scan_inline_rows(table_id, &catalog_schema, &[], None)
         .await?;
     let mut inline_stream = row_stream.chunks(100).map(move |rows| {
         let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
-        let batch = rows_to_record_batch(&table_schema, &rows)?;
+        let batch = rows_to_record_batch(table_schema, &rows)?;
         Ok::<_, ILError>(batch)
     });
 

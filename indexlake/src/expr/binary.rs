@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ILError, ILResult,
-    catalog::{CatalogDatabase, Row, Scalar},
+    catalog::{CatalogDatabase, Scalar},
     expr::{ColumnarValue, Expr},
 };
 
@@ -91,32 +91,24 @@ impl BinaryExpr {
         let rhs = self.right.eval(batch)?;
 
         match self.op {
-            BinaryOp::Eq => return apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::eq),
-            BinaryOp::NotEq => return apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::neq),
-            BinaryOp::Lt => return apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::lt),
-            BinaryOp::LtEq => return apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::lt_eq),
-            BinaryOp::Gt => return apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::gt),
-            BinaryOp::GtEq => return apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::gt_eq),
-            BinaryOp::Plus => {
-                return apply(&lhs, &rhs, arrow::compute::kernels::numeric::add_wrapping);
-            }
-            BinaryOp::Minus => {
-                return apply(&lhs, &rhs, arrow::compute::kernels::numeric::sub_wrapping);
-            }
-            BinaryOp::Multiply => {
-                return apply(&lhs, &rhs, arrow::compute::kernels::numeric::mul_wrapping);
-            }
-            BinaryOp::Divide => return apply(&lhs, &rhs, arrow::compute::kernels::numeric::div),
-            BinaryOp::Modulo => return apply(&lhs, &rhs, arrow::compute::kernels::numeric::rem),
-            BinaryOp::And => {
-                return apply_boolean(&lhs, &rhs, arrow::compute::kernels::boolean::and);
-            }
-            BinaryOp::Or => return apply_boolean(&lhs, &rhs, arrow::compute::kernels::boolean::or),
+            BinaryOp::Eq => apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::eq),
+            BinaryOp::NotEq => apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::neq),
+            BinaryOp::Lt => apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::lt),
+            BinaryOp::LtEq => apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::lt_eq),
+            BinaryOp::Gt => apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::gt),
+            BinaryOp::GtEq => apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::gt_eq),
+            BinaryOp::Plus => apply(&lhs, &rhs, arrow::compute::kernels::numeric::add_wrapping),
+            BinaryOp::Minus => apply(&lhs, &rhs, arrow::compute::kernels::numeric::sub_wrapping),
+            BinaryOp::Multiply => apply(&lhs, &rhs, arrow::compute::kernels::numeric::mul_wrapping),
+            BinaryOp::Divide => apply(&lhs, &rhs, arrow::compute::kernels::numeric::div),
+            BinaryOp::Modulo => apply(&lhs, &rhs, arrow::compute::kernels::numeric::rem),
+            BinaryOp::And => apply_boolean(&lhs, &rhs, arrow::compute::kernels::boolean::and),
+            BinaryOp::Or => apply_boolean(&lhs, &rhs, arrow::compute::kernels::boolean::or),
             BinaryOp::IsDistinctFrom => {
-                return apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::distinct);
+                apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::distinct)
             }
             BinaryOp::IsNotDistinctFrom => {
-                return apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::not_distinct);
+                apply_cmp(&lhs, &rhs, arrow::compute::kernels::cmp::not_distinct)
             }
         }
     }
@@ -207,8 +199,8 @@ pub fn apply_boolean(
                 ILError::internal(format!("Expected boolean array, got {}", right.data_type()))
             })?;
             Ok(ColumnarValue::Array(Arc::new(f(
-                &left_bool_arr,
-                &right_bool_arr,
+                left_bool_arr,
+                right_bool_arr,
             )?)))
         }
         (ColumnarValue::Scalar(left), ColumnarValue::Array(right)) => {
@@ -224,8 +216,8 @@ pub fn apply_boolean(
                 ILError::internal(format!("Expected boolean array, got {}", right.data_type()))
             })?;
             Ok(ColumnarValue::Array(Arc::new(f(
-                &left_bool_arr,
-                &right_bool_arr,
+                left_bool_arr,
+                right_bool_arr,
             )?)))
         }
         (ColumnarValue::Array(left), ColumnarValue::Scalar(right)) => {
@@ -241,8 +233,8 @@ pub fn apply_boolean(
                 ))
             })?;
             Ok(ColumnarValue::Array(Arc::new(f(
-                &left_bool_arr,
-                &right_bool_arr,
+                left_bool_arr,
+                right_bool_arr,
             )?)))
         }
         (ColumnarValue::Scalar(left), ColumnarValue::Scalar(right)) => {
@@ -262,8 +254,8 @@ pub fn apply_boolean(
                 ))
             })?;
             Ok(ColumnarValue::Array(Arc::new(f(
-                &left_bool_arr,
-                &right_bool_arr,
+                left_bool_arr,
+                right_bool_arr,
             )?)))
         }
     }

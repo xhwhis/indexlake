@@ -3,10 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use arrow::{
-    array::{Int32Array, Int64Array},
-    datatypes::SchemaRef,
-};
+use arrow::datatypes::SchemaRef;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -18,8 +15,8 @@ use crate::{
         rows_to_record_batch,
     },
     expr::{Expr, split_conjunction_filters},
-    index::{IndexDefinationRef, IndexKind, IndexManager},
-    storage::{Storage, read_data_file_by_record},
+    index::IndexManager,
+    storage::read_data_file_by_record,
     table::Table,
     utils::project_schema,
 };
@@ -107,7 +104,7 @@ pub(crate) async fn process_scan(
 
     if index_filter_assignment
         .values()
-        .any(|filters| filters.len() > 0)
+        .any(|filters| !filters.is_empty())
     {
         process_index_scan(catalog_helper, table, scan, index_filter_assignment).await
     } else {
@@ -325,7 +322,7 @@ async fn index_scan_inline_rows(
                     .collect::<Vec<_>>()
                     .as_slice(),
             ),
-            &non_index_filters,
+            non_index_filters,
         )
         .await?;
     let inline_stream = row_stream.chunks(scan.batch_size).map(move |rows| {

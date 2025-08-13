@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use arrow::{
     array::{Array, BooleanArray, RecordBatch, new_null_array},
-    compute::{and, and_not, kernels::zip::zip, nullif, prep_null_mask_filter},
+    compute::{and, and_not, kernels::zip::zip, prep_null_mask_filter},
 };
 use arrow_schema::{DataType, Schema};
 use derive_visitor::{Drive, DriveMut};
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ILError, ILResult,
-    catalog::{CatalogDatabase, Scalar},
+    catalog::CatalogDatabase,
     expr::{ColumnarValue, Expr, try_cast},
 };
 
@@ -117,10 +117,10 @@ impl std::fmt::Display for CaseExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "CASE")?;
         for (when, then) in &self.when_then {
-            write!(f, " WHEN {} THEN {}", when, then)?;
+            write!(f, " WHEN {when} THEN {then}")?;
         }
         if let Some(else_expr) = &self.else_expr {
-            write!(f, " ELSE {}", else_expr)?;
+            write!(f, " ELSE {else_expr}")?;
         }
         write!(f, " END")?;
         Ok(())

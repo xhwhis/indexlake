@@ -184,7 +184,7 @@ pub fn pretty_print_rows(schema_opt: Option<CatalogSchemaRef>, rows: &[Row]) -> 
 
     let schema_opt = schema_opt.or_else(|| {
         if rows.is_empty() {
-            return None;
+            None
         } else {
             Some(rows[0].schema.clone())
         }
@@ -506,33 +506,63 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         boolean,
                         i,
-                        |v| Ok::<_, ILError>(v)
+                        Ok::<_, ILError>
                     );
                 }
                 DataType::Int8 => {
-                    builder_append!(array_builders[i], Int8Builder, field, row, int8, i, |v| {
-                        Ok::<_, ILError>(v)
-                    });
+                    builder_append!(
+                        array_builders[i],
+                        Int8Builder,
+                        field,
+                        row,
+                        int8,
+                        i,
+                        Ok::<_, ILError>
+                    );
                 }
                 DataType::Int16 => {
-                    builder_append!(array_builders[i], Int16Builder, field, row, int16, i, |v| {
-                        Ok::<_, ILError>(v)
-                    });
+                    builder_append!(
+                        array_builders[i],
+                        Int16Builder,
+                        field,
+                        row,
+                        int16,
+                        i,
+                        Ok::<_, ILError>
+                    );
                 }
                 DataType::Int32 => {
-                    builder_append!(array_builders[i], Int32Builder, field, row, int32, i, |v| {
-                        Ok::<_, ILError>(v)
-                    });
+                    builder_append!(
+                        array_builders[i],
+                        Int32Builder,
+                        field,
+                        row,
+                        int32,
+                        i,
+                        Ok::<_, ILError>
+                    );
                 }
                 DataType::Int64 => {
-                    builder_append!(array_builders[i], Int64Builder, field, row, int64, i, |v| {
-                        Ok::<_, ILError>(v)
-                    });
+                    builder_append!(
+                        array_builders[i],
+                        Int64Builder,
+                        field,
+                        row,
+                        int64,
+                        i,
+                        Ok::<_, ILError>
+                    );
                 }
                 DataType::UInt8 => {
-                    builder_append!(array_builders[i], UInt8Builder, field, row, uint8, i, |v| {
-                        Ok::<_, ILError>(v)
-                    });
+                    builder_append!(
+                        array_builders[i],
+                        UInt8Builder,
+                        field,
+                        row,
+                        uint8,
+                        i,
+                        Ok::<_, ILError>
+                    );
                 }
                 DataType::UInt16 => {
                     builder_append!(
@@ -542,7 +572,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         uint16,
                         i,
-                        |v| { Ok::<_, ILError>(v) }
+                        Ok::<_, ILError>
                     );
                 }
                 DataType::UInt32 => {
@@ -553,7 +583,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         uint32,
                         i,
-                        |v| { Ok::<_, ILError>(v) }
+                        Ok::<_, ILError>
                     );
                 }
                 DataType::UInt64 => {
@@ -564,7 +594,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         uint64,
                         i,
-                        |v| { Ok::<_, ILError>(v) }
+                        Ok::<_, ILError>
                     );
                 }
                 DataType::Float32 => {
@@ -575,7 +605,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         float32,
                         i,
-                        |v| Ok::<_, ILError>(v)
+                        Ok::<_, ILError>
                     );
                 }
                 DataType::Float64 => {
@@ -586,7 +616,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         float64,
                         i,
-                        |v| Ok::<_, ILError>(v)
+                        Ok::<_, ILError>
                     );
                 }
                 DataType::Timestamp(TimeUnit::Second, _) => {
@@ -597,7 +627,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         int64,
                         i,
-                        |v| { Ok::<_, ILError>(v) }
+                        Ok::<_, ILError>
                     );
                 }
                 DataType::Timestamp(TimeUnit::Millisecond, _) => {
@@ -608,7 +638,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         int64,
                         i,
-                        |v| { Ok::<_, ILError>(v) }
+                        Ok::<_, ILError>
                     );
                 }
                 DataType::Timestamp(TimeUnit::Microsecond, _) => {
@@ -630,7 +660,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         int64,
                         i,
-                        |v| { Ok::<_, ILError>(v) }
+                        Ok::<_, ILError>
                     );
                 }
                 DataType::Date32 => {
@@ -641,7 +671,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         int32,
                         i,
-                        |v| { Ok::<_, ILError>(v) }
+                        Ok::<_, ILError>
                     );
                 }
                 DataType::Date64 => {
@@ -652,7 +682,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         int64,
                         i,
-                        |v| { Ok::<_, ILError>(v) }
+                        Ok::<_, ILError>
                     );
                 }
                 DataType::Time32(TimeUnit::Second) => {
@@ -663,7 +693,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         int32,
                         i,
-                        |v| { Ok::<_, ILError>(v) }
+                        Ok::<_, ILError>
                     );
                 }
                 DataType::Time32(TimeUnit::Millisecond) => {
@@ -685,7 +715,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         int64,
                         i,
-                        |v| { Ok::<_, ILError>(v) }
+                        Ok::<_, ILError>
                     );
                 }
                 DataType::Time64(TimeUnit::Nanosecond) => {
@@ -696,7 +726,7 @@ pub fn rows_to_record_batch(schema: &SchemaRef, rows: &[Row]) -> ILResult<Record
                         row,
                         int64,
                         i,
-                        |v| { Ok::<_, ILError>(v) }
+                        Ok::<_, ILError>
                     );
                 }
                 DataType::Binary => {

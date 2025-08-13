@@ -6,11 +6,11 @@ use arrow::datatypes::{DataType, Schema, SchemaRef};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
+use crate::ILResult;
 use crate::catalog::{DataFileRecord, INTERNAL_ROW_ID_FIELD_REF, TransactionHelper};
 use crate::expr::Expr;
 use crate::storage::{Storage, find_matched_row_ids_from_data_file};
 use crate::table::Table;
-use crate::{ILError, ILResult};
 
 pub(crate) async fn process_delete_by_condition(
     tx_helper: &mut TransactionHelper,
@@ -47,7 +47,7 @@ pub(crate) async fn delete_data_file_rows_by_condition(
     let deleted_row_ids = find_matched_row_ids_from_data_file(
         &table.storage,
         &table.schema,
-        &condition,
+        condition,
         &data_file_record,
     )
     .await?;

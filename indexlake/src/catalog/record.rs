@@ -55,15 +55,15 @@ impl TableRecord {
         let table_name = row.utf8_owned(1)?.expect("table_name is not null");
         let namespace_id = row.uuid(2)?.expect("namespace_id is not null");
         let config_str = row.utf8(3)?.expect("config is not null");
-        let config: TableConfig = serde_json::from_str(&config_str)
+        let config: TableConfig = serde_json::from_str(config_str)
             .map_err(|e| ILError::internal(format!("Failed to deserialize table config: {e:?}")))?;
         let schema_metadata_str = row.utf8(4)?.expect("schema_metadata is not null");
-        let schema_metadata: HashMap<String, String> = serde_json::from_str(&schema_metadata_str)
+        let schema_metadata: HashMap<String, String> = serde_json::from_str(schema_metadata_str)
             .map_err(|e| {
-            ILError::internal(format!(
-                "Failed to deserialize table schema metadata: {e:?}"
-            ))
-        })?;
+                ILError::internal(format!(
+                    "Failed to deserialize table schema metadata: {e:?}"
+                ))
+            })?;
         Ok(TableRecord {
             table_id,
             table_name,
@@ -137,7 +137,7 @@ impl FieldRecord {
         let nullable = row.boolean(4)?.expect("nullable is not null");
         let metadata_str = row.utf8(5)?.expect("metadata is not null");
         let metadata: HashMap<String, String> =
-            serde_json::from_str(&metadata_str).map_err(|e| {
+            serde_json::from_str(metadata_str).map_err(|e| {
                 ILError::internal(format!("Failed to deserialize field metadata: {e:?}"))
             })?;
         Ok(FieldRecord {
@@ -182,7 +182,7 @@ impl DataFileRecord {
         )
     }
 
-    pub(crate) fn validity_to_bytes(validity: &Vec<bool>) -> Vec<u8> {
+    pub(crate) fn validity_to_bytes(validity: &[bool]) -> Vec<u8> {
         validity
             .iter()
             .flat_map(|valid| if *valid { vec![1u8] } else { vec![0u8] })
@@ -208,10 +208,7 @@ impl DataFileRecord {
         format: DataFileFormat,
     ) -> String {
         format!(
-            "{}/{}/{}.{}",
-            namespace_id.to_string(),
-            table_id.to_string(),
-            data_file_id.to_string(),
+            "{namespace_id}/{table_id}/{data_file_id}.{}",
             match format {
                 DataFileFormat::ParquetV1 | DataFileFormat::ParquetV2 => "parquet",
                 DataFileFormat::LanceV2_0 => "lance",
@@ -356,7 +353,7 @@ impl IndexRecord {
         let key_field_ids_str = row.utf8(4)?.expect("key_field_ids is not null");
         let key_field_ids = key_field_ids_str
             .split(",")
-            .map(|id| Uuid::parse_str(id))
+            .map(Uuid::parse_str)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| ILError::internal(format!("Failed to parse key field ids: {e:?}")))?;
         let params = row.utf8_owned(5)?.expect("params is not null");
@@ -406,12 +403,7 @@ impl IndexFileRecord {
         table_id: &Uuid,
         index_file_id: &Uuid,
     ) -> String {
-        format!(
-            "{}/{}/{}.index",
-            namespace_id.to_string(),
-            table_id.to_string(),
-            index_file_id.to_string()
-        )
+        format!("{namespace_id}/{table_id}/{index_file_id}.index")
     }
 
     pub(crate) fn from_row(mut row: Row) -> ILResult<Self> {

@@ -1,11 +1,11 @@
 use std::any::Any;
 use std::sync::Arc;
 
+use indexlake::ILResult;
 use indexlake::expr::Expr;
 use indexlake::index::{
     IndexBuilder, IndexDefination, IndexDefinationRef, IndexKind, IndexParams, SearchQuery,
 };
-use indexlake::{ILError, ILResult};
 
 #[derive(Debug)]
 pub struct BTreeIndexKind;
@@ -15,27 +15,27 @@ impl IndexKind for BTreeIndexKind {
         "btree"
     }
 
-    fn decode_params(&self, value: &str) -> ILResult<Arc<dyn IndexParams>> {
+    fn decode_params(&self, _value: &str) -> ILResult<Arc<dyn IndexParams>> {
         Ok(Arc::new(BTreeIndexParams))
     }
 
-    fn supports(&self, index_def: &IndexDefination) -> ILResult<()> {
+    fn supports(&self, _index_def: &IndexDefination) -> ILResult<()> {
         Ok(())
     }
 
-    fn builder(&self, index_def: &IndexDefinationRef) -> ILResult<Box<dyn IndexBuilder>> {
+    fn builder(&self, _index_def: &IndexDefinationRef) -> ILResult<Box<dyn IndexBuilder>> {
         todo!()
     }
 
     fn supports_search(
         &self,
-        index_def: &IndexDefination,
-        query: &dyn SearchQuery,
+        _index_def: &IndexDefination,
+        _query: &dyn SearchQuery,
     ) -> ILResult<bool> {
         todo!()
     }
 
-    fn supports_filter(&self, index_def: &IndexDefination, filter: &Expr) -> ILResult<bool> {
+    fn supports_filter(&self, _index_def: &IndexDefination, _filter: &Expr) -> ILResult<bool> {
         todo!()
     }
 }

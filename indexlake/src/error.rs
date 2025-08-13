@@ -47,12 +47,12 @@ impl ILError {
 impl std::fmt::Display for ILError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ILError::InternalError(msg, loc) => write!(f, "Internal error: {} at {}", msg, loc),
-            ILError::NotSupported(msg, loc) => write!(f, "Not supported: {} at {}", msg, loc),
-            ILError::CatalogError(msg, loc) => write!(f, "Catalog error: {} at {}", msg, loc),
-            ILError::StorageError(msg, loc) => write!(f, "Storage error: {} at {}", msg, loc),
-            ILError::IndexError(msg, loc) => write!(f, "Index error: {} at {}", msg, loc),
-            ILError::InvalidInput(msg, loc) => write!(f, "Invalid input: {} at {}", msg, loc),
+            ILError::InternalError(msg, loc) => write!(f, "Internal error: {msg} at {loc}"),
+            ILError::NotSupported(msg, loc) => write!(f, "Not supported: {msg} at {loc}"),
+            ILError::CatalogError(msg, loc) => write!(f, "Catalog error: {msg} at {loc}"),
+            ILError::StorageError(msg, loc) => write!(f, "Storage error: {msg} at {loc}"),
+            ILError::IndexError(msg, loc) => write!(f, "Index error: {msg} at {loc}"),
+            ILError::InvalidInput(msg, loc) => write!(f, "Invalid input: {msg} at {loc}"),
         }
     }
 }

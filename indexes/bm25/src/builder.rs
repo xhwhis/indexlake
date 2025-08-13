@@ -75,10 +75,10 @@ impl IndexBuilder for Bm25IndexBuilder {
     }
 
     fn append(&mut self, batch: &RecordBatch) -> ILResult<()> {
-        let row_id_array = extract_row_id_array_from_record_batch(&batch)?;
+        let row_id_array = extract_row_id_array_from_record_batch(batch)?;
 
         let key_column_name = &self.index_def.key_columns[0];
-        let key_column_index = batch.schema_ref().index_of(&key_column_name)?;
+        let key_column_index = batch.schema_ref().index_of(key_column_name)?;
         let key_column = batch.column(key_column_index);
 
         let embeddings = compute_embeddings(&self.embedder, key_column)?;

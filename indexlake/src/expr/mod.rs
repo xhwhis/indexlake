@@ -300,12 +300,12 @@ impl Expr {
 impl std::fmt::Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expr::Column(name) => write!(f, "{}", name),
-            Expr::Literal(scalar) => write!(f, "{}", scalar),
-            Expr::BinaryExpr(binary_expr) => write!(f, "{}", binary_expr),
-            Expr::Not(expr) => write!(f, "NOT {}", expr),
-            Expr::IsNull(expr) => write!(f, "{} IS NULL", expr),
-            Expr::IsNotNull(expr) => write!(f, "{} IS NOT NULL", expr),
+            Expr::Column(name) => write!(f, "{name}"),
+            Expr::Literal(scalar) => write!(f, "{scalar}"),
+            Expr::BinaryExpr(binary_expr) => write!(f, "{binary_expr}"),
+            Expr::Not(expr) => write!(f, "NOT {expr}"),
+            Expr::IsNull(expr) => write!(f, "{expr} IS NULL"),
+            Expr::IsNotNull(expr) => write!(f, "{expr} IS NOT NULL"),
             Expr::InList(in_list) => write!(
                 f,
                 "{} IN ({})",
@@ -328,13 +328,13 @@ impl std::fmt::Display for Expr {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Expr::Like(like) => write!(f, "{}", like),
+            Expr::Like(like) => write!(f, "{like}"),
             Expr::Cast(cast) => write!(f, "CAST({} AS {})", cast.expr, cast.cast_type),
             Expr::TryCast(try_cast) => {
                 write!(f, "TRY_CAST({} AS {})", try_cast.expr, try_cast.cast_type)
             }
-            Expr::Negative(expr) => write!(f, "-{}", expr),
-            Expr::Case(case) => write!(f, "{}", case),
+            Expr::Negative(expr) => write!(f, "-{expr}"),
+            Expr::Case(case) => write!(f, "{case}"),
         }
     }
 }

@@ -36,7 +36,7 @@ impl IndexKind for RStarIndexKind {
             ));
         }
         let key_column_name = &index_def.key_columns[0];
-        let key_field = index_def.table_schema.field_with_name(&key_column_name)?;
+        let key_field = index_def.table_schema.field_with_name(key_column_name)?;
         if !matches!(
             key_field.data_type(),
             DataType::Binary | DataType::LargeBinary | DataType::BinaryView
@@ -78,7 +78,7 @@ impl IndexKind for RStarIndexKind {
 fn check_intersects_function(
     index_def: &IndexDefination,
     args: &[Expr],
-    return_type: &DataType,
+    _return_type: &DataType,
 ) -> ILResult<bool> {
     if args.len() != 2 {
         return Err(ILError::index(
@@ -93,7 +93,7 @@ fn check_intersects_function(
         ));
     };
     let key_column_name = &index_def.key_columns[0];
-    let key_field = index_def.table_schema.field_with_name(&key_column_name)?;
+    let key_field = index_def.table_schema.field_with_name(key_column_name)?;
     if key_field.name() != col {
         return Err(ILError::index(
             "Intersects function must have a column with the same name as the key column",

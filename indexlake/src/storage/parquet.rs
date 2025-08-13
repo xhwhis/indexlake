@@ -188,13 +188,13 @@ pub(crate) async fn read_parquet_file_by_record_and_row_id_condition(
     let match_row_ids = match_row_id_array
         .values()
         .iter()
-        .map(|v| *v)
+        .copied()
         .collect::<HashSet<_>>();
 
     let stream = read_parquet_file_by_record(
-        &storage,
-        &table_schema,
-        &data_file_record,
+        storage,
+        table_schema,
+        data_file_record,
         projection,
         vec![],
         Some(&match_row_ids),
@@ -210,7 +210,7 @@ pub(crate) async fn find_matched_row_ids_from_parquet_file(
     condition: &Expr,
     data_file_record: &DataFileRecord,
 ) -> ILResult<HashSet<i64>> {
-    let mut projection = build_projection_from_condition(table_schema, &condition)?;
+    let mut projection = build_projection_from_condition(table_schema, condition)?;
     // If the condition does not contain the row id column, add it to the projection
     if !projection.contains(&0) {
         projection.insert(0, 0);

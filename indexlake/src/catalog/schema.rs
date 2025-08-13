@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use arrow::datatypes::{DataType, Schema, TimeUnit};
+use arrow::datatypes::{DataType, Schema};
 use uuid::Uuid;
 
 use crate::{ILError, ILResult, catalog::CatalogDatabase};
@@ -162,7 +162,7 @@ impl CatalogSchema {
     pub fn from_arrow(schema: &Schema) -> ILResult<Self> {
         let mut columns = Vec::with_capacity(schema.fields.len());
         for field in schema.fields.iter() {
-            let catalog_datatype = CatalogDataType::from_arrow(&field.data_type())?;
+            let catalog_datatype = CatalogDataType::from_arrow(field.data_type())?;
             columns.push(Column::new(
                 field.name().clone(),
                 catalog_datatype,
@@ -191,21 +191,21 @@ impl CatalogSchema {
         let mut values = Vec::with_capacity(self.columns.len());
         for col in self.columns.iter() {
             if col.nullable {
-                values.push(format!("NULL"));
+                values.push("NULL".to_string());
             } else {
                 match col.data_type {
-                    CatalogDataType::Boolean => values.push(format!("FALSE")),
-                    CatalogDataType::Int8 => values.push(format!("0")),
-                    CatalogDataType::Int16 => values.push(format!("0")),
-                    CatalogDataType::Int32 => values.push(format!("0")),
-                    CatalogDataType::Int64 => values.push(format!("0")),
-                    CatalogDataType::UInt8 => values.push(format!("0")),
-                    CatalogDataType::UInt16 => values.push(format!("0")),
-                    CatalogDataType::UInt32 => values.push(format!("0")),
-                    CatalogDataType::UInt64 => values.push(format!("0")),
-                    CatalogDataType::Float32 => values.push(format!("0.0")),
-                    CatalogDataType::Float64 => values.push(format!("0.0")),
-                    CatalogDataType::Utf8 => values.push(format!("''")),
+                    CatalogDataType::Boolean => values.push("FALSE".to_string()),
+                    CatalogDataType::Int8 => values.push("0".to_string()),
+                    CatalogDataType::Int16 => values.push("0".to_string()),
+                    CatalogDataType::Int32 => values.push("0".to_string()),
+                    CatalogDataType::Int64 => values.push("0".to_string()),
+                    CatalogDataType::UInt8 => values.push("0".to_string()),
+                    CatalogDataType::UInt16 => values.push("0".to_string()),
+                    CatalogDataType::UInt32 => values.push("0".to_string()),
+                    CatalogDataType::UInt64 => values.push("0".to_string()),
+                    CatalogDataType::Float32 => values.push("0.0".to_string()),
+                    CatalogDataType::Float64 => values.push("0.0".to_string()),
+                    CatalogDataType::Utf8 => values.push("''".to_string()),
                     CatalogDataType::Binary => values.push(database.sql_binary_value(&[0u8])),
                     CatalogDataType::Uuid => values.push(database.sql_uuid_value(&Uuid::nil())),
                 }

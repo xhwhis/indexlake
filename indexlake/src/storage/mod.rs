@@ -3,11 +3,9 @@ mod lance;
 mod parquet;
 mod s3;
 
-pub(crate) use fs::*;
 pub(crate) use lance::*;
 pub use opendal::services::S3Config;
 pub(crate) use parquet::*;
-pub(crate) use s3::*;
 
 use crate::{
     ILError, ILResult, RecordBatchStream,
@@ -26,7 +24,7 @@ use std::{
 #[derive(Debug, Clone)]
 pub enum Storage {
     Fs(FsStorage),
-    S3(S3Storage),
+    S3(Box<S3Storage>),
 }
 
 impl Storage {
@@ -35,7 +33,7 @@ impl Storage {
     }
 
     pub fn new_s3(config: S3Config, bucket: impl Into<String>) -> Self {
-        Storage::S3(S3Storage::new(config, bucket.into()))
+        Storage::S3(Box::new(S3Storage::new(config, bucket.into())))
     }
 
     pub async fn delete(&self, relative_path: &str) -> ILResult<()> {
