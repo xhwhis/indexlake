@@ -77,6 +77,7 @@ impl From<parquet::errors::ParquetError> for ILError {
     }
 }
 
+#[cfg(feature = "lance-format")]
 impl From<lance_core::Error> for ILError {
     #[track_caller]
     fn from(err: lance_core::Error) -> Self {

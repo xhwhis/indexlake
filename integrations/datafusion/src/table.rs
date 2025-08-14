@@ -102,7 +102,7 @@ impl TableProvider for IndexLakeTable {
             }),
             Err(e) => {
                 warn!(
-                    "Error getting indexlake table {}.{} row count: {:?}",
+                    "[indexlake] Error getting indexlake table {}.{} row count: {:?}",
                     self.table.namespace_name, self.table.table_name, e
                 );
                 None

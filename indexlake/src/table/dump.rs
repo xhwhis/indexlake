@@ -12,7 +12,7 @@ use crate::{
         RowStream, TransactionHelper, rows_to_record_batch,
     },
     index::{IndexBuilder, IndexManager},
-    storage::{DataFileFormat, Storage, build_lance_writer, build_parquet_writer},
+    storage::{DataFileFormat, Storage, build_parquet_writer},
     table::{Table, TableConfig},
 };
 
@@ -83,7 +83,10 @@ impl DumpTask {
 
         let mut tx_helper = TransactionHelper::new(&self.catalog).await?;
         if tx_helper.insert_dump_task(&self.table_id).await.is_err() {
-            debug!("Table {} already has a dump task", self.table_id);
+            debug!(
+                "[indexlake] Table {} already has a dump task",
+                self.table_id
+            );
             return Ok(false);
         }
 
@@ -118,6 +121,12 @@ impl DumpTask {
                     .await?
             }
             DataFileFormat::LanceV2_0 => {
+                #[cfg(not(feature = "lance-format"))]
+                return Err(ILError::not_supported(
+                    "Lance format feature is not enabled",
+                ));
+
+                #[cfg(feature = "lance-format")]
                 self.write_lance_file(row_stream, &relative_path, &mut index_builders)
                     .await?
             }
@@ -238,6 +247,7 @@ impl DumpTask {
         Ok(row_ids)
     }
 
+    #[cfg(feature = "lance-format")]
     async fn write_lance_file(
         &self,
         row_stream: RowStream<'_>,
@@ -246,7 +256,7 @@ impl DumpTask {
     ) -> ILResult<Vec<i64>> {
         let mut row_ids = Vec::new();
 
-        let mut writer = build_lance_writer(
+        let mut writer = crate::storage::build_lance_writer(
             &self.storage,
             relative_path,
             &self.table_schema,

@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Instant};
+use std::time::Instant;
 
 use arrow::util::pretty::pretty_format_batches;
 use arrow::{array::RecordBatchIterator, record_batch::RecordBatch};
@@ -13,7 +13,7 @@ use lance_index::{DatasetIndexExt, IndexType};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // setup_minio();
+    setup_minio();
     setup_s3_env();
     set_lance_language_model_home();
 

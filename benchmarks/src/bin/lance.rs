@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Instant};
+use std::time::Instant;
 
 use arrow::{array::RecordBatchIterator, record_batch::RecordBatch};
 use futures::StreamExt;
@@ -11,7 +11,7 @@ use lance::Dataset;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // setup_minio();
+    setup_minio();
     setup_s3_env();
 
     // create table

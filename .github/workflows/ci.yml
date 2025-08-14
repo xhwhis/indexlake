@@ -21,6 +21,9 @@ jobs:
       - name: Run cargo check
         run: cargo check
 
+      - name: Run cargo check with all features
+        run: cargo check --all-features
+
   test:
     name: Tests
     runs-on: ubuntu-latest
@@ -35,7 +38,7 @@ jobs:
           sudo apt-get install -y protobuf-compiler
 
       - name: Run cargo test
-        run: cargo test
+        run: cargo test --all-features
 
   lints:
     name: Lints
@@ -54,4 +57,4 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run cargo clippy
-        run: cargo clippy --all -- -D warnings
+        run: cargo clippy --all --all-features -- -D warnings

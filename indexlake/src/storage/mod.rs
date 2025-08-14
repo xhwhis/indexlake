@@ -1,8 +1,10 @@
 mod fs;
+#[cfg(feature = "lance-format")]
 mod lance;
 mod parquet;
 mod s3;
 
+#[cfg(feature = "lance-format")]
 pub(crate) use lance::*;
 pub use opendal::services::S3Config;
 pub(crate) use parquet::*;
@@ -245,16 +247,23 @@ pub(crate) async fn read_data_file_by_record(
             .await
         }
         DataFileFormat::LanceV2_0 => {
-            read_lance_file_by_record(
-                storage,
-                table_schema,
-                data_file_record,
-                projection,
-                filters,
-                row_ids,
-                batch_size,
-            )
-            .await
+            #[cfg(feature = "lance-format")]
+            {
+                read_lance_file_by_record(
+                    storage,
+                    table_schema,
+                    data_file_record,
+                    projection,
+                    filters,
+                    row_ids,
+                    batch_size,
+                )
+                .await
+            }
+            #[cfg(not(feature = "lance-format"))]
+            Err(ILError::not_supported(
+                "Lance format feature is not enabled",
+            ))
         }
     }
 }
@@ -278,14 +287,21 @@ pub(crate) async fn read_data_file_by_record_and_row_id_condition(
             .await
         }
         DataFileFormat::LanceV2_0 => {
-            read_lance_file_by_record_and_row_id_condition(
-                storage,
-                table_schema,
-                data_file_record,
-                projection,
-                row_id_condition,
-            )
-            .await
+            #[cfg(feature = "lance-format")]
+            {
+                read_lance_file_by_record_and_row_id_condition(
+                    storage,
+                    table_schema,
+                    data_file_record,
+                    projection,
+                    row_id_condition,
+                )
+                .await
+            }
+            #[cfg(not(feature = "lance-format"))]
+            Err(ILError::not_supported(
+                "Lance format feature is not enabled",
+            ))
         }
     }
 }
@@ -307,8 +323,20 @@ pub(crate) async fn find_matched_row_ids_from_data_file(
             .await
         }
         DataFileFormat::LanceV2_0 => {
-            find_matched_row_ids_from_lance_file(storage, table_schema, condition, data_file_record)
+            #[cfg(feature = "lance-format")]
+            {
+                find_matched_row_ids_from_lance_file(
+                    storage,
+                    table_schema,
+                    condition,
+                    data_file_record,
+                )
                 .await
+            }
+            #[cfg(not(feature = "lance-format"))]
+            Err(ILError::not_supported(
+                "Lance format feature is not enabled",
+            ))
         }
     }
 }

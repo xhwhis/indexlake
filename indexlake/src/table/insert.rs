@@ -16,7 +16,7 @@ use crate::{
         rows_to_record_batch,
     },
     index::IndexBuilder,
-    storage::{DataFileFormat, build_lance_writer, build_parquet_writer},
+    storage::{DataFileFormat, build_parquet_writer},
     table::Table,
     utils::{record_batch_with_row_id, schema_without_row_id, serialize_array},
 };
@@ -131,14 +131,21 @@ pub(crate) async fn process_bypass_insert(
             .await?
         }
         DataFileFormat::LanceV2_0 => {
-            write_lance_file(
-                table,
-                &relative_path,
-                &reserved_row_ids,
-                batches,
-                &mut index_builders,
-            )
-            .await?
+            #[cfg(feature = "lance-format")]
+            {
+                write_lance_file(
+                    table,
+                    &relative_path,
+                    &reserved_row_ids,
+                    batches,
+                    &mut index_builders,
+                )
+                .await?
+            }
+            #[cfg(not(feature = "lance-format"))]
+            return Err(ILError::not_supported(
+                "Lance format feature is not enabled",
+            ));
         }
     };
 
@@ -261,6 +268,7 @@ async fn write_parquet_file(
     Ok(())
 }
 
+#[cfg(feature = "lance-format")]
 async fn write_lance_file(
     table: &Table,
     relative_path: &str,
@@ -268,7 +276,7 @@ async fn write_lance_file(
     batches: &[RecordBatch],
     index_builders: &mut Vec<Box<dyn IndexBuilder>>,
 ) -> ILResult<()> {
-    let mut writer = build_lance_writer(
+    let mut writer = crate::storage::build_lance_writer(
         &table.storage,
         relative_path,
         &table.schema,

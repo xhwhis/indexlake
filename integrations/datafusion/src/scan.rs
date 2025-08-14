@@ -165,7 +165,7 @@ impl ExecutionPlan for IndexLakeScanExec {
         ) {
             Ok(exec) => Some(Arc::new(exec)),
             Err(e) => {
-                error!("Failed to create IndexLakeScanExec with fetch: {e}");
+                error!("[indexlake] Failed to create IndexLakeScanExec with fetch: {e}");
                 None
             }
         }
