@@ -12,7 +12,9 @@ indexlake = { workspace = true }
 
 async-trait = { workspace = true }
 datafusion = { workspace = true }
+datafusion-proto = { workspace = true }
 futures = { workspace = true }
 log = { workspace = true }
 num_cpus = { workspace = true }
+prost = { workspace = true }
 tokio = { workspace = true }

@@ -20,6 +20,7 @@ indexlake-index-rstar = { workspace = true }
 arrow = { workspace = true, features = ["prettyprint"]}
 bytes = { workspace = true }
 datafusion = { workspace = true }
+datafusion-proto = { workspace = true }
 env_logger = { workspace = true }
 futures = { workspace = true }
 geo = { workspace = true }

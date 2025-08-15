@@ -10,6 +10,7 @@ members = [
     "indexlake",
     "integration-tests",
     "integrations/datafusion",
+    "integrations/datafusion/gen",
 ]
 resolver = "3"
 
@@ -43,6 +44,7 @@ bm25 = "2.3"
 bytes = "1.10"
 comfy-table = "7.0"
 datafusion = "48"
+datafusion-proto = "48"
 derive-visitor = "0.4"
 derive-with = "0.6"
 env_logger = "0.11"
@@ -60,6 +62,8 @@ log = "0.4"
 num_cpus = "1.14"
 opendal = "0.53"
 parquet = "55.1"
+prost = "0.13"
+prost-build = "0.13"
 rand = "0.9"
 rand_pcg = "0.9"
 rstar = "0.12"

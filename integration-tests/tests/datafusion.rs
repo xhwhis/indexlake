@@ -1,8 +1,12 @@
 use arrow::util::pretty::pretty_format_batches;
+use datafusion::physical_plan::collect;
+use datafusion::physical_plan::{ExecutionPlan, display::DisplayableExecutionPlan};
 use datafusion::prelude::SessionContext;
+use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNode};
 use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
 use indexlake::storage::DataFileFormat;
 use indexlake::{Client, catalog::Catalog, storage::Storage};
+use indexlake_datafusion::IndexLakePhysicalCodec;
 use indexlake_datafusion::IndexLakeTable;
 use indexlake_integration_tests::data::prepare_simple_testing_table;
 use indexlake_integration_tests::utils::sort_record_batches;
@@ -231,3 +235,143 @@ async fn datafusion_insert(
 
     Ok(())
 }
+
+#[rstest::rstest]
+#[case(async { catalog_sqlite() }, async { storage_fs() }, DataFileFormat::ParquetV2)]
+// #[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV1)]
+// #[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
+// #[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
+#[tokio::test(flavor = "multi_thread")]
+async fn datafusion_scan_serialization(
+    #[future(awt)]
+    #[case]
+    catalog: Arc<dyn Catalog>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use datafusion::physical_plan::{ExecutionPlan, display::DisplayableExecutionPlan};
+    use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNode};
+    use indexlake_datafusion::IndexLakePhysicalCodec;
+
+    init_env_logger();
+
+    let client = Client::new(catalog, storage);
+    let table = prepare_simple_testing_table(&client, format).await?;
+
+    let df_table = IndexLakeTable::new(Arc::new(table));
+    let session = SessionContext::new();
+    session.register_table("indexlake_table", Arc::new(df_table))?;
+    let df = session.sql("SELECT * FROM indexlake_table").await?;
+    let plan = df.create_physical_plan().await?;
+    println!(
+        "{}",
+        DisplayableExecutionPlan::new(plan.as_ref()).indent(true)
+    );
+
+    let codec = IndexLakePhysicalCodec::new(Arc::new(client));
+    let mut plan_buf: Vec<u8> = vec![];
+    let plan_proto = PhysicalPlanNode::try_from_physical_plan(plan, &codec)?;
+    plan_proto.try_encode(&mut plan_buf)?;
+    let new_plan: Arc<dyn ExecutionPlan> = PhysicalPlanNode::try_decode(&plan_buf)
+        .and_then(|proto| proto.try_into_physical_plan(&session, &session.runtime_env(), &codec))?;
+    println!(
+        "{}",
+        DisplayableExecutionPlan::new(new_plan.as_ref()).indent(true)
+    );
+
+    let batches = collect(new_plan, session.task_ctx()).await?;
+    let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME)?;
+    let table_str = pretty_format_batches(&vec![sorted_batch])?.to_string();
+    println!("{}", table_str);
+    assert_eq!(
+        table_str,
+        r#"+-------------------+---------+-----+
+| _indexlake_row_id | name    | age |
++-------------------+---------+-----+
+| 1                 | Alice   | 20  |
+| 2                 | Bob     | 21  |
+| 3                 | Charlie | 22  |
+| 4                 | David   | 23  |
++-------------------+---------+-----+"#,
+    );
+
+    Ok(())
+}
+
+// #[rstest::rstest]
+// #[case(async { catalog_sqlite() }, async { storage_fs() }, DataFileFormat::ParquetV2)]
+// // #[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV1)]
+// // #[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
+// // #[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
+// #[tokio::test(flavor = "multi_thread")]
+// async fn datafusion_insert_serialization(
+//     #[future(awt)]
+//     #[case]
+//     catalog: Arc<dyn Catalog>,
+//     #[future(awt)]
+//     #[case]
+//     storage: Arc<Storage>,
+//     #[case] format: DataFileFormat,
+// ) -> Result<(), Box<dyn std::error::Error>> {
+//     init_env_logger();
+
+//     let client = Client::new(catalog, storage);
+//     let table = prepare_simple_testing_table(&client, format).await?;
+
+//     let df_table = IndexLakeTable::new(Arc::new(table));
+//     let session = SessionContext::new();
+//     session.register_table("indexlake_table", Arc::new(df_table))?;
+//     let df = session
+//         .sql("INSERT INTO indexlake_table (name, age) VALUES ('Eve', 24)")
+//         .await?;
+//     let plan = df.create_physical_plan().await?;
+//     println!(
+//         "{}",
+//         DisplayableExecutionPlan::new(plan.as_ref()).indent(true)
+//     );
+
+//     let codec = IndexLakePhysicalCodec::new(Arc::new(client));
+//     let mut plan_buf: Vec<u8> = vec![];
+//     let plan_proto = PhysicalPlanNode::try_from_physical_plan(plan, &codec)?;
+//     plan_proto.try_encode(&mut plan_buf)?;
+//     let new_plan: Arc<dyn ExecutionPlan> = PhysicalPlanNode::try_decode(&plan_buf)
+//         .and_then(|proto| proto.try_into_physical_plan(&session, &session.runtime_env(), &codec))?;
+//     println!(
+//         "{}",
+//         DisplayableExecutionPlan::new(new_plan.as_ref()).indent(true)
+//     );
+
+//     let batches = collect(new_plan, session.task_ctx()).await?;
+//     let table_str = pretty_format_batches(&batches)?.to_string();
+//     println!("{}", table_str);
+//     assert_eq!(
+//         table_str,
+//         r#"+-------+
+// | count |
+// +-------+
+// | 1     |
+// +-------+"#,
+//     );
+
+//     let df = session.sql("SELECT * FROM indexlake_table").await?;
+//     let batches = df.collect().await?;
+//     let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME)?;
+//     let table_str = pretty_format_batches(&vec![sorted_batch])?.to_string();
+//     println!("{}", table_str);
+//     assert_eq!(
+//         table_str,
+//         r#"+-------------------+---------+-----+
+// | _indexlake_row_id | name    | age |
+// +-------------------+---------+-----+
+// | 1                 | Alice   | 20  |
+// | 2                 | Bob     | 21  |
+// | 3                 | Charlie | 22  |
+// | 4                 | David   | 23  |
+// | 5                 | Eve     | 24  |
+// +-------------------+---------+-----+"#,
+//     );
+
+//     Ok(())
+// }

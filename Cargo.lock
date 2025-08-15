@@ -3648,11 +3648,20 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "datafusion",
+ "datafusion-proto",
  "futures",
  "indexlake",
  "log",
  "num_cpus",
+ "prost",
  "tokio",
+]
+
+[[package]]
+name = "indexlake-datafusion-gen"
+version = "0.1.0"
+dependencies = [
+ "prost-build",
 ]
 
 [[package]]
@@ -3721,6 +3730,7 @@ dependencies = [
  "arrow",
  "bytes",
  "datafusion",
+ "datafusion-proto",
  "env_logger",
  "futures",
  "geo",

@@ -23,9 +23,9 @@ use indexlake::{
 
 #[derive(Debug)]
 pub struct IndexLakeInsertExec {
-    table: Arc<Table>,
-    input: Arc<dyn ExecutionPlan>,
-    insert_op: InsertOp,
+    pub table: Arc<Table>,
+    pub input: Arc<dyn ExecutionPlan>,
+    pub insert_op: InsertOp,
     cache: PlanProperties,
 }
 
