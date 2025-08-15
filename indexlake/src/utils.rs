@@ -29,7 +29,7 @@ pub(crate) fn schema_with_row_id(schema: &Schema) -> Schema {
     Schema::new_with_metadata(fields, schema.metadata().clone())
 }
 
-pub(crate) fn schema_without_row_id(schema: &Schema) -> Schema {
+pub fn schema_without_row_id(schema: &Schema) -> Schema {
     let fields = schema
         .fields
         .iter()

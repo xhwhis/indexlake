@@ -316,7 +316,7 @@ impl Default for TableConfig {
     }
 }
 
-fn check_insert_batch_schema(batch_schema: &Schema, expected_schema: &Schema) -> ILResult<()> {
+pub fn check_insert_batch_schema(batch_schema: &Schema, expected_schema: &Schema) -> ILResult<()> {
     if batch_schema.fields().len() != expected_schema.fields().len() {
         return Err(ILError::invalid_input(format!(
             "Invalid record schema: {batch_schema:?}, expected schema: {expected_schema:?}",

@@ -6,14 +6,14 @@ use datafusion::{
     common::{DFSchema, Statistics, stats::Precision},
     datasource::TableType,
     error::DataFusionError,
-    logical_expr::TableProviderFilterPushDown,
+    logical_expr::{TableProviderFilterPushDown, dml::InsertOp},
     physical_plan::ExecutionPlan,
     prelude::Expr,
 };
 use indexlake::table::{Table, TableScanPartition};
 use log::warn;
 
-use crate::{IndexLakeScanExec, datafusion_expr_to_indexlake_expr};
+use crate::{IndexLakeInsertExec, IndexLakeScanExec, datafusion_expr_to_indexlake_expr};
 
 #[derive(Debug)]
 pub struct IndexLakeTable {
@@ -108,5 +108,15 @@ impl TableProvider for IndexLakeTable {
                 None
             }
         }
+    }
+
+    async fn insert_into(
+        &self,
+        _state: &dyn Session,
+        input: Arc<dyn ExecutionPlan>,
+        insert_op: InsertOp,
+    ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        let exec = IndexLakeInsertExec::try_new(self.table.clone(), input, insert_op)?;
+        Ok(Arc::new(exec))
     }
 }
