@@ -20,10 +20,29 @@ pub struct IndexLakeInsertExecNode {
     pub namespace_name: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub table_name: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "3")]
-    pub input: ::core::option::Option<::datafusion_proto::protobuf::PhysicalPlanNode>,
-    #[prost(enumeration = "::datafusion_proto::protobuf::InsertOp", tag = "4")]
+    #[prost(enumeration = "::datafusion_proto::protobuf::InsertOp", tag = "3")]
     pub insert_op: i32,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MemoryDatasourceNode {
+    #[prost(message, repeated, tag = "1")]
+    pub partitions: ::prost::alloc::vec::Vec<RecordBatches>,
+    #[prost(message, optional, tag = "2")]
+    pub schema: ::core::option::Option<::datafusion_proto::protobuf::Schema>,
+    #[prost(message, optional, tag = "3")]
+    pub projection: ::core::option::Option<Projection>,
+    #[prost(message, repeated, tag = "4")]
+    pub sort_information:
+        ::prost::alloc::vec::Vec<::datafusion_proto::protobuf::PhysicalSortExprNodeCollection>,
+    #[prost(bool, tag = "5")]
+    pub show_sizes: bool,
+    #[prost(uint32, optional, tag = "6")]
+    pub fetch: ::core::option::Option<u32>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RecordBatches {
+    #[prost(bytes = "vec", repeated, tag = "1")]
+    pub batches: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Projection {

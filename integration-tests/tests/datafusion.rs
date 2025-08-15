@@ -238,9 +238,9 @@ async fn datafusion_insert(
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, async { storage_fs() }, DataFileFormat::ParquetV2)]
-// #[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV1)]
-// #[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
-// #[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
 async fn datafusion_scan_serialization(
     #[future(awt)]
@@ -251,10 +251,6 @@ async fn datafusion_scan_serialization(
     storage: Arc<Storage>,
     #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use datafusion::physical_plan::{ExecutionPlan, display::DisplayableExecutionPlan};
-    use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNode};
-    use indexlake_datafusion::IndexLakePhysicalCodec;
-
     init_env_logger();
 
     let client = Client::new(catalog, storage);

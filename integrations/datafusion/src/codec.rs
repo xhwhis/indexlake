@@ -67,9 +67,9 @@ impl PhysicalExtensionCodec for IndexLakePhysicalCodec {
                 insert_op,
             )?))
         } else {
-            Err(DataFusionError::Execution(format!(
-                "IndexLakePhysicalCodec failed to decode physical plan"
-            )))
+            Err(DataFusionError::Execution(
+                "IndexLakePhysicalCodec failed to decode physical plan".to_string(),
+            ))
         }
     }
 
@@ -105,7 +105,6 @@ impl PhysicalExtensionCodec for IndexLakePhysicalCodec {
             let proto = IndexLakeInsertExecNode {
                 namespace_name: exec.table.namespace_name.clone(),
                 table_name: exec.table.table_name.clone(),
-                input: None,
                 insert_op,
             };
 

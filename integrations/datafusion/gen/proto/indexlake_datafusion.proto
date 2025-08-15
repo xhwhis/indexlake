@@ -17,8 +17,20 @@ message IndexLakeScanExecNode {
 message IndexLakeInsertExecNode {
   string namespace_name = 1;
   string table_name = 2;
-  datafusion.PhysicalPlanNode input = 3;
-  datafusion.InsertOp insert_op = 4;
+  datafusion.InsertOp insert_op = 3;
+}
+
+message MemoryDatasourceNode {
+  repeated RecordBatches partitions = 1;
+  datafusion_common.Schema schema = 2;
+  Projection projection = 3;
+  repeated datafusion.PhysicalSortExprNodeCollection sort_information = 4;  
+  bool show_sizes = 5;
+  optional uint32 fetch = 6;
+}
+
+message RecordBatches {
+  repeated bytes batches = 1;
 }
 
 message Projection {
