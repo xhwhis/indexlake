@@ -18,8 +18,8 @@ pub(crate) use update::*;
 use uuid::Uuid;
 
 use crate::RecordBatchStream;
-use crate::catalog::IndexFileRecord;
 use crate::catalog::{CatalogHelper, DataFileRecord, Scalar};
+use crate::catalog::{FieldRecord, IndexFileRecord};
 use crate::expr::Expr;
 use crate::index::IndexManager;
 use crate::storage::DataFileFormat;
@@ -30,9 +30,9 @@ use crate::{
     storage::Storage,
 };
 use arrow::array::RecordBatch;
-use arrow::datatypes::{DataType, FieldRef, SchemaRef};
+use arrow::datatypes::{DataType, SchemaRef};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -41,7 +41,7 @@ pub struct Table {
     pub namespace_name: String,
     pub table_id: Uuid,
     pub table_name: String,
-    pub field_map: BTreeMap<Uuid, FieldRef>,
+    pub field_records: Vec<FieldRecord>,
     pub schema: SchemaRef,
     pub config: Arc<TableConfig>,
     pub catalog: Arc<dyn Catalog>,

@@ -1,23 +1,24 @@
+use std::cmp::Ordering;
 use std::fmt::Display;
 use std::iter::repeat_n;
 use std::sync::Arc;
 
 use arrow::array::{
-    Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Float32Array, Float64Array, Int8Array,
-    Int16Array, Int32Array, Int64Array, StringArray, UInt8Array, UInt16Array, UInt32Array,
-    UInt64Array, new_null_array,
+    Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Float32Array, Float64Array,
+    GenericListArray, Int8Array, Int16Array, Int32Array, Int64Array, ListArray, StringArray,
+    UInt8Array, UInt16Array, UInt32Array, UInt64Array, new_null_array,
 };
 use arrow::compute::CastOptions;
 use arrow::datatypes::{
     DataType, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type,
     UInt16Type, UInt32Type, UInt64Type,
 };
+use arrow::util::display::{ArrayFormatter, FormatOptions};
 use derive_visitor::{Drive, DriveMut};
-use serde::{Deserialize, Serialize};
 
 use crate::{ILError, ILResult, catalog::CatalogDatabase};
 
-#[derive(Debug, Clone, Drive, DriveMut, Serialize, Deserialize)]
+#[derive(Debug, Clone, Drive, DriveMut)]
 pub enum Scalar {
     Boolean(Option<bool>),
     Int8(Option<i8>),
@@ -32,6 +33,8 @@ pub enum Scalar {
     Float64(Option<f64>),
     Utf8(Option<String>),
     Binary(Option<Vec<u8>>),
+    #[drive(skip)]
+    List(Arc<ListArray>),
 }
 
 impl Scalar {
@@ -50,6 +53,9 @@ impl Scalar {
             DataType::Float64 => Scalar::Float64(None),
             DataType::Utf8 => Scalar::Utf8(None),
             DataType::Binary => Scalar::Binary(None),
+            DataType::List(field_ref) => {
+                Scalar::List(Arc::new(GenericListArray::new_null(field_ref.clone(), 1)))
+            }
             _ => {
                 return Err(ILError::not_supported(format!(
                     "Cannot create null scalar for data type: {data_type}",
@@ -72,6 +78,7 @@ impl Scalar {
             Scalar::Float64(v) => v.is_none(),
             Scalar::Utf8(v) => v.is_none(),
             Scalar::Binary(v) => v.is_none(),
+            Scalar::List(v) => v.len() == v.null_count(),
         }
     }
 
@@ -84,34 +91,43 @@ impl Scalar {
         }
     }
 
-    pub fn to_sql(&self, database: CatalogDatabase) -> String {
+    pub fn to_sql(&self, database: CatalogDatabase) -> ILResult<String> {
         match self {
-            Scalar::Boolean(Some(value)) => value.to_string(),
-            Scalar::Boolean(None) => "null".to_string(),
-            Scalar::Int8(Some(value)) => value.to_string(),
-            Scalar::Int8(None) => "null".to_string(),
-            Scalar::Int16(Some(value)) => value.to_string(),
-            Scalar::Int16(None) => "null".to_string(),
-            Scalar::Int32(Some(value)) => value.to_string(),
-            Scalar::Int32(None) => "null".to_string(),
-            Scalar::Int64(Some(value)) => value.to_string(),
-            Scalar::Int64(None) => "null".to_string(),
-            Scalar::UInt8(Some(value)) => value.to_string(),
-            Scalar::UInt8(None) => "null".to_string(),
-            Scalar::UInt16(Some(value)) => value.to_string(),
-            Scalar::UInt16(None) => "null".to_string(),
-            Scalar::UInt32(Some(value)) => value.to_string(),
-            Scalar::UInt32(None) => "null".to_string(),
-            Scalar::UInt64(Some(value)) => value.to_string(),
-            Scalar::UInt64(None) => "null".to_string(),
-            Scalar::Float32(Some(value)) => value.to_string(),
-            Scalar::Float32(None) => "null".to_string(),
-            Scalar::Float64(Some(value)) => value.to_string(),
-            Scalar::Float64(None) => "null".to_string(),
-            Scalar::Utf8(Some(value)) => format!("'{value}'"),
-            Scalar::Utf8(None) => "null".to_string(),
-            Scalar::Binary(Some(value)) => database.sql_binary_value(value),
-            Scalar::Binary(None) => "null".to_string(),
+            Scalar::Boolean(Some(value)) => Ok(value.to_string()),
+            Scalar::Boolean(None) => Ok("null".to_string()),
+            Scalar::Int8(Some(value)) => Ok(value.to_string()),
+            Scalar::Int8(None) => Ok("null".to_string()),
+            Scalar::Int16(Some(value)) => Ok(value.to_string()),
+            Scalar::Int16(None) => Ok("null".to_string()),
+            Scalar::Int32(Some(value)) => Ok(value.to_string()),
+            Scalar::Int32(None) => Ok("null".to_string()),
+            Scalar::Int64(Some(value)) => Ok(value.to_string()),
+            Scalar::Int64(None) => Ok("null".to_string()),
+            Scalar::UInt8(Some(value)) => Ok(value.to_string()),
+            Scalar::UInt8(None) => Ok("null".to_string()),
+            Scalar::UInt16(Some(value)) => Ok(value.to_string()),
+            Scalar::UInt16(None) => Ok("null".to_string()),
+            Scalar::UInt32(Some(value)) => Ok(value.to_string()),
+            Scalar::UInt32(None) => Ok("null".to_string()),
+            Scalar::UInt64(Some(value)) => Ok(value.to_string()),
+            Scalar::UInt64(None) => Ok("null".to_string()),
+            Scalar::Float32(Some(value)) => Ok(value.to_string()),
+            Scalar::Float32(None) => Ok("null".to_string()),
+            Scalar::Float64(Some(value)) => Ok(value.to_string()),
+            Scalar::Float64(None) => Ok("null".to_string()),
+            Scalar::Utf8(Some(value)) => Ok(database.sql_string_value(value)),
+            Scalar::Utf8(None) => Ok("null".to_string()),
+            Scalar::Binary(Some(value)) => Ok(database.sql_binary_value(value)),
+            Scalar::Binary(None) => Ok("null".to_string()),
+            Scalar::List(_) => {
+                if self.is_null() {
+                    Ok("null".to_string())
+                } else {
+                    Err(ILError::not_supported(
+                        "Not supported to convert list scalar to sql",
+                    ))
+                }
+            }
         }
     }
 
@@ -172,7 +188,22 @@ impl Scalar {
                 }
                 None => Arc::new(repeat_n(None::<&str>, size).collect::<BinaryArray>()),
             },
+            Scalar::List(arr) => {
+                if size == 1 {
+                    return Ok(Arc::clone(arr) as Arc<dyn Array>);
+                }
+                Self::list_to_array_of_size(arr.as_ref() as &dyn Array, size)?
+            }
         })
+    }
+
+    pub fn list_to_array_of_size(arr: &dyn Array, size: usize) -> ILResult<ArrayRef> {
+        let arrays = repeat_n(arr, size).collect::<Vec<_>>();
+        let ret = match !arrays.is_empty() {
+            true => arrow::compute::concat(arrays.as_slice())?,
+            false => arr.slice(0, 0),
+        };
+        Ok(ret)
     }
 
     pub fn try_from_array(array: &dyn Array, index: usize) -> ILResult<Self> {
@@ -277,6 +308,7 @@ impl Scalar {
             Scalar::Float64(_) => DataType::Float64,
             Scalar::Utf8(_) => DataType::Utf8,
             Scalar::Binary(_) => DataType::Binary,
+            Scalar::List(arr) => arr.data_type().clone(),
         }
     }
 
@@ -307,6 +339,84 @@ impl Scalar {
             Scalar::Int64(Some(v)) => Ok(Scalar::Int64(Some(v.neg_checked()?))),
             _ => Err(ILError::invalid_input(format!(
                 "Can not run arithmetic negative on scalar value {self:?}",
+            ))),
+        }
+    }
+
+    pub fn parse_str(value: &str, data_type: &DataType) -> ILResult<Self> {
+        if value.eq_ignore_ascii_case("null") {
+            return Self::try_new_null(data_type);
+        }
+        match data_type {
+            DataType::Boolean => {
+                let value = value.to_lowercase().parse::<bool>().map_err(|e| {
+                    ILError::invalid_input(format!("Failed to parse {value} as boolean: {e}"))
+                })?;
+                Ok(Scalar::Boolean(Some(value)))
+            }
+            DataType::Int8 => {
+                let value = value.parse::<i8>().map_err(|e| {
+                    ILError::invalid_input(format!("Failed to parse {value} as int8: {e}"))
+                })?;
+                Ok(Scalar::Int8(Some(value)))
+            }
+            DataType::Int16 => {
+                let value = value.parse::<i16>().map_err(|e| {
+                    ILError::invalid_input(format!("Failed to parse {value} as int16: {e}"))
+                })?;
+                Ok(Scalar::Int16(Some(value)))
+            }
+            DataType::Int32 => {
+                let value = value.parse::<i32>().map_err(|e| {
+                    ILError::invalid_input(format!("Failed to parse {value} as int32: {e}"))
+                })?;
+                Ok(Scalar::Int32(Some(value)))
+            }
+            DataType::Int64 => {
+                let value = value.parse::<i64>().map_err(|e| {
+                    ILError::invalid_input(format!("Failed to parse {value} as int64: {e}"))
+                })?;
+                Ok(Scalar::Int64(Some(value)))
+            }
+            DataType::UInt8 => {
+                let value = value.parse::<u8>().map_err(|e| {
+                    ILError::invalid_input(format!("Failed to parse {value} as uint8: {e}"))
+                })?;
+                Ok(Scalar::UInt8(Some(value)))
+            }
+            DataType::UInt16 => {
+                let value = value.parse::<u16>().map_err(|e| {
+                    ILError::invalid_input(format!("Failed to parse {value} as uint16: {e}"))
+                })?;
+                Ok(Scalar::UInt16(Some(value)))
+            }
+            DataType::UInt32 => {
+                let value = value.parse::<u32>().map_err(|e| {
+                    ILError::invalid_input(format!("Failed to parse {value} as uint32: {e}"))
+                })?;
+                Ok(Scalar::UInt32(Some(value)))
+            }
+            DataType::UInt64 => {
+                let value = value.parse::<u64>().map_err(|e| {
+                    ILError::invalid_input(format!("Failed to parse {value} as uint64: {e}"))
+                })?;
+                Ok(Scalar::UInt64(Some(value)))
+            }
+            DataType::Float32 => {
+                let value = value.parse::<f32>().map_err(|e| {
+                    ILError::invalid_input(format!("Failed to parse {value} as float32: {e}"))
+                })?;
+                Ok(Scalar::Float32(Some(value)))
+            }
+            DataType::Float64 => {
+                let value = value.parse::<f64>().map_err(|e| {
+                    ILError::invalid_input(format!("Failed to parse {value} as float64: {e}"))
+                })?;
+                Ok(Scalar::Float64(Some(value)))
+            }
+            DataType::Utf8 => Ok(Scalar::Utf8(Some(value.to_string()))),
+            _ => Err(ILError::not_supported(format!(
+                "Not supported to parse {value} as {data_type}"
             ))),
         }
     }
@@ -347,6 +457,8 @@ impl PartialEq for Scalar {
             (Scalar::Utf8(_), _) => false,
             (Scalar::Binary(v1), Scalar::Binary(v2)) => v1.eq(v2),
             (Scalar::Binary(_), _) => false,
+            (Scalar::List(v1), Scalar::List(v2)) => v1.eq(v2),
+            (Scalar::List(_), _) => false,
         }
     }
 }
@@ -388,7 +500,69 @@ impl PartialOrd for Scalar {
             (Scalar::Utf8(_), _) => None,
             (Scalar::Binary(v1), Scalar::Binary(v2)) => v1.partial_cmp(v2),
             (Scalar::Binary(_), _) => None,
+            (Scalar::List(arr1), Scalar::List(arr2)) => {
+                partial_cmp_list(arr1.as_ref(), arr2.as_ref())
+            }
+            (Scalar::List(_), _) => None,
         }
+    }
+}
+
+/// Compares two List/LargeList/FixedSizeList scalars
+fn partial_cmp_list(arr1: &dyn Array, arr2: &dyn Array) -> Option<Ordering> {
+    if arr1.data_type() != arr2.data_type() {
+        return None;
+    }
+    let arr1 = first_array_for_list(arr1);
+    let arr2 = first_array_for_list(arr2);
+
+    let min_length = arr1.len().min(arr2.len());
+    let arr1_trimmed = arr1.slice(0, min_length);
+    let arr2_trimmed = arr2.slice(0, min_length);
+
+    let lt_res = arrow::compute::kernels::cmp::lt(&arr1_trimmed, &arr2_trimmed).ok()?;
+    let eq_res = arrow::compute::kernels::cmp::eq(&arr1_trimmed, &arr2_trimmed).ok()?;
+
+    for j in 0..lt_res.len() {
+        // In Postgres, NULL values in lists are always considered to be greater than non-NULL values:
+        //
+        // $ SELECT ARRAY[NULL]::integer[] > ARRAY[1]
+        // true
+        //
+        // These next two if statements are introduced for replicating Postgres behavior, as
+        // arrow::compute does not account for this.
+        if arr1_trimmed.is_null(j) && !arr2_trimmed.is_null(j) {
+            return Some(Ordering::Greater);
+        }
+        if !arr1_trimmed.is_null(j) && arr2_trimmed.is_null(j) {
+            return Some(Ordering::Less);
+        }
+
+        if lt_res.is_valid(j) && lt_res.value(j) {
+            return Some(Ordering::Less);
+        }
+        if eq_res.is_valid(j) && !eq_res.value(j) {
+            return Some(Ordering::Greater);
+        }
+    }
+
+    Some(arr1.len().cmp(&arr2.len()))
+}
+
+/// List/LargeList/FixedSizeList scalars always have a single element
+/// array. This function returns that array
+fn first_array_for_list(arr: &dyn Array) -> ArrayRef {
+    assert_eq!(arr.len(), 1);
+    if let Some(arr) = arr.as_list_opt::<i32>() {
+        arr.value(0)
+    } else if let Some(arr) = arr.as_list_opt::<i64>() {
+        arr.value(0)
+    } else if let Some(arr) = arr.as_fixed_size_list_opt() {
+        arr.value(0)
+    } else {
+        unreachable!(
+            "Since only List / LargeList / FixedSizeList are supported, this should never happen"
+        )
     }
 }
 
@@ -421,8 +595,18 @@ impl Display for Scalar {
             Scalar::Utf8(None) => write!(f, "null"),
             Scalar::Binary(Some(value)) => write!(f, "{}", hex::encode(value)),
             Scalar::Binary(None) => write!(f, "null"),
+            Scalar::List(arr) => fmt_list(arr.to_owned() as ArrayRef, f),
         }
     }
+}
+
+fn fmt_list(arr: ArrayRef, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    // ScalarValue List, LargeList, FixedSizeList should always have a single element
+    assert_eq!(arr.len(), 1);
+    let options = FormatOptions::default().with_display_error(true);
+    let formatter = ArrayFormatter::try_new(arr.as_ref() as &dyn Array, &options).unwrap();
+    let value_formatter = formatter.value(0);
+    write!(f, "{value_formatter}")
 }
 
 macro_rules! impl_scalar_from {

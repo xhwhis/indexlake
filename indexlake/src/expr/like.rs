@@ -1,6 +1,5 @@
 use arrow::array::RecordBatch;
 use derive_visitor::{Drive, DriveMut};
-use serde::{Deserialize, Serialize};
 
 use crate::{
     ILResult,
@@ -8,7 +7,7 @@ use crate::{
     expr::{ColumnarValue, Expr, apply_cmp},
 };
 
-#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
 pub struct Like {
     pub negated: bool,
     pub case_insensitive: bool,

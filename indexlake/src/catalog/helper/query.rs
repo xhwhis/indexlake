@@ -1,7 +1,5 @@
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use arrow::datatypes::FieldRef;
 use uuid::Uuid;
 
 use crate::catalog::{
@@ -216,10 +214,7 @@ impl CatalogHelper {
         }
     }
 
-    pub(crate) async fn get_table_fields(
-        &self,
-        table_id: &Uuid,
-    ) -> ILResult<BTreeMap<Uuid, FieldRef>> {
+    pub(crate) async fn get_table_fields(&self, table_id: &Uuid) -> ILResult<Vec<FieldRecord>> {
         let catalog_schema = Arc::new(FieldRecord::catalog_schema());
         let rows = self
             .query_rows(
@@ -233,14 +228,11 @@ impl CatalogHelper {
                 catalog_schema,
             )
             .await?;
-        let mut field_map = BTreeMap::new();
+        let mut field_records = Vec::with_capacity(rows.len());
         for row in rows {
-            let field_record = FieldRecord::from_row(row)?;
-            let field_id = field_record.field_id;
-            let field = field_record.into_field();
-            field_map.insert(field_id, Arc::new(field));
+            field_records.push(FieldRecord::from_row(row)?);
         }
-        Ok(field_map)
+        Ok(field_records)
     }
 
     pub(crate) async fn get_table_indexes(&self, table_id: &Uuid) -> ILResult<Vec<IndexRecord>> {

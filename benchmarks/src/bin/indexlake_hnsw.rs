@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::time::Instant;
+use std::{collections::HashMap, sync::Arc};
 
 use futures::StreamExt;
 use indexlake::Client;
@@ -44,6 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         namespace_name: namespace_name.to_string(),
         table_name: table_name.clone(),
         schema: arrow_hnsw_table_schema(),
+        default_values: HashMap::new(),
         config: table_config.clone(),
         if_not_exists: false,
     };

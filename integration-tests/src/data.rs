@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use arrow::{
     array::{Int32Array, RecordBatch, StringArray},
@@ -31,6 +31,7 @@ pub async fn prepare_simple_testing_table(
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: table_schema.clone(),
+        default_values: HashMap::new(),
         config: table_config,
         if_not_exists: false,
     };

@@ -12,12 +12,12 @@ use indexlake::{
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use arrow::array::{Int32Array, RecordBatch};
 use geo::{Geometry, Point};
 use geozero::{CoordDimensions, ToWkb};
-use indexlake::expr::{Expr, col, func, lit};
+use indexlake::expr::{col, func, lit};
 use indexlake::storage::DataFileFormat;
 use indexlake::table::IndexCreation;
 use indexlake_index_rstar::{RStarIndexKind, RStarIndexParams, WkbDialect};
@@ -60,6 +60,7 @@ async fn create_rstar_index_on_existing_table(
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: table_schema.clone(),
+        default_values: HashMap::new(),
         config: table_config,
         if_not_exists: false,
     };

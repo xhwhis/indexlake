@@ -1,12 +1,12 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
-use arrow::datatypes::{FieldRef, SchemaRef};
+use arrow::datatypes::SchemaRef;
 use futures::StreamExt;
 use uuid::Uuid;
 
 use crate::{
     ILError, ILResult,
-    catalog::{FieldRecord, IndexFileRecord, IndexRecord, TableRecord, TransactionHelper},
+    catalog::{FieldRecord, IndexFileRecord, IndexRecord, Scalar, TableRecord, TransactionHelper},
     index::{IndexDefination, IndexParams},
     storage::read_data_file_by_record,
     table::{Table, TableConfig},
@@ -17,6 +17,7 @@ pub struct TableCreation {
     pub namespace_name: String,
     pub table_name: String,
     pub schema: SchemaRef,
+    pub default_values: HashMap<String, Scalar>,
     pub config: TableConfig,
     pub if_not_exists: bool,
 }
@@ -59,7 +60,20 @@ pub(crate) async fn process_create_table(
 
     let mut field_records = Vec::new();
     for field in creation.schema.fields() {
-        field_records.push(FieldRecord::new(Uuid::now_v7(), table_id, field));
+        let default_value = if let Some(default_value) = creation.default_values.get(field.name()) {
+            // TODO should not use fmt
+            Some(default_value.to_string())
+        } else if field.is_nullable() {
+            Some("null".to_string())
+        } else {
+            None
+        };
+        field_records.push(FieldRecord::new(
+            Uuid::now_v7(),
+            table_id,
+            field,
+            default_value,
+        ));
     }
     tx_helper.insert_fields(&field_records).await?;
 
@@ -165,7 +179,7 @@ pub(crate) async fn process_create_index(
 
     tx_helper.insert_index_files(&index_file_records).await?;
 
-    let key_field_ids = field_names_to_ids(&table.field_map, &creation.key_columns)?;
+    let key_field_ids = field_names_to_ids(&table.field_records, &creation.key_columns)?;
 
     tx_helper
         .insert_index(&IndexRecord {
@@ -181,16 +195,13 @@ pub(crate) async fn process_create_index(
     Ok(index_id)
 }
 
-fn field_names_to_ids(
-    field_map: &BTreeMap<Uuid, FieldRef>,
-    names: &[String],
-) -> ILResult<Vec<Uuid>> {
+fn field_names_to_ids(field_records: &[FieldRecord], names: &[String]) -> ILResult<Vec<Uuid>> {
     let mut field_ids = Vec::new();
     for name in names.iter() {
-        let field_id_opt = field_map
+        let field_id_opt = field_records
             .iter()
-            .find(|(_, field)| field.name() == name)
-            .map(|(field_id, _)| *field_id);
+            .find(|record| &record.field_name == name)
+            .map(|record| record.field_id);
         if let Some(field_id) = field_id_opt {
             field_ids.push(field_id);
         } else {

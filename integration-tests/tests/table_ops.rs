@@ -17,8 +17,7 @@ use indexlake_integration_tests::utils::full_table_scan;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
-use std::i128;
-use std::sync::Arc;
+use std::{collections::HashMap, i128, sync::Arc};
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, async { storage_fs() })]
@@ -49,6 +48,7 @@ async fn create_table(
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: expected_schema.clone(),
+        default_values: HashMap::new(),
         config: TableConfig::default(),
         if_not_exists: false,
     };
@@ -175,6 +175,7 @@ async fn table_data_types(
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: table_schema.clone(),
+        default_values: HashMap::new(),
         config: TableConfig::default(),
         if_not_exists: false,
     };
@@ -369,6 +370,7 @@ async fn duplicated_table_name(
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: expected_schema.clone(),
+        default_values: HashMap::new(),
         config: TableConfig::default(),
         if_not_exists: false,
     };
@@ -439,6 +441,7 @@ async fn drop_table(
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: table_schema.clone(),
+        default_values: HashMap::new(),
         config: TableConfig::default(),
         if_not_exists: false,
     };
@@ -512,6 +515,7 @@ async fn duplicated_index_name(
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: table_schema.clone(),
+        default_values: HashMap::new(),
         config: TableConfig::default(),
         if_not_exists: false,
     };
@@ -602,6 +606,7 @@ async fn load_index(
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: table_schema.clone(),
+        default_values: HashMap::new(),
         config: TableConfig::default(),
         if_not_exists: false,
     };
@@ -652,6 +657,7 @@ async fn drop_index(
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: table_schema.clone(),
+        default_values: HashMap::new(),
         config: TableConfig::default(),
         if_not_exists: false,
     };

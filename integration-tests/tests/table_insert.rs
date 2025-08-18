@@ -14,6 +14,7 @@ use indexlake_integration_tests::utils::full_table_scan;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -49,6 +50,7 @@ async fn parallel_insert_table(
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: table_schema.clone(),
+        default_values: HashMap::new(),
         config: table_config,
         if_not_exists: false,
     };
@@ -130,6 +132,7 @@ async fn bypass_insert_table(
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: table_schema.clone(),
+        default_values: HashMap::new(),
         config: table_config,
         if_not_exists: false,
     };
@@ -190,6 +193,7 @@ async fn insert_string_with_quotes(
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: table_schema.clone(),
+        default_values: HashMap::new(),
         config: table_config,
         if_not_exists: false,
     };

@@ -35,7 +35,7 @@ async fn datafusion_full_scan(
     let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client, format).await?;
 
-    let df_table = IndexLakeTable::new(Arc::new(table));
+    let df_table = IndexLakeTable::try_new(Arc::new(table))?;
     let session = SessionContext::new();
     session.register_table("indexlake_table", Arc::new(df_table))?;
     let df = session.sql("SELECT * FROM indexlake_table").await?;
@@ -78,7 +78,7 @@ async fn datafusion_scan_with_projection(
     let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client, format).await?;
 
-    let df_table = IndexLakeTable::new(Arc::new(table));
+    let df_table = IndexLakeTable::try_new(Arc::new(table))?;
     let session = SessionContext::new();
     session.register_table("indexlake_table", Arc::new(df_table))?;
     let df = session
@@ -123,7 +123,7 @@ async fn datafusion_scan_with_filters(
     let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client, format).await?;
 
-    let df_table = IndexLakeTable::new(Arc::new(table));
+    let df_table = IndexLakeTable::try_new(Arc::new(table))?;
     let session = SessionContext::new();
     session.register_table("indexlake_table", Arc::new(df_table))?;
     let df = session
@@ -166,7 +166,7 @@ async fn datafusion_scan_with_limit(
     let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client, format).await?;
 
-    let df_table = IndexLakeTable::new(Arc::new(table));
+    let df_table = IndexLakeTable::try_new(Arc::new(table))?;
     let session = SessionContext::new();
     session.register_table("indexlake_table", Arc::new(df_table))?;
     let df = session.sql("SELECT * FROM indexlake_table limit 2").await?;
@@ -183,7 +183,7 @@ async fn datafusion_scan_with_limit(
 #[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
 #[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
-async fn datafusion_insert(
+async fn datafusion_full_insert(
     #[future(awt)]
     #[case]
     catalog: Arc<dyn Catalog>,
@@ -197,7 +197,7 @@ async fn datafusion_insert(
     let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client, format).await?;
 
-    let df_table = IndexLakeTable::new(Arc::new(table));
+    let df_table = IndexLakeTable::try_new(Arc::new(table))?;
     let session = SessionContext::new();
     session.register_table("indexlake_table", Arc::new(df_table))?;
     let df = session
@@ -242,6 +242,92 @@ async fn datafusion_insert(
 #[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
 #[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
 #[tokio::test(flavor = "multi_thread")]
+async fn datafusion_partial_insert(
+    #[future(awt)]
+    #[case]
+    catalog: Arc<dyn Catalog>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use arrow::datatypes::{DataType, Field, Schema};
+    use indexlake::{
+        catalog::Scalar,
+        table::{TableConfig, TableCreation},
+    };
+    use std::collections::HashMap;
+
+    init_env_logger();
+
+    let client = Client::new(catalog, storage);
+
+    let namespace_name = uuid::Uuid::new_v4().to_string();
+    client.create_namespace(&namespace_name, true).await?;
+
+    let table_schema = Arc::new(Schema::new(vec![
+        Field::new("name", DataType::Utf8, false),
+        Field::new("age", DataType::Int32, false),
+    ]));
+    let default_values = HashMap::from([("age".to_string(), Scalar::from(24i32))]);
+    let table_config = TableConfig {
+        preferred_data_file_format: format,
+        ..Default::default()
+    };
+    let table_name = uuid::Uuid::new_v4().to_string();
+    let table_creation = TableCreation {
+        namespace_name: namespace_name.clone(),
+        table_name: table_name.clone(),
+        schema: table_schema.clone(),
+        default_values,
+        config: table_config,
+        if_not_exists: false,
+    };
+    client.create_table(table_creation).await?;
+
+    let table = client.load_table(&namespace_name, &table_name).await?;
+
+    let df_table = IndexLakeTable::try_new(Arc::new(table))?;
+    let session = SessionContext::new();
+    session.register_table("indexlake_table", Arc::new(df_table))?;
+    let df = session
+        .sql("INSERT INTO indexlake_table (name) VALUES ('Eve')")
+        .await?;
+    let batches = df.collect().await?;
+    let table_str = pretty_format_batches(&batches)?.to_string();
+    println!("{}", table_str);
+    assert_eq!(
+        table_str,
+        r#"+-------+
+| count |
++-------+
+| 1     |
++-------+"#,
+    );
+
+    let df = session.sql("SELECT * FROM indexlake_table").await?;
+    let batches = df.collect().await?;
+    let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME)?;
+    let table_str = pretty_format_batches(&vec![sorted_batch])?.to_string();
+    println!("{}", table_str);
+    assert_eq!(
+        table_str,
+        r#"+-------------------+------+-----+
+| _indexlake_row_id | name | age |
++-------------------+------+-----+
+| 1                 | Eve  | 24  |
++-------------------+------+-----+"#,
+    );
+
+    Ok(())
+}
+
+#[rstest::rstest]
+#[case(async { catalog_sqlite() }, async { storage_fs() }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
+#[tokio::test(flavor = "multi_thread")]
 async fn datafusion_scan_serialization(
     #[future(awt)]
     #[case]
@@ -256,7 +342,7 @@ async fn datafusion_scan_serialization(
     let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client, format).await?;
 
-    let df_table = IndexLakeTable::new(Arc::new(table));
+    let df_table = IndexLakeTable::try_new(Arc::new(table))?;
     let session = SessionContext::new();
     session.register_table("indexlake_table", Arc::new(df_table))?;
     let df = session.sql("SELECT * FROM indexlake_table").await?;
@@ -316,7 +402,7 @@ async fn datafusion_insert_serialization(
     let client = Client::new(catalog, storage);
     let table = prepare_simple_testing_table(&client, format).await?;
 
-    let df_table = IndexLakeTable::new(Arc::new(table));
+    let df_table = IndexLakeTable::try_new(Arc::new(table))?;
     let session = SessionContext::new();
     session.register_table("indexlake_table", Arc::new(df_table))?;
     let df = session

@@ -225,6 +225,27 @@ pub fn datafusion_scalar_to_indexlake_scalar(
     }
 }
 
+pub fn indexlake_scalar_to_datafusion_scalar(
+    scalar: &ILScalar,
+) -> Result<ScalarValue, DataFusionError> {
+    match scalar {
+        ILScalar::Boolean(v) => Ok(ScalarValue::Boolean(*v)),
+        ILScalar::Int8(v) => Ok(ScalarValue::Int8(*v)),
+        ILScalar::Int16(v) => Ok(ScalarValue::Int16(*v)),
+        ILScalar::Int32(v) => Ok(ScalarValue::Int32(*v)),
+        ILScalar::Int64(v) => Ok(ScalarValue::Int64(*v)),
+        ILScalar::UInt8(v) => Ok(ScalarValue::UInt8(*v)),
+        ILScalar::UInt16(v) => Ok(ScalarValue::UInt16(*v)),
+        ILScalar::UInt32(v) => Ok(ScalarValue::UInt32(*v)),
+        ILScalar::UInt64(v) => Ok(ScalarValue::UInt64(*v)),
+        ILScalar::Float32(v) => Ok(ScalarValue::Float32(*v)),
+        ILScalar::Float64(v) => Ok(ScalarValue::Float64(*v)),
+        ILScalar::Utf8(v) => Ok(ScalarValue::Utf8(v.clone())),
+        ILScalar::Binary(v) => Ok(ScalarValue::Binary(v.clone())),
+        ILScalar::List(v) => Ok(ScalarValue::List(v.clone())),
+    }
+}
+
 pub fn datafusion_operator_to_indexlake_operator(
     operator: &Operator,
 ) -> Result<ILOperator, DataFusionError> {

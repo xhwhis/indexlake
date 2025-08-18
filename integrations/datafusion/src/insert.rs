@@ -35,6 +35,15 @@ impl IndexLakeInsertExec {
         input: Arc<dyn ExecutionPlan>,
         insert_op: InsertOp,
     ) -> Result<Self, DataFusionError> {
+        match insert_op {
+            InsertOp::Append | InsertOp::Overwrite => {}
+            InsertOp::Replace => {
+                return Err(DataFusionError::NotImplemented(
+                    "Replace is not supported for indexlake table".to_string(),
+                ));
+            }
+        }
+
         let input_schema = input.schema();
         check_insert_batch_schema(
             &schema_without_row_id(&input_schema),

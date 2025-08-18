@@ -1,13 +1,10 @@
 use crate::{
     ILError, ILResult,
-    catalog::IndexRecord,
+    catalog::{FieldRecord, IndexRecord},
     index::{IndexKind, IndexParams},
 };
 use arrow::datatypes::{FieldRef, SchemaRef};
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 pub type IndexDefinationRef = Arc<IndexDefination>;
@@ -56,19 +53,22 @@ impl IndexDefination {
 
     pub(crate) fn from_index_record(
         index_record: &IndexRecord,
-        field_map: &BTreeMap<Uuid, FieldRef>,
+        field_records: &[FieldRecord],
         table_name: &str,
         table_schema: &SchemaRef,
         index_kinds: &HashMap<String, Arc<dyn IndexKind>>,
     ) -> ILResult<Self> {
         let mut key_columns = Vec::new();
         for key_field_id in index_record.key_field_ids.iter() {
-            let field = field_map.get(key_field_id).ok_or_else(|| {
-                ILError::internal(format!(
-                    "Key field id {key_field_id} not found in field map"
-                ))
-            })?;
-            key_columns.push(field.name().to_string());
+            let field_record = field_records
+                .iter()
+                .find(|f| f.field_id == *key_field_id)
+                .ok_or_else(|| {
+                    ILError::internal(format!(
+                        "Key field id {key_field_id} not found in field records"
+                    ))
+                })?;
+            key_columns.push(field_record.field_name.clone());
         }
 
         let index_kind = index_kinds.get(&index_record.index_kind).ok_or_else(|| {

@@ -14,7 +14,6 @@ pub use like::*;
 pub use utils::*;
 pub use visitor::*;
 
-use serde::{Deserialize, Serialize};
 use std::sync::{Arc, LazyLock};
 
 use arrow::{
@@ -43,7 +42,7 @@ pub const DEFAULT_FORMAT_OPTIONS: FormatOptions<'static> =
     FormatOptions::new().with_duration_format(DurationFormat::Pretty);
 
 /// Represents logical expressions such as `A + 1`
-#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
 pub enum Expr {
     /// A named reference
     Column(String),
@@ -259,7 +258,7 @@ impl Expr {
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> ILResult<String> {
         match self {
             Expr::Column(name) => Ok(database.sql_identifier(name)),
-            Expr::Literal(scalar) => Ok(scalar.to_sql(database)),
+            Expr::Literal(scalar) => scalar.to_sql(database),
             Expr::BinaryExpr(binary_expr) => binary_expr.to_sql(database),
             Expr::Not(expr) => Ok(format!("NOT {}", expr.to_sql(database)?)),
             Expr::IsNull(expr) => Ok(format!("{} IS NULL", expr.to_sql(database)?)),
@@ -380,7 +379,7 @@ impl ArrowPredicate for ExprPredicate {
 }
 
 /// InList expression
-#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
 pub struct InList {
     /// The expression to compare
     pub expr: Box<Expr>,
@@ -390,7 +389,7 @@ pub struct InList {
     pub negated: bool,
 }
 
-#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
 pub struct Function {
     pub name: String,
     pub args: Vec<Expr>,
@@ -398,7 +397,7 @@ pub struct Function {
     pub return_type: DataType,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Drive, DriveMut, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Drive, DriveMut)]
 pub struct Cast {
     /// The expression being cast
     pub expr: Box<Expr>,
@@ -407,7 +406,7 @@ pub struct Cast {
     pub cast_type: DataType,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Drive, DriveMut, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Drive, DriveMut)]
 pub struct TryCast {
     pub expr: Box<Expr>,
     #[drive(skip)]

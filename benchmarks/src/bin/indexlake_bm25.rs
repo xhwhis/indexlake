@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::time::Instant;
+use std::{collections::HashMap, sync::Arc};
 
 use arrow::util::pretty::pretty_format_batches;
 use futures::StreamExt;
@@ -45,6 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         namespace_name: namespace_name.to_string(),
         table_name: table_name.clone(),
         schema: arrow_bm25_table_schema(),
+        default_values: HashMap::new(),
         config: table_config.clone(),
         if_not_exists: false,
     };

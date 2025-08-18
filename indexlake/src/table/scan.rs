@@ -21,7 +21,7 @@ use crate::{
     utils::project_schema,
 };
 
-#[derive(Debug, Clone, derive_with::With, Serialize, Deserialize)]
+#[derive(Debug, Clone, derive_with::With)]
 pub struct TableScan {
     pub projection: Option<Vec<usize>>,
     pub filters: Vec<Expr>,

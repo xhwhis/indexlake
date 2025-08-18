@@ -3,7 +3,6 @@ use indexlake::expr::{col, lit};
 use indexlake::{
     Client,
     catalog::Catalog,
-    catalog::Scalar,
     storage::{DataFileFormat, Storage},
 };
 use indexlake_integration_tests::data::prepare_simple_testing_table;

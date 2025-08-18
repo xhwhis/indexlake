@@ -75,23 +75,30 @@ impl TableRecord {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct FieldRecord {
-    pub(crate) field_id: Uuid,
-    pub(crate) table_id: Uuid,
-    pub(crate) field_name: String,
-    pub(crate) data_type: DataType,
-    pub(crate) nullable: bool,
-    pub(crate) metadata: HashMap<String, String>,
+pub struct FieldRecord {
+    pub field_id: Uuid,
+    pub table_id: Uuid,
+    pub field_name: String,
+    pub data_type: DataType,
+    pub nullable: bool,
+    pub default_value: Option<String>,
+    pub metadata: HashMap<String, String>,
 }
 
 impl FieldRecord {
-    pub(crate) fn new(field_id: Uuid, table_id: Uuid, field: &Field) -> Self {
+    pub(crate) fn new(
+        field_id: Uuid,
+        table_id: Uuid,
+        field: &Field,
+        default_value: Option<String>,
+    ) -> Self {
         Self {
             field_id,
             table_id,
             field_name: field.name().to_string(),
             data_type: field.data_type().clone(),
             nullable: field.is_nullable(),
+            default_value,
             metadata: field.metadata().clone(),
         }
     }
@@ -99,15 +106,20 @@ impl FieldRecord {
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> ILResult<String> {
         let data_type_str = serde_json::to_string(&self.data_type)
             .map_err(|e| ILError::internal(format!("Failed to serialize data type: {e:?}")))?;
+        let default_value_sql = match self.default_value.as_ref() {
+            Some(value) => database.sql_string_value(value),
+            None => "null".to_string(),
+        };
         let metadata_str = serde_json::to_string(&self.metadata)
             .map_err(|e| ILError::internal(format!("Failed to serialize field metadata: {e:?}")))?;
         Ok(format!(
-            "({}, {}, '{}', '{}', {}, '{}')",
+            "({}, {}, '{}', '{}', {}, {}, '{}')",
             database.sql_uuid_value(&self.field_id),
             database.sql_uuid_value(&self.table_id),
             self.field_name,
             data_type_str,
             self.nullable,
+            default_value_sql,
             metadata_str
         ))
     }
@@ -123,6 +135,7 @@ impl FieldRecord {
             Column::new("field_name", CatalogDataType::Utf8, false),
             Column::new("data_type", CatalogDataType::Utf8, false),
             Column::new("nullable", CatalogDataType::Boolean, false),
+            Column::new("default_value", CatalogDataType::Utf8, true),
             Column::new("metadata", CatalogDataType::Utf8, false),
         ])
     }
@@ -135,7 +148,8 @@ impl FieldRecord {
         let data_type: DataType = serde_json::from_str(data_type_str)
             .map_err(|e| ILError::internal(format!("Failed to deserialize data type: {e:?}")))?;
         let nullable = row.boolean(4)?.expect("nullable is not null");
-        let metadata_str = row.utf8(5)?.expect("metadata is not null");
+        let default_value = row.utf8_owned(5)?;
+        let metadata_str = row.utf8(6)?.expect("metadata is not null");
         let metadata: HashMap<String, String> =
             serde_json::from_str(metadata_str).map_err(|e| {
                 ILError::internal(format!("Failed to deserialize field metadata: {e:?}"))
@@ -146,6 +160,7 @@ impl FieldRecord {
             field_name,
             data_type,
             nullable,
+            default_value,
             metadata,
         })
     }

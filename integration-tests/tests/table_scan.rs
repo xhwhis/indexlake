@@ -14,7 +14,7 @@ use indexlake_integration_tests::utils::table_scan;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 #[rstest::rstest]
 #[case(async { catalog_sqlite() }, async { storage_fs() }, DataFileFormat::ParquetV2)]
@@ -126,6 +126,7 @@ async fn partitioned_scan(
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: table_schema.clone(),
+        default_values: HashMap::new(),
         config: table_config,
         if_not_exists: false,
     };

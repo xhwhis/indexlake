@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use datafusion::{
     arrow::datatypes::SchemaRef,
@@ -10,23 +10,43 @@ use datafusion::{
     physical_plan::ExecutionPlan,
     prelude::Expr,
 };
-use indexlake::table::{Table, TableScanPartition};
+use indexlake::{
+    catalog::Scalar,
+    table::{Table, TableScanPartition},
+};
 use log::warn;
 
-use crate::{IndexLakeInsertExec, IndexLakeScanExec, datafusion_expr_to_indexlake_expr};
+use crate::{
+    IndexLakeInsertExec, IndexLakeScanExec, datafusion_expr_to_indexlake_expr,
+    indexlake_scalar_to_datafusion_scalar,
+};
 
 #[derive(Debug)]
 pub struct IndexLakeTable {
     table: Arc<Table>,
     partition_count: usize,
+    column_defaults: HashMap<String, Expr>,
 }
 
 impl IndexLakeTable {
-    pub fn new(table: Arc<Table>) -> Self {
-        Self {
+    pub fn try_new(table: Arc<Table>) -> Result<Self, DataFusionError> {
+        let mut column_defaults = HashMap::new();
+        for field_record in table.field_records.iter() {
+            if let Some(default_value) = &field_record.default_value {
+                let scalar = Scalar::parse_str(default_value, &field_record.data_type)
+                    .map_err(|e| DataFusionError::Internal(e.to_string()))?;
+                let scalar_value = indexlake_scalar_to_datafusion_scalar(&scalar)?;
+                column_defaults.insert(
+                    field_record.field_name.clone(),
+                    Expr::Literal(scalar_value, None),
+                );
+            }
+        }
+        Ok(Self {
             table,
             partition_count: num_cpus::get(),
-        }
+            column_defaults,
+        })
     }
 
     pub fn with_partition_count(mut self, partition_count: usize) -> Self {
@@ -47,6 +67,10 @@ impl TableProvider for IndexLakeTable {
 
     fn table_type(&self) -> TableType {
         TableType::Base
+    }
+
+    fn get_column_default(&self, column: &str) -> Option<&Expr> {
+        self.column_defaults.get(column)
     }
 
     async fn scan(

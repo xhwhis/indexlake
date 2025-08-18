@@ -6,7 +6,6 @@ use arrow::{
 };
 use arrow_schema::{DataType, Schema};
 use derive_visitor::{Drive, DriveMut};
-use serde::{Deserialize, Serialize};
 
 use crate::{
     ILError, ILResult,
@@ -14,7 +13,7 @@ use crate::{
     expr::{ColumnarValue, Expr, try_cast},
 };
 
-#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
 pub struct CaseExpr {
     pub when_then: Vec<(Box<Expr>, Box<Expr>)>,
     pub else_expr: Option<Box<Expr>>,

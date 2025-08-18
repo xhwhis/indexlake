@@ -96,11 +96,14 @@ impl Client {
                 ))
             })?;
 
-        let field_map = catalog_helper
+        let field_records = catalog_helper
             .get_table_fields(&table_record.table_id)
             .await?;
 
-        let mut fields = field_map.values().cloned().collect::<Vec<_>>();
+        let mut fields = field_records
+            .iter()
+            .map(|f| Arc::new(f.clone().into_field()))
+            .collect::<Vec<_>>();
         fields.insert(0, INTERNAL_ROW_ID_FIELD_REF.clone());
         let schema = Arc::new(Schema::new_with_metadata(
             fields,
@@ -114,7 +117,7 @@ impl Client {
         for index_record in index_records {
             let index = IndexDefination::from_index_record(
                 &index_record,
-                &field_map,
+                &field_records,
                 table_name,
                 &schema,
                 &self.index_kinds,
@@ -129,7 +132,7 @@ impl Client {
             namespace_name: namespace_name.to_string(),
             table_id: table_record.table_id,
             table_name: table_name.to_string(),
-            field_map,
+            field_records,
             schema,
             config: Arc::new(table_record.config),
             catalog: self.catalog.clone(),

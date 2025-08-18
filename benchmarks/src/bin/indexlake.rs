@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{collections::HashMap, time::Instant};
 
 use futures::StreamExt;
 use indexlake::ILError;
@@ -32,6 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         namespace_name: namespace_name.clone(),
         table_name: table_name.clone(),
         schema: arrow_table_schema(),
+        default_values: HashMap::new(),
         config: table_config.clone(),
         if_not_exists: false,
     };
