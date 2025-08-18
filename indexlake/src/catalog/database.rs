@@ -27,6 +27,14 @@ impl CatalogDatabase {
             CatalogDatabase::Postgres => format!("'{value}'"),
         }
     }
+
+    pub fn sql_string_value(&self, value: &str) -> String {
+        let value = value.replace("'", "''");
+        match self {
+            CatalogDatabase::Sqlite => format!("'{value}'"),
+            CatalogDatabase::Postgres => format!("'{value}'"),
+        }
+    }
 }
 
 impl std::fmt::Display for CatalogDatabase {

@@ -408,14 +408,8 @@ pub(crate) fn record_batch_to_sql_values(
                 extract_sql_values!(array, BinaryViewArray, |v: &[u8]| database
                     .sql_binary_value(v))
             }
-            DataType::Utf8 => {
-                extract_sql_values!(array, StringArray, |v: &str| format!("'{v}'"))
-            }
-            DataType::LargeUtf8 => {
-                extract_sql_values!(array, LargeStringArray, |v: &str| format!("'{v}'"))
-            }
-            DataType::Utf8View => {
-                extract_sql_values!(array, StringViewArray, |v: &str| format!("'{v}'"))
+            DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => {
+                extract_sql_values!(array, StringArray, |v: &str| database.sql_string_value(v))
             }
             DataType::List(inner_field) => {
                 let mut sql_values = Vec::with_capacity(array.len());

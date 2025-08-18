@@ -1,3 +1,4 @@
+use arrow::array::StringArray;
 use arrow::array::{AsArray, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Int64Type, Schema};
 use futures::TryStreamExt;
@@ -152,6 +153,75 @@ async fn bypass_insert_table(
 | 2                 | 1  |
 | 3                 | 2  |
 +-------------------+----+"#,
+    );
+
+    Ok(())
+}
+
+#[rstest::rstest]
+#[case(async { catalog_sqlite() }, async { storage_fs() }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
+#[tokio::test(flavor = "multi_thread")]
+async fn insert_string_with_quotes(
+    #[future(awt)]
+    #[case]
+    catalog: Arc<dyn Catalog>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
+) -> Result<(), Box<dyn std::error::Error>> {
+    init_env_logger();
+
+    let client = Client::new(catalog, storage);
+
+    let namespace_name = uuid::Uuid::new_v4().to_string();
+    client.create_namespace(&namespace_name, true).await?;
+
+    let table_schema = Arc::new(Schema::new(vec![Field::new("name", DataType::Utf8, false)]));
+    let table_config = TableConfig {
+        preferred_data_file_format: format,
+        ..Default::default()
+    };
+    let table_name = uuid::Uuid::new_v4().to_string();
+    let table_creation = TableCreation {
+        namespace_name: namespace_name.clone(),
+        table_name: table_name.clone(),
+        schema: table_schema.clone(),
+        config: table_config,
+        if_not_exists: false,
+    };
+    client.create_table(table_creation).await?;
+
+    let table = client.load_table(&namespace_name, &table_name).await?;
+
+    let batch = RecordBatch::try_new(
+        table_schema.clone(),
+        vec![Arc::new(StringArray::from_iter_values(vec![
+            "'A'", "'B", "''C''", "''D'", "A'B'C", r#""E""#, r#""F"#, r#"""G"""#, r#"""H""#,
+        ]))],
+    )?;
+    table.insert(&[batch]).await?;
+
+    let table_str = full_table_scan(&table).await?;
+    println!("{table_str}");
+    assert_eq!(
+        table_str,
+        r#"+-------------------+-------+
+| _indexlake_row_id | name  |
++-------------------+-------+
+| 1                 | 'A'   |
+| 2                 | 'B    |
+| 3                 | ''C'' |
+| 4                 | ''D'  |
+| 5                 | A'B'C |
+| 6                 | "E"   |
+| 7                 | "F    |
+| 8                 | ""G"" |
+| 9                 | ""H"  |
++-------------------+-------+"#,
     );
 
     Ok(())
