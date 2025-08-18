@@ -10,10 +10,7 @@ use datafusion::{
     physical_plan::ExecutionPlan,
     prelude::Expr,
 };
-use indexlake::{
-    catalog::Scalar,
-    table::{Table, TableScanPartition},
-};
+use indexlake::table::{Table, TableScanPartition};
 use log::warn;
 
 use crate::{
@@ -33,9 +30,7 @@ impl IndexLakeTable {
         let mut column_defaults = HashMap::new();
         for field_record in table.field_records.iter() {
             if let Some(default_value) = &field_record.default_value {
-                let scalar = Scalar::parse_str(default_value, &field_record.data_type)
-                    .map_err(|e| DataFusionError::Internal(e.to_string()))?;
-                let scalar_value = indexlake_scalar_to_datafusion_scalar(&scalar)?;
+                let scalar_value = indexlake_scalar_to_datafusion_scalar(default_value)?;
                 column_defaults.insert(
                     field_record.field_name.clone(),
                     Expr::Literal(scalar_value, None),

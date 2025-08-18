@@ -60,14 +60,16 @@ pub(crate) async fn process_create_table(
 
     let mut field_records = Vec::new();
     for field in creation.schema.fields() {
-        let default_value = if let Some(default_value) = creation.default_values.get(field.name()) {
-            // TODO should not use fmt
-            Some(default_value.to_string())
-        } else if field.is_nullable() {
-            Some("null".to_string())
-        } else {
-            None
-        };
+        let default_value = creation.default_values.get(field.name()).cloned();
+        if let Some(v) = &default_value
+            && &v.data_type() != field.data_type()
+        {
+            return Err(ILError::invalid_input(format!(
+                "Default value type {} does not match field type {}",
+                v.data_type(),
+                field.data_type()
+            )));
+        }
         field_records.push(FieldRecord::new(
             Uuid::now_v7(),
             table_id,

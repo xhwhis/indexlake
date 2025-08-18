@@ -5,15 +5,18 @@ use std::sync::Arc;
 
 use arrow::array::{
     Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Float32Array, Float64Array,
-    GenericListArray, Int8Array, Int16Array, Int32Array, Int64Array, ListArray, StringArray,
-    UInt8Array, UInt16Array, UInt32Array, UInt64Array, new_null_array,
+    GenericListArray, Int8Array, Int16Array, Int32Array, Int64Array, ListArray, RecordBatch,
+    StringArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array, new_null_array,
 };
 use arrow::compute::CastOptions;
 use arrow::datatypes::{
     DataType, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type,
     UInt16Type, UInt32Type, UInt64Type,
 };
+use arrow::ipc::reader::StreamReader;
+use arrow::ipc::writer::StreamWriter;
 use arrow::util::display::{ArrayFormatter, FormatOptions};
+use arrow_schema::{Field, Schema};
 use derive_visitor::{Drive, DriveMut};
 
 use crate::{ILError, ILResult, catalog::CatalogDatabase};
@@ -93,28 +96,17 @@ impl Scalar {
 
     pub fn to_sql(&self, database: CatalogDatabase) -> ILResult<String> {
         match self {
-            Scalar::Boolean(Some(value)) => Ok(value.to_string()),
-            Scalar::Boolean(None) => Ok("null".to_string()),
-            Scalar::Int8(Some(value)) => Ok(value.to_string()),
-            Scalar::Int8(None) => Ok("null".to_string()),
-            Scalar::Int16(Some(value)) => Ok(value.to_string()),
-            Scalar::Int16(None) => Ok("null".to_string()),
-            Scalar::Int32(Some(value)) => Ok(value.to_string()),
-            Scalar::Int32(None) => Ok("null".to_string()),
-            Scalar::Int64(Some(value)) => Ok(value.to_string()),
-            Scalar::Int64(None) => Ok("null".to_string()),
-            Scalar::UInt8(Some(value)) => Ok(value.to_string()),
-            Scalar::UInt8(None) => Ok("null".to_string()),
-            Scalar::UInt16(Some(value)) => Ok(value.to_string()),
-            Scalar::UInt16(None) => Ok("null".to_string()),
-            Scalar::UInt32(Some(value)) => Ok(value.to_string()),
-            Scalar::UInt32(None) => Ok("null".to_string()),
-            Scalar::UInt64(Some(value)) => Ok(value.to_string()),
-            Scalar::UInt64(None) => Ok("null".to_string()),
-            Scalar::Float32(Some(value)) => Ok(value.to_string()),
-            Scalar::Float32(None) => Ok("null".to_string()),
-            Scalar::Float64(Some(value)) => Ok(value.to_string()),
-            Scalar::Float64(None) => Ok("null".to_string()),
+            Scalar::Boolean(_)
+            | Scalar::Int8(_)
+            | Scalar::Int16(_)
+            | Scalar::Int32(_)
+            | Scalar::Int64(_)
+            | Scalar::UInt8(_)
+            | Scalar::UInt16(_)
+            | Scalar::UInt32(_)
+            | Scalar::UInt64(_)
+            | Scalar::Float32(_)
+            | Scalar::Float64(_) => Ok(self.to_string()),
             Scalar::Utf8(Some(value)) => Ok(database.sql_string_value(value)),
             Scalar::Utf8(None) => Ok("null".to_string()),
             Scalar::Binary(Some(value)) => Ok(database.sql_binary_value(value)),
@@ -342,84 +334,41 @@ impl Scalar {
             ))),
         }
     }
+}
 
-    pub fn parse_str(value: &str, data_type: &DataType) -> ILResult<Self> {
-        if value.eq_ignore_ascii_case("null") {
-            return Self::try_new_null(data_type);
-        }
-        match data_type {
-            DataType::Boolean => {
-                let value = value.to_lowercase().parse::<bool>().map_err(|e| {
-                    ILError::invalid_input(format!("Failed to parse {value} as boolean: {e}"))
-                })?;
-                Ok(Scalar::Boolean(Some(value)))
-            }
-            DataType::Int8 => {
-                let value = value.parse::<i8>().map_err(|e| {
-                    ILError::invalid_input(format!("Failed to parse {value} as int8: {e}"))
-                })?;
-                Ok(Scalar::Int8(Some(value)))
-            }
-            DataType::Int16 => {
-                let value = value.parse::<i16>().map_err(|e| {
-                    ILError::invalid_input(format!("Failed to parse {value} as int16: {e}"))
-                })?;
-                Ok(Scalar::Int16(Some(value)))
-            }
-            DataType::Int32 => {
-                let value = value.parse::<i32>().map_err(|e| {
-                    ILError::invalid_input(format!("Failed to parse {value} as int32: {e}"))
-                })?;
-                Ok(Scalar::Int32(Some(value)))
-            }
-            DataType::Int64 => {
-                let value = value.parse::<i64>().map_err(|e| {
-                    ILError::invalid_input(format!("Failed to parse {value} as int64: {e}"))
-                })?;
-                Ok(Scalar::Int64(Some(value)))
-            }
-            DataType::UInt8 => {
-                let value = value.parse::<u8>().map_err(|e| {
-                    ILError::invalid_input(format!("Failed to parse {value} as uint8: {e}"))
-                })?;
-                Ok(Scalar::UInt8(Some(value)))
-            }
-            DataType::UInt16 => {
-                let value = value.parse::<u16>().map_err(|e| {
-                    ILError::invalid_input(format!("Failed to parse {value} as uint16: {e}"))
-                })?;
-                Ok(Scalar::UInt16(Some(value)))
-            }
-            DataType::UInt32 => {
-                let value = value.parse::<u32>().map_err(|e| {
-                    ILError::invalid_input(format!("Failed to parse {value} as uint32: {e}"))
-                })?;
-                Ok(Scalar::UInt32(Some(value)))
-            }
-            DataType::UInt64 => {
-                let value = value.parse::<u64>().map_err(|e| {
-                    ILError::invalid_input(format!("Failed to parse {value} as uint64: {e}"))
-                })?;
-                Ok(Scalar::UInt64(Some(value)))
-            }
-            DataType::Float32 => {
-                let value = value.parse::<f32>().map_err(|e| {
-                    ILError::invalid_input(format!("Failed to parse {value} as float32: {e}"))
-                })?;
-                Ok(Scalar::Float32(Some(value)))
-            }
-            DataType::Float64 => {
-                let value = value.parse::<f64>().map_err(|e| {
-                    ILError::invalid_input(format!("Failed to parse {value} as float64: {e}"))
-                })?;
-                Ok(Scalar::Float64(Some(value)))
-            }
-            DataType::Utf8 => Ok(Scalar::Utf8(Some(value.to_string()))),
-            _ => Err(ILError::not_supported(format!(
-                "Not supported to parse {value} as {data_type}"
-            ))),
-        }
+pub fn serialize_scalar(scalar: &Scalar) -> ILResult<Vec<u8>> {
+    let field = Field::new("scalar", scalar.data_type(), true);
+    let schema = Arc::new(Schema::new(vec![field]));
+    let arr = scalar.to_array_of_size(1)?;
+    let batch = RecordBatch::try_new(schema.clone(), vec![arr])?;
+    let mut buf = Vec::new();
+    let mut writer = StreamWriter::try_new(&mut buf, &schema)?;
+    writer.write(&batch)?;
+    writer.finish()?;
+    Ok(buf)
+}
+
+pub fn deserialize_scalar(buf: &[u8]) -> ILResult<Scalar> {
+    let mut reader = StreamReader::try_new(buf, None)?;
+    let Some(batch) = reader.next() else {
+        return Err(ILError::invalid_input(
+            "Failed to deserialize scalar: empty buffer",
+        ));
+    };
+    let batch = batch?;
+    if batch.num_columns() != 1 {
+        return Err(ILError::invalid_input(
+            "Failed to deserialize scalar: multiple columns",
+        ));
     }
+    let array = batch.column(0);
+    if array.len() != 1 {
+        return Err(ILError::invalid_input(
+            "Failed to deserialize scalar: invalid array length",
+        ));
+    }
+    let scalar = Scalar::try_from_array(array, 0)?;
+    Ok(scalar)
 }
 
 impl PartialEq for Scalar {
@@ -647,5 +596,46 @@ impl From<&str> for Scalar {
 impl From<Option<&str>> for Scalar {
     fn from(value: Option<&str>) -> Self {
         Scalar::Utf8(value.map(|s| s.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_scalar_serialization() {
+        assert_scalar_serialization(Scalar::from(true));
+        assert_scalar_serialization(Scalar::from(None::<bool>));
+        assert_scalar_serialization(Scalar::from(1i8));
+        assert_scalar_serialization(Scalar::from(None::<i8>));
+        assert_scalar_serialization(Scalar::from(1i16));
+        assert_scalar_serialization(Scalar::from(None::<i16>));
+        assert_scalar_serialization(Scalar::from(1i32));
+        assert_scalar_serialization(Scalar::from(None::<i32>));
+        assert_scalar_serialization(Scalar::from(1i64));
+        assert_scalar_serialization(Scalar::from(None::<i64>));
+        assert_scalar_serialization(Scalar::from(1u8));
+        assert_scalar_serialization(Scalar::from(None::<u8>));
+        assert_scalar_serialization(Scalar::from(1u16));
+        assert_scalar_serialization(Scalar::from(None::<u16>));
+        assert_scalar_serialization(Scalar::from(1u32));
+        assert_scalar_serialization(Scalar::from(None::<u32>));
+        assert_scalar_serialization(Scalar::from(1u64));
+        assert_scalar_serialization(Scalar::from(None::<u64>));
+        assert_scalar_serialization(Scalar::from(1f32));
+        assert_scalar_serialization(Scalar::from(None::<f32>));
+        assert_scalar_serialization(Scalar::from(1f64));
+        assert_scalar_serialization(Scalar::from(None::<f64>));
+        assert_scalar_serialization(Scalar::from("test"));
+        assert_scalar_serialization(Scalar::from(None::<&str>));
+        assert_scalar_serialization(Scalar::from(vec![1u8, 2, 3]));
+        assert_scalar_serialization(Scalar::from(None::<Vec<u8>>));
+    }
+
+    fn assert_scalar_serialization(scalar: Scalar) {
+        let buf = serialize_scalar(&scalar).unwrap();
+        let de_scalar = deserialize_scalar(&buf).unwrap();
+        assert_eq!(scalar, de_scalar);
     }
 }

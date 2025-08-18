@@ -17,7 +17,7 @@ CREATE TABLE indexlake_field (
     field_name VARCHAR NOT NULL,
     data_type VARCHAR NOT NULL,
     nullable BOOLEAN NOT NULL,
-    default_value VARCHAR,
+    default_value BYTEA,
     metadata VARCHAR NOT NULL
 );
 
