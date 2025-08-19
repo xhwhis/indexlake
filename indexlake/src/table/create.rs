@@ -6,7 +6,10 @@ use uuid::Uuid;
 
 use crate::{
     ILError, ILResult,
-    catalog::{FieldRecord, IndexFileRecord, IndexRecord, Scalar, TableRecord, TransactionHelper},
+    catalog::{
+        CatalogSchema, FieldRecord, IndexFileRecord, IndexRecord, InlineIndexRecord, Scalar,
+        TableRecord, TransactionHelper, rows_to_record_batch,
+    },
     index::{IndexDefination, IndexParams},
     storage::read_data_file_by_record,
     table::{Table, TableConfig},
@@ -133,6 +136,32 @@ pub(crate) async fn process_create_index(
             )))
         };
     }
+
+    // create inline index
+    let catalog_schema = Arc::new(CatalogSchema::from_arrow(&table.schema)?);
+    let row_stream = tx_helper
+        .scan_inline_rows(&table.table_id, &catalog_schema, &[], None)
+        .await?;
+    let table_schema = table.schema.clone();
+    let mut inline_stream = row_stream.chunks(100).map(move |rows| {
+        let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
+        let batch = rows_to_record_batch(&table_schema, &rows)?;
+        Ok::<_, ILError>(batch)
+    });
+    let mut index_builder = index_kind.builder(&index_def)?;
+    while let Some(batch) = inline_stream.next().await {
+        let batch = batch?;
+        index_builder.append(&batch)?;
+    }
+    drop(inline_stream);
+    let mut index_data = Vec::new();
+    index_builder.write_bytes(&mut index_data)?;
+    tx_helper
+        .insert_inline_indexes(&[InlineIndexRecord {
+            index_id,
+            index_data,
+        }])
+        .await?;
 
     // create index file
     let mut projection = vec![0];

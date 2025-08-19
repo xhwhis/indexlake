@@ -1,26 +1,17 @@
-use arrow::{
-    array::BinaryArray,
-    datatypes::{DataType, Field, Schema},
-};
-use indexlake::{
-    Client,
-    catalog::Catalog,
-    index::IndexKind,
-    storage::Storage,
-    table::{TableConfig, TableCreation, TableScan},
-};
+use arrow::datatypes::DataType;
+use indexlake::{Client, catalog::Catalog, index::IndexKind, storage::Storage, table::TableScan};
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
-use arrow::array::{Int32Array, RecordBatch};
 use geo::{Geometry, Point};
 use geozero::{CoordDimensions, ToWkb};
 use indexlake::expr::{col, func, lit};
 use indexlake::storage::DataFileFormat;
 use indexlake::table::IndexCreation;
 use indexlake_index_rstar::{RStarIndexKind, RStarIndexParams, WkbDialect};
+use indexlake_integration_tests::data::prepare_simple_geom_table;
 use indexlake_integration_tests::utils::table_scan;
 
 #[rstest::rstest]
@@ -43,53 +34,9 @@ async fn create_rstar_index_on_existing_table(
     let mut client = Client::new(catalog, storage);
     client.register_index_kind(Arc::new(RStarIndexKind));
 
-    let namespace_name = uuid::Uuid::new_v4().to_string();
-    client.create_namespace(&namespace_name, true).await?;
-
-    let table_schema = Arc::new(Schema::new(vec![
-        Field::new("id", DataType::Int32, false),
-        Field::new("geom", DataType::Binary, false),
-    ]));
-    let table_config = TableConfig {
-        inline_row_count_limit: 3,
-        parquet_row_group_size: 2,
-        preferred_data_file_format: format,
-    };
-    let table_name = uuid::Uuid::new_v4().to_string();
-    let table_creation = TableCreation {
-        namespace_name: namespace_name.clone(),
-        table_name: table_name.clone(),
-        schema: table_schema.clone(),
-        default_values: HashMap::new(),
-        config: table_config,
-        if_not_exists: false,
-    };
-    client.create_table(table_creation).await?;
-    let table = client.load_table(&namespace_name, &table_name).await?;
-
-    let record_batch = RecordBatch::try_new(
-        table_schema.clone(),
-        vec![
-            Arc::new(Int32Array::from(vec![1, 2, 3, 4])),
-            Arc::new(BinaryArray::from(vec![
-                Geometry::from(Point::new(10.0, 10.0))
-                    .to_wkb(CoordDimensions::xy())?
-                    .as_slice(),
-                Geometry::from(Point::new(11.0, 11.0))
-                    .to_wkb(CoordDimensions::xy())?
-                    .as_slice(),
-                Geometry::from(Point::new(12.0, 12.0))
-                    .to_wkb(CoordDimensions::xy())?
-                    .as_slice(),
-                Geometry::from(Point::new(13.0, 13.0))
-                    .to_wkb(CoordDimensions::xy())?
-                    .as_slice(),
-            ])),
-        ],
-    )?;
-    table.insert(&[record_batch]).await?;
-
-    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    let table = prepare_simple_geom_table(&client, format).await?;
+    let namespace_name = table.namespace_name.clone();
+    let table_name = table.table_name.clone();
 
     let index_creation = IndexCreation {
         name: "rstar_index".to_string(),
@@ -104,6 +51,8 @@ async fn create_rstar_index_on_existing_table(
 
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
+    let table = client.load_table(&namespace_name, &table_name).await?;
+
     let scan = TableScan::default().with_filters(vec![func(
         "intersects",
         vec![
@@ -113,7 +62,6 @@ async fn create_rstar_index_on_existing_table(
         DataType::Boolean,
     )]);
 
-    let table = client.load_table(&namespace_name, &table_name).await?;
     let table_str = table_scan(&table, scan).await?;
     println!("{}", table_str);
     assert_eq!(

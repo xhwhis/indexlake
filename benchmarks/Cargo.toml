@@ -6,6 +6,7 @@ homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+publish = false
 
 [features]
 # default = ["deltalake", "lance"]
@@ -17,7 +18,6 @@ indexlake = { workspace = true }
 indexlake-catalog-postgres = { workspace = true }
 indexlake-catalog-sqlite = { workspace = true }
 indexlake-index-bm25 = { workspace = true }
-indexlake-index-btree = { workspace = true }
 indexlake-index-hnsw = { workspace = true }
 indexlake-index-rstar = { workspace = true }
 indexlake-integration-tests = { workspace = true }

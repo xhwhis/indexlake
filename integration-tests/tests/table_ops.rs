@@ -11,7 +11,8 @@ use indexlake::{
     storage::{DataFileFormat, Storage},
     table::{TableConfig, TableCreation},
 };
-use indexlake_index_btree::{BTreeIndexKind, BTreeIndexParams};
+use indexlake_index_rstar::{RStarIndexKind, RStarIndexParams, WkbDialect};
+use indexlake_integration_tests::data::prepare_simple_geom_table;
 use indexlake_integration_tests::data::prepare_simple_testing_table;
 use indexlake_integration_tests::utils::full_table_scan;
 use indexlake_integration_tests::{
@@ -501,33 +502,19 @@ async fn duplicated_index_name(
     init_env_logger();
 
     let mut client = Client::new(catalog, storage);
-    client.register_index_kind(Arc::new(BTreeIndexKind));
+    client.register_index_kind(Arc::new(RStarIndexKind));
 
-    let namespace_name = uuid::Uuid::new_v4().to_string();
-    client.create_namespace(&namespace_name, true).await?;
-
-    let table_schema = Arc::new(Schema::new(vec![
-        Field::new("name", DataType::Utf8, false),
-        Field::new("age", DataType::Int32, false),
-    ]));
-    let table_name = uuid::Uuid::new_v4().to_string();
-    let table_creation = TableCreation {
-        namespace_name: namespace_name.clone(),
-        table_name: table_name.clone(),
-        schema: table_schema.clone(),
-        default_values: HashMap::new(),
-        config: TableConfig::default(),
-        if_not_exists: false,
-    };
-    client.create_table(table_creation).await?;
-
-    let table = client.load_table(&namespace_name, &table_name).await?;
+    let table = prepare_simple_geom_table(&client, DataFileFormat::ParquetV2).await?;
+    let namespace_name = table.namespace_name.clone();
+    let table_name = table.table_name.clone();
 
     let mut index_creation = IndexCreation {
         name: uuid::Uuid::new_v4().to_string(),
-        kind: BTreeIndexKind.kind().to_string(),
-        key_columns: vec!["name".to_string()],
-        params: Arc::new(BTreeIndexParams),
+        kind: RStarIndexKind.kind().to_string(),
+        key_columns: vec!["geom".to_string()],
+        params: Arc::new(RStarIndexParams {
+            wkb_dialect: WkbDialect::Wkb,
+        }),
         if_not_exists: false,
     };
 
@@ -559,71 +546,22 @@ async fn unsupported_index_kind(
     init_env_logger();
 
     let mut client = Client::new(catalog, storage);
-    client.register_index_kind(Arc::new(BTreeIndexKind));
+    client.register_index_kind(Arc::new(RStarIndexKind));
 
-    let table = prepare_simple_testing_table(&client, DataFileFormat::ParquetV2).await?;
+    let table = prepare_simple_geom_table(&client, DataFileFormat::ParquetV2).await?;
 
     let index_creation = IndexCreation {
         name: uuid::Uuid::new_v4().to_string(),
         kind: "unsupported_index_kind".to_string(),
-        key_columns: vec!["name".to_string()],
-        params: Arc::new(BTreeIndexParams),
+        key_columns: vec!["geom".to_string()],
+        params: Arc::new(RStarIndexParams {
+            wkb_dialect: WkbDialect::Wkb,
+        }),
         if_not_exists: false,
     };
 
     let result = table.create_index(index_creation).await;
     assert!(result.is_err());
-
-    Ok(())
-}
-
-#[rstest::rstest]
-#[case(async { catalog_sqlite() }, async { storage_fs() })]
-#[case(async { catalog_postgres().await }, async { storage_s3().await })]
-#[tokio::test(flavor = "multi_thread")]
-async fn load_index(
-    #[future(awt)]
-    #[case]
-    catalog: Arc<dyn Catalog>,
-    #[future(awt)]
-    #[case]
-    storage: Arc<Storage>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    init_env_logger();
-
-    let mut client = Client::new(catalog, storage);
-    client.register_index_kind(Arc::new(BTreeIndexKind));
-
-    let namespace_name = uuid::Uuid::new_v4().to_string();
-    client.create_namespace(&namespace_name, true).await?;
-
-    let table_schema = Arc::new(Schema::new(vec![
-        Field::new("name", DataType::Utf8, false),
-        Field::new("age", DataType::Int32, false),
-    ]));
-    let table_name = uuid::Uuid::new_v4().to_string();
-    let table_creation = TableCreation {
-        namespace_name: namespace_name.clone(),
-        table_name: table_name.clone(),
-        schema: table_schema.clone(),
-        default_values: HashMap::new(),
-        config: TableConfig::default(),
-        if_not_exists: false,
-    };
-    client.create_table(table_creation).await?;
-
-    let table = client.load_table(&namespace_name, &table_name).await?;
-
-    let index_name = uuid::Uuid::new_v4().to_string();
-    let index_creation = IndexCreation {
-        name: index_name.to_string(),
-        kind: BTreeIndexKind.kind().to_string(),
-        key_columns: vec!["name".to_string()],
-        params: Arc::new(BTreeIndexParams),
-        if_not_exists: false,
-    };
-
-    table.create_index(index_creation.clone()).await?;
 
     Ok(())
 }
@@ -643,34 +581,20 @@ async fn drop_index(
     init_env_logger();
 
     let mut client = Client::new(catalog, storage);
-    client.register_index_kind(Arc::new(BTreeIndexKind));
+    client.register_index_kind(Arc::new(RStarIndexKind));
 
-    let namespace_name = uuid::Uuid::new_v4().to_string();
-    client.create_namespace(&namespace_name, true).await?;
-
-    let table_schema = Arc::new(Schema::new(vec![
-        Field::new("name", DataType::Utf8, false),
-        Field::new("age", DataType::Int32, false),
-    ]));
-    let table_name = uuid::Uuid::new_v4().to_string();
-    let table_creation = TableCreation {
-        namespace_name: namespace_name.clone(),
-        table_name: table_name.clone(),
-        schema: table_schema.clone(),
-        default_values: HashMap::new(),
-        config: TableConfig::default(),
-        if_not_exists: false,
-    };
-    client.create_table(table_creation).await?;
-
-    let table = client.load_table(&namespace_name, &table_name).await?;
+    let table = prepare_simple_geom_table(&client, DataFileFormat::ParquetV2).await?;
+    let namespace_name = table.namespace_name.clone();
+    let table_name = table.table_name.clone();
 
     let index_name = uuid::Uuid::new_v4().to_string();
     let index_creation = IndexCreation {
         name: index_name.to_string(),
-        kind: BTreeIndexKind.kind().to_string(),
-        key_columns: vec!["name".to_string()],
-        params: Arc::new(BTreeIndexParams),
+        kind: RStarIndexKind.kind().to_string(),
+        key_columns: vec!["geom".to_string()],
+        params: Arc::new(RStarIndexParams {
+            wkb_dialect: WkbDialect::Wkb,
+        }),
         if_not_exists: false,
     };
 
