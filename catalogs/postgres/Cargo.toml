@@ -6,6 +6,7 @@ homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+description = "IndexLake postgres catalog"
 
 [dependencies]
 indexlake = { workspace = true }
