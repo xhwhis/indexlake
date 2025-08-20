@@ -5,9 +5,11 @@ use std::sync::Arc;
 
 use arrow::array::{
     Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Float32Array, Float64Array,
-    GenericListArray, Int8Array, Int16Array, Int32Array, Int64Array, ListArray, RecordBatch,
-    StringArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array, new_null_array,
+    GenericListArray, Int8Array, Int16Array, Int32Array, Int64Array, LargeStringArray, ListArray,
+    RecordBatch, StringArray, StringViewArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
+    new_null_array,
 };
+use arrow::buffer::OffsetBuffer;
 use arrow::compute::CastOptions;
 use arrow::datatypes::{
     DataType, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type,
@@ -35,6 +37,8 @@ pub enum Scalar {
     Float32(Option<f32>),
     Float64(Option<f64>),
     Utf8(Option<String>),
+    Utf8View(Option<String>),
+    LargeUtf8(Option<String>),
     Binary(Option<Vec<u8>>),
     #[drive(skip)]
     List(Arc<ListArray>),
@@ -55,6 +59,8 @@ impl Scalar {
             DataType::Float32 => Scalar::Float32(None),
             DataType::Float64 => Scalar::Float64(None),
             DataType::Utf8 => Scalar::Utf8(None),
+            DataType::Utf8View => Scalar::Utf8View(None),
+            DataType::LargeUtf8 => Scalar::LargeUtf8(None),
             DataType::Binary => Scalar::Binary(None),
             DataType::List(field_ref) => {
                 Scalar::List(Arc::new(GenericListArray::new_null(field_ref.clone(), 1)))
@@ -80,6 +86,8 @@ impl Scalar {
             Scalar::Float32(v) => v.is_none(),
             Scalar::Float64(v) => v.is_none(),
             Scalar::Utf8(v) => v.is_none(),
+            Scalar::Utf8View(v) => v.is_none(),
+            Scalar::LargeUtf8(v) => v.is_none(),
             Scalar::Binary(v) => v.is_none(),
             Scalar::List(v) => v.len() == v.null_count(),
         }
@@ -107,8 +115,10 @@ impl Scalar {
             | Scalar::UInt64(_)
             | Scalar::Float32(_)
             | Scalar::Float64(_) => Ok(self.to_string()),
-            Scalar::Utf8(Some(value)) => Ok(database.sql_string_value(value)),
-            Scalar::Utf8(None) => Ok("null".to_string()),
+            Scalar::Utf8(v) | Scalar::Utf8View(v) | Scalar::LargeUtf8(v) => match v {
+                Some(value) => Ok(database.sql_string_value(value)),
+                None => Ok("null".to_string()),
+            },
             Scalar::Binary(Some(value)) => Ok(database.sql_binary_value(value)),
             Scalar::Binary(None) => Ok("null".to_string()),
             Scalar::List(_) => {
@@ -174,6 +184,14 @@ impl Scalar {
                 Some(value) => Arc::new(StringArray::from_iter_values(repeat_n(value, size))),
                 None => new_null_array(&DataType::Utf8, size),
             },
+            Scalar::Utf8View(e) => match e {
+                Some(value) => Arc::new(StringViewArray::from_iter_values(repeat_n(value, size))),
+                None => new_null_array(&DataType::Utf8View, size),
+            },
+            Scalar::LargeUtf8(e) => match e {
+                Some(value) => Arc::new(LargeStringArray::from_iter_values(repeat_n(value, size))),
+                None => new_null_array(&DataType::LargeUtf8, size),
+            },
             Scalar::Binary(e) => match e {
                 Some(value) => {
                     Arc::new(repeat_n(Some(value.as_slice()), size).collect::<BinaryArray>())
@@ -205,76 +223,71 @@ impl Scalar {
         }
         Ok(match array.data_type() {
             DataType::Boolean => {
-                let array = array.as_boolean_opt().expect("Failed to cast array");
+                let array = array.as_boolean();
                 Scalar::Boolean(Some(array.value(index)))
             }
             DataType::Int8 => {
-                let array = array
-                    .as_primitive_opt::<Int8Type>()
-                    .expect("Failed to cast array");
+                let array = array.as_primitive::<Int8Type>();
                 Scalar::Int8(Some(array.value(index)))
             }
             DataType::Int16 => {
-                let array = array
-                    .as_primitive_opt::<Int16Type>()
-                    .expect("Failed to cast array");
+                let array = array.as_primitive::<Int16Type>();
                 Scalar::Int16(Some(array.value(index)))
             }
             DataType::Int32 => {
-                let array = array
-                    .as_primitive_opt::<Int32Type>()
-                    .expect("Failed to cast array");
+                let array = array.as_primitive::<Int32Type>();
                 Scalar::Int32(Some(array.value(index)))
             }
             DataType::Int64 => {
-                let array = array
-                    .as_primitive_opt::<Int64Type>()
-                    .expect("Failed to cast array");
+                let array = array.as_primitive::<Int64Type>();
                 Scalar::Int64(Some(array.value(index)))
             }
             DataType::UInt8 => {
-                let array = array
-                    .as_primitive_opt::<UInt8Type>()
-                    .expect("Failed to cast array");
+                let array = array.as_primitive::<UInt8Type>();
                 Scalar::UInt8(Some(array.value(index)))
             }
             DataType::UInt16 => {
-                let array = array
-                    .as_primitive_opt::<UInt16Type>()
-                    .expect("Failed to cast array");
+                let array = array.as_primitive::<UInt16Type>();
                 Scalar::UInt16(Some(array.value(index)))
             }
             DataType::UInt32 => {
-                let array = array
-                    .as_primitive_opt::<UInt32Type>()
-                    .expect("Failed to cast array");
+                let array = array.as_primitive::<UInt32Type>();
                 Scalar::UInt32(Some(array.value(index)))
             }
             DataType::UInt64 => {
-                let array = array
-                    .as_primitive_opt::<UInt64Type>()
-                    .expect("Failed to cast array");
+                let array = array.as_primitive::<UInt64Type>();
                 Scalar::UInt64(Some(array.value(index)))
             }
             DataType::Float32 => {
-                let array = array
-                    .as_primitive_opt::<Float32Type>()
-                    .expect("Failed to cast array");
+                let array = array.as_primitive::<Float32Type>();
                 Scalar::Float32(Some(array.value(index)))
             }
             DataType::Float64 => {
-                let array = array
-                    .as_primitive_opt::<Float64Type>()
-                    .expect("Failed to cast array");
+                let array = array.as_primitive::<Float64Type>();
                 Scalar::Float64(Some(array.value(index)))
             }
             DataType::Utf8 => {
-                let array = array.as_string_opt::<i32>().expect("Failed to cast array");
+                let array = array.as_string::<i32>();
                 Scalar::Utf8(Some(array.value(index).to_string()))
             }
+            DataType::Utf8View => {
+                let array = array.as_string_view();
+                Scalar::Utf8View(Some(array.value(index).to_string()))
+            }
+            DataType::LargeUtf8 => {
+                let array = array.as_string::<i64>();
+                Scalar::LargeUtf8(Some(array.value(index).to_string()))
+            }
             DataType::Binary => {
-                let array = array.as_binary_opt::<i32>().expect("Failed to cast array");
+                let array = array.as_binary::<i32>();
                 Scalar::Binary(Some(array.value(index).to_vec()))
+            }
+            DataType::List(field_ref) => {
+                let array = array.as_list::<i32>();
+                let ele = array.value(index);
+                let offsets = OffsetBuffer::from_lengths([ele.len()]);
+                let list = ListArray::new(field_ref.clone(), offsets, ele, None);
+                Scalar::List(Arc::new(list))
             }
             _ => {
                 return Err(ILError::not_supported(format!(
@@ -299,6 +312,8 @@ impl Scalar {
             Scalar::Float32(_) => DataType::Float32,
             Scalar::Float64(_) => DataType::Float64,
             Scalar::Utf8(_) => DataType::Utf8,
+            Scalar::Utf8View(_) => DataType::Utf8View,
+            Scalar::LargeUtf8(_) => DataType::LargeUtf8,
             Scalar::Binary(_) => DataType::Binary,
             Scalar::List(arr) => arr.data_type().clone(),
         }
@@ -404,6 +419,10 @@ impl PartialEq for Scalar {
             (Scalar::Float64(_), _) => false,
             (Scalar::Utf8(v1), Scalar::Utf8(v2)) => v1.eq(v2),
             (Scalar::Utf8(_), _) => false,
+            (Scalar::Utf8View(v1), Scalar::Utf8View(v2)) => v1.eq(v2),
+            (Scalar::Utf8View(_), _) => false,
+            (Scalar::LargeUtf8(v1), Scalar::LargeUtf8(v2)) => v1.eq(v2),
+            (Scalar::LargeUtf8(_), _) => false,
             (Scalar::Binary(v1), Scalar::Binary(v2)) => v1.eq(v2),
             (Scalar::Binary(_), _) => false,
             (Scalar::List(v1), Scalar::List(v2)) => v1.eq(v2),
@@ -447,6 +466,10 @@ impl PartialOrd for Scalar {
             (Scalar::Float64(_), _) => None,
             (Scalar::Utf8(v1), Scalar::Utf8(v2)) => v1.partial_cmp(v2),
             (Scalar::Utf8(_), _) => None,
+            (Scalar::Utf8View(v1), Scalar::Utf8View(v2)) => v1.partial_cmp(v2),
+            (Scalar::Utf8View(_), _) => None,
+            (Scalar::LargeUtf8(v1), Scalar::LargeUtf8(v2)) => v1.partial_cmp(v2),
+            (Scalar::LargeUtf8(_), _) => None,
             (Scalar::Binary(v1), Scalar::Binary(v2)) => v1.partial_cmp(v2),
             (Scalar::Binary(_), _) => None,
             (Scalar::List(arr1), Scalar::List(arr2)) => {
@@ -540,8 +563,10 @@ impl Display for Scalar {
             Scalar::Float32(None) => write!(f, "null"),
             Scalar::Float64(Some(value)) => write!(f, "{value}"),
             Scalar::Float64(None) => write!(f, "null"),
-            Scalar::Utf8(Some(value)) => write!(f, "{value}"),
-            Scalar::Utf8(None) => write!(f, "null"),
+            Scalar::Utf8(v) | Scalar::Utf8View(v) | Scalar::LargeUtf8(v) => match v {
+                Some(value) => write!(f, "{value}"),
+                None => write!(f, "null"),
+            },
             Scalar::Binary(Some(value)) => write!(f, "{}", hex::encode(value)),
             Scalar::Binary(None) => write!(f, "null"),
             Scalar::List(arr) => fmt_list(arr.to_owned() as ArrayRef, f),
@@ -602,35 +627,57 @@ impl From<Option<&str>> for Scalar {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow::array::ListArray;
 
     #[test]
     fn test_scalar_serialization() {
-        assert_scalar_serialization(Scalar::from(true));
-        assert_scalar_serialization(Scalar::from(None::<bool>));
-        assert_scalar_serialization(Scalar::from(1i8));
-        assert_scalar_serialization(Scalar::from(None::<i8>));
-        assert_scalar_serialization(Scalar::from(1i16));
-        assert_scalar_serialization(Scalar::from(None::<i16>));
-        assert_scalar_serialization(Scalar::from(1i32));
-        assert_scalar_serialization(Scalar::from(None::<i32>));
-        assert_scalar_serialization(Scalar::from(1i64));
-        assert_scalar_serialization(Scalar::from(None::<i64>));
-        assert_scalar_serialization(Scalar::from(1u8));
-        assert_scalar_serialization(Scalar::from(None::<u8>));
-        assert_scalar_serialization(Scalar::from(1u16));
-        assert_scalar_serialization(Scalar::from(None::<u16>));
-        assert_scalar_serialization(Scalar::from(1u32));
-        assert_scalar_serialization(Scalar::from(None::<u32>));
-        assert_scalar_serialization(Scalar::from(1u64));
-        assert_scalar_serialization(Scalar::from(None::<u64>));
-        assert_scalar_serialization(Scalar::from(1f32));
-        assert_scalar_serialization(Scalar::from(None::<f32>));
-        assert_scalar_serialization(Scalar::from(1f64));
-        assert_scalar_serialization(Scalar::from(None::<f64>));
-        assert_scalar_serialization(Scalar::from("test"));
-        assert_scalar_serialization(Scalar::from(None::<&str>));
-        assert_scalar_serialization(Scalar::from(vec![1u8, 2, 3]));
-        assert_scalar_serialization(Scalar::from(None::<Vec<u8>>));
+        assert_scalar_serialization(Scalar::Boolean(Some(true)));
+        assert_scalar_serialization(Scalar::Boolean(None));
+        assert_scalar_serialization(Scalar::Int8(Some(1i8)));
+        assert_scalar_serialization(Scalar::Int8(None));
+        assert_scalar_serialization(Scalar::Int16(Some(1i16)));
+        assert_scalar_serialization(Scalar::Int16(None));
+        assert_scalar_serialization(Scalar::Int32(Some(1i32)));
+        assert_scalar_serialization(Scalar::Int32(None));
+        assert_scalar_serialization(Scalar::Int64(Some(1i64)));
+        assert_scalar_serialization(Scalar::Int64(None));
+        assert_scalar_serialization(Scalar::UInt8(Some(1u8)));
+        assert_scalar_serialization(Scalar::UInt8(None));
+        assert_scalar_serialization(Scalar::UInt16(Some(1u16)));
+        assert_scalar_serialization(Scalar::UInt16(None));
+        assert_scalar_serialization(Scalar::UInt32(Some(1u32)));
+        assert_scalar_serialization(Scalar::UInt32(None));
+        assert_scalar_serialization(Scalar::UInt64(Some(1u64)));
+        assert_scalar_serialization(Scalar::UInt64(None));
+        assert_scalar_serialization(Scalar::Float32(Some(1f32)));
+        assert_scalar_serialization(Scalar::Float32(None));
+        assert_scalar_serialization(Scalar::Float64(Some(1f64)));
+        assert_scalar_serialization(Scalar::Float64(None));
+        assert_scalar_serialization(Scalar::Utf8(Some("test".to_string())));
+        assert_scalar_serialization(Scalar::Utf8(None));
+        assert_scalar_serialization(Scalar::Utf8View(Some("test".to_string())));
+        assert_scalar_serialization(Scalar::Utf8View(None));
+        assert_scalar_serialization(Scalar::LargeUtf8(Some("test".to_string())));
+        assert_scalar_serialization(Scalar::LargeUtf8(None));
+        assert_scalar_serialization(Scalar::Binary(Some(vec![1u8, 2, 3])));
+        assert_scalar_serialization(Scalar::Binary(None));
+        assert_scalar_serialization(Scalar::List(Arc::new(ListArray::from_iter_primitive::<
+            Int32Type,
+            _,
+            _,
+        >(vec![Some(vec![
+            Some(0),
+            Some(1),
+            Some(2),
+        ])]))));
+        assert_scalar_serialization(
+            Scalar::try_new_null(&DataType::List(Arc::new(Field::new(
+                "item",
+                DataType::Int32,
+                false,
+            ))))
+            .unwrap(),
+        );
     }
 
     fn assert_scalar_serialization(scalar: Scalar) {

@@ -218,6 +218,8 @@ pub fn datafusion_scalar_to_indexlake_scalar(
         ScalarValue::Float32(v) => Ok(ILScalar::Float32(*v)),
         ScalarValue::Float64(v) => Ok(ILScalar::Float64(*v)),
         ScalarValue::Utf8(v) => Ok(ILScalar::Utf8(v.clone())),
+        ScalarValue::Utf8View(v) => Ok(ILScalar::Utf8View(v.clone())),
+        ScalarValue::LargeUtf8(v) => Ok(ILScalar::LargeUtf8(v.clone())),
         ScalarValue::Binary(v) => Ok(ILScalar::Binary(v.clone())),
         _ => Err(DataFusionError::NotImplemented(format!(
             "Unsupported scalar: {scalar}"
@@ -241,6 +243,8 @@ pub fn indexlake_scalar_to_datafusion_scalar(
         ILScalar::Float32(v) => Ok(ScalarValue::Float32(*v)),
         ILScalar::Float64(v) => Ok(ScalarValue::Float64(*v)),
         ILScalar::Utf8(v) => Ok(ScalarValue::Utf8(v.clone())),
+        ILScalar::Utf8View(v) => Ok(ScalarValue::Utf8View(v.clone())),
+        ILScalar::LargeUtf8(v) => Ok(ScalarValue::LargeUtf8(v.clone())),
         ILScalar::Binary(v) => Ok(ScalarValue::Binary(v.clone())),
         ILScalar::List(v) => Ok(ScalarValue::List(v.clone())),
     }
