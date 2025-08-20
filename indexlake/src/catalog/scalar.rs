@@ -828,52 +828,98 @@ mod tests {
     use arrow::array::ListArray;
 
     #[test]
-    fn test_scalar_serialization() {
-        assert_scalar_serialization(Scalar::Boolean(Some(true)));
-        assert_scalar_serialization(Scalar::Boolean(None));
-        assert_scalar_serialization(Scalar::Int8(Some(1i8)));
-        assert_scalar_serialization(Scalar::Int8(None));
-        assert_scalar_serialization(Scalar::Int16(Some(1i16)));
-        assert_scalar_serialization(Scalar::Int16(None));
-        assert_scalar_serialization(Scalar::Int32(Some(1i32)));
-        assert_scalar_serialization(Scalar::Int32(None));
-        assert_scalar_serialization(Scalar::Int64(Some(1i64)));
-        assert_scalar_serialization(Scalar::Int64(None));
-        assert_scalar_serialization(Scalar::UInt8(Some(1u8)));
-        assert_scalar_serialization(Scalar::UInt8(None));
-        assert_scalar_serialization(Scalar::UInt16(Some(1u16)));
-        assert_scalar_serialization(Scalar::UInt16(None));
-        assert_scalar_serialization(Scalar::UInt32(Some(1u32)));
-        assert_scalar_serialization(Scalar::UInt32(None));
-        assert_scalar_serialization(Scalar::UInt64(Some(1u64)));
-        assert_scalar_serialization(Scalar::UInt64(None));
-        assert_scalar_serialization(Scalar::Float32(Some(1f32)));
-        assert_scalar_serialization(Scalar::Float32(None));
-        assert_scalar_serialization(Scalar::Float64(Some(1f64)));
-        assert_scalar_serialization(Scalar::Float64(None));
-        assert_scalar_serialization(Scalar::Utf8(Some("test".to_string())));
-        assert_scalar_serialization(Scalar::Utf8(None));
-        assert_scalar_serialization(Scalar::Utf8View(Some("test".to_string())));
-        assert_scalar_serialization(Scalar::Utf8View(None));
-        assert_scalar_serialization(Scalar::LargeUtf8(Some("test".to_string())));
-        assert_scalar_serialization(Scalar::LargeUtf8(None));
-        assert_scalar_serialization(Scalar::Binary(Some(vec![1u8, 2, 3])));
-        assert_scalar_serialization(Scalar::Binary(None));
-        assert_scalar_serialization(Scalar::BinaryView(Some(vec![1u8, 2, 3])));
-        assert_scalar_serialization(Scalar::BinaryView(None));
-        assert_scalar_serialization(Scalar::FixedSizeBinary(3, Some(vec![1u8, 2, 3])));
-        assert_scalar_serialization(Scalar::FixedSizeBinary(3, None));
-        assert_scalar_serialization(Scalar::LargeBinary(Some(vec![1u8, 2, 3])));
-        assert_scalar_serialization(Scalar::LargeBinary(None));
-        assert_scalar_serialization(Scalar::TimestampSecond(Some(1), Some("utc".into())));
-        assert_scalar_serialization(Scalar::TimestampSecond(None, None));
-        assert_scalar_serialization(Scalar::TimestampMillisecond(Some(1), Some("utc".into())));
-        assert_scalar_serialization(Scalar::TimestampMillisecond(None, None));
-        assert_scalar_serialization(Scalar::TimestampMicrosecond(Some(1), Some("utc".into())));
-        assert_scalar_serialization(Scalar::TimestampMicrosecond(None, None));
-        assert_scalar_serialization(Scalar::TimestampNanosecond(Some(1), Some("utc".into())));
-        assert_scalar_serialization(Scalar::TimestampNanosecond(None, None));
-        assert_scalar_serialization(Scalar::List(Arc::new(ListArray::from_iter_primitive::<
+    fn test_scalar_new_null() {
+        fn assert(data_type: &DataType) {
+            let scalar = Scalar::try_new_null(data_type).unwrap();
+            assert_eq!(&scalar.data_type(), data_type);
+            assert!(scalar.is_null());
+        }
+        assert(&DataType::Boolean);
+        assert(&DataType::Int8);
+        assert(&DataType::Int16);
+        assert(&DataType::Int32);
+        assert(&DataType::Int64);
+        assert(&DataType::UInt8);
+        assert(&DataType::UInt16);
+        assert(&DataType::UInt32);
+        assert(&DataType::UInt64);
+        assert(&DataType::Float32);
+        assert(&DataType::Float64);
+        assert(&DataType::Utf8);
+        assert(&DataType::Utf8View);
+        assert(&DataType::LargeUtf8);
+        assert(&DataType::Binary);
+        assert(&DataType::BinaryView);
+        assert(&DataType::FixedSizeBinary(3));
+        assert(&DataType::LargeBinary);
+        assert(&DataType::Timestamp(TimeUnit::Second, None));
+        assert(&DataType::Timestamp(TimeUnit::Millisecond, None));
+        assert(&DataType::Timestamp(TimeUnit::Microsecond, None));
+        assert(&DataType::Timestamp(TimeUnit::Nanosecond, None));
+        assert(&DataType::List(Arc::new(Field::new(
+            "item",
+            DataType::Int32,
+            false,
+        ))));
+    }
+
+    #[test]
+    fn test_scalar_serialization_and_to_array() {
+        fn assert(scalar: Scalar) {
+            let buf = serialize_scalar(&scalar).unwrap();
+            let de_scalar = deserialize_scalar(&buf).unwrap();
+            assert_eq!(scalar, de_scalar);
+            let array = scalar.to_array_of_size(2).unwrap();
+            assert_eq!(array.len(), 2);
+            assert_eq!(array.data_type(), &scalar.data_type());
+            let scalar_from_array = Scalar::try_from_array(&array, 1).unwrap();
+            assert_eq!(scalar_from_array, scalar);
+        }
+        assert(Scalar::Boolean(Some(true)));
+        assert(Scalar::Boolean(None));
+        assert(Scalar::Int8(Some(1i8)));
+        assert(Scalar::Int8(None));
+        assert(Scalar::Int16(Some(1i16)));
+        assert(Scalar::Int16(None));
+        assert(Scalar::Int32(Some(1i32)));
+        assert(Scalar::Int32(None));
+        assert(Scalar::Int64(Some(1i64)));
+        assert(Scalar::Int64(None));
+        assert(Scalar::UInt8(Some(1u8)));
+        assert(Scalar::UInt8(None));
+        assert(Scalar::UInt16(Some(1u16)));
+        assert(Scalar::UInt16(None));
+        assert(Scalar::UInt32(Some(1u32)));
+        assert(Scalar::UInt32(None));
+        assert(Scalar::UInt64(Some(1u64)));
+        assert(Scalar::UInt64(None));
+        assert(Scalar::Float32(Some(1f32)));
+        assert(Scalar::Float32(None));
+        assert(Scalar::Float64(Some(1f64)));
+        assert(Scalar::Float64(None));
+        assert(Scalar::Utf8(Some("test".to_string())));
+        assert(Scalar::Utf8(None));
+        assert(Scalar::Utf8View(Some("test".to_string())));
+        assert(Scalar::Utf8View(None));
+        assert(Scalar::LargeUtf8(Some("test".to_string())));
+        assert(Scalar::LargeUtf8(None));
+        assert(Scalar::Binary(Some(vec![1u8, 2, 3])));
+        assert(Scalar::Binary(None));
+        assert(Scalar::BinaryView(Some(vec![1u8, 2, 3])));
+        assert(Scalar::BinaryView(None));
+        assert(Scalar::FixedSizeBinary(3, Some(vec![1u8, 2, 3])));
+        assert(Scalar::FixedSizeBinary(3, None));
+        assert(Scalar::LargeBinary(Some(vec![1u8, 2, 3])));
+        assert(Scalar::LargeBinary(None));
+        assert(Scalar::TimestampSecond(Some(1), Some("utc".into())));
+        assert(Scalar::TimestampSecond(None, None));
+        assert(Scalar::TimestampMillisecond(Some(1), Some("utc".into())));
+        assert(Scalar::TimestampMillisecond(None, None));
+        assert(Scalar::TimestampMicrosecond(Some(1), Some("utc".into())));
+        assert(Scalar::TimestampMicrosecond(None, None));
+        assert(Scalar::TimestampNanosecond(Some(1), Some("utc".into())));
+        assert(Scalar::TimestampNanosecond(None, None));
+        assert(Scalar::List(Arc::new(ListArray::from_iter_primitive::<
             Int32Type,
             _,
             _,
@@ -882,7 +928,7 @@ mod tests {
             Some(1),
             Some(2),
         ])]))));
-        assert_scalar_serialization(
+        assert(
             Scalar::try_new_null(&DataType::List(Arc::new(Field::new(
                 "item",
                 DataType::Int32,
@@ -890,11 +936,5 @@ mod tests {
             ))))
             .unwrap(),
         );
-    }
-
-    fn assert_scalar_serialization(scalar: Scalar) {
-        let buf = serialize_scalar(&scalar).unwrap();
-        let de_scalar = deserialize_scalar(&buf).unwrap();
-        assert_eq!(scalar, de_scalar);
     }
 }
