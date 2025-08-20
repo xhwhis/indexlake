@@ -1,3 +1,4 @@
+use arrow::datatypes::{DataType, Field, Schema};
 use arrow::util::pretty::pretty_format_batches;
 use datafusion::physical_plan::collect;
 use datafusion::physical_plan::{ExecutionPlan, display::DisplayableExecutionPlan};
@@ -6,6 +7,10 @@ use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNod
 use indexlake::catalog::INTERNAL_ROW_ID_FIELD_NAME;
 use indexlake::storage::DataFileFormat;
 use indexlake::{Client, catalog::Catalog, storage::Storage};
+use indexlake::{
+    catalog::Scalar,
+    table::{TableConfig, TableCreation},
+};
 use indexlake_datafusion::IndexLakePhysicalCodec;
 use indexlake_datafusion::IndexLakeTable;
 use indexlake_integration_tests::data::prepare_simple_testing_table;
@@ -13,6 +18,7 @@ use indexlake_integration_tests::utils::sort_record_batches;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[rstest::rstest]
@@ -215,6 +221,23 @@ async fn datafusion_full_insert(
 +-------+"#,
     );
 
+    let df = session
+        .sql("INSERT INTO indexlake_table (age, name) VALUES (25, 'Frank')")
+        .await?;
+    let batches = df.collect().await?;
+    let table_str = pretty_format_batches(&batches)?.to_string();
+    println!("{}", table_str);
+    assert_eq!(
+        table_str,
+        r#"+-------+
+| count |
++-------+
+| 1     |
++-------+"#,
+    );
+
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
     let df = session.sql("SELECT * FROM indexlake_table").await?;
     let batches = df.collect().await?;
     let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME)?;
@@ -230,6 +253,7 @@ async fn datafusion_full_insert(
 | 3                 | Charlie | 22  |
 | 4                 | David   | 23  |
 | 5                 | Eve     | 24  |
+| 6                 | Frank   | 25  |
 +-------------------+---------+-----+"#,
     );
 
@@ -251,13 +275,6 @@ async fn datafusion_partial_insert(
     storage: Arc<Storage>,
     #[case] format: DataFileFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use arrow::datatypes::{DataType, Field, Schema};
-    use indexlake::{
-        catalog::Scalar,
-        table::{TableConfig, TableCreation},
-    };
-    use std::collections::HashMap;
-
     init_env_logger();
 
     let client = Client::new(catalog, storage);

@@ -1,15 +1,16 @@
 use arrow::array::StringArray;
-use arrow::array::{AsArray, Int64Array, RecordBatch};
+use arrow::array::{AsArray, Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Int64Type, Schema};
 use futures::TryStreamExt;
 use indexlake::ILError;
 use indexlake::table::TableScan;
 use indexlake::{
     Client,
-    catalog::Catalog,
+    catalog::{Catalog, Scalar},
     storage::{DataFileFormat, Storage},
     table::{TableConfig, TableCreation},
 };
+use indexlake_integration_tests::data::prepare_simple_testing_table;
 use indexlake_integration_tests::utils::full_table_scan;
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
@@ -226,6 +227,117 @@ async fn insert_string_with_quotes(
 | 8                 | ""G"" |
 | 9                 | ""H"  |
 +-------------------+-------+"#,
+    );
+
+    Ok(())
+}
+
+#[rstest::rstest]
+#[case(async { catalog_sqlite() }, async { storage_fs() }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
+#[tokio::test(flavor = "multi_thread")]
+async fn partial_insert_with_default_values(
+    #[future(awt)]
+    #[case]
+    catalog: Arc<dyn Catalog>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
+) -> Result<(), Box<dyn std::error::Error>> {
+    init_env_logger();
+
+    let client = Client::new(catalog, storage);
+
+    let namespace_name = uuid::Uuid::new_v4().to_string();
+    client.create_namespace(&namespace_name, true).await?;
+
+    let table_schema = Arc::new(Schema::new(vec![
+        Field::new("name", DataType::Utf8, false),
+        Field::new("age", DataType::Int32, false),
+    ]));
+    let default_values = HashMap::from([("age".to_string(), Scalar::from(24i32))]);
+    let table_config = TableConfig {
+        preferred_data_file_format: format,
+        ..Default::default()
+    };
+    let table_name = uuid::Uuid::new_v4().to_string();
+    let table_creation = TableCreation {
+        namespace_name: namespace_name.clone(),
+        table_name: table_name.clone(),
+        schema: table_schema.clone(),
+        default_values,
+        config: table_config,
+        if_not_exists: false,
+    };
+    client.create_table(table_creation).await?;
+
+    let table = client.load_table(&namespace_name, &table_name).await?;
+
+    let batch = RecordBatch::try_new(
+        Arc::new(table_schema.project(&[0])?),
+        vec![Arc::new(StringArray::from_iter_values(vec!["Tom"]))],
+    )?;
+    table.insert(&[batch]).await?;
+
+    let table_str = full_table_scan(&table).await?;
+    println!("{table_str}");
+    assert_eq!(
+        table_str,
+        r#"+-------------------+------+-----+
+| _indexlake_row_id | name | age |
++-------------------+------+-----+
+| 1                 | Tom  | 24  |
++-------------------+------+-----+"#,
+    );
+
+    Ok(())
+}
+
+#[rstest::rstest]
+#[case(async { catalog_sqlite() }, async { storage_fs() }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV1)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::ParquetV2)]
+#[case(async { catalog_postgres().await }, async { storage_s3().await }, DataFileFormat::LanceV2_0)]
+#[tokio::test(flavor = "multi_thread")]
+async fn insert_unordered_schema(
+    #[future(awt)]
+    #[case]
+    catalog: Arc<dyn Catalog>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
+    #[case] format: DataFileFormat,
+) -> Result<(), Box<dyn std::error::Error>> {
+    init_env_logger();
+
+    let client = Client::new(catalog, storage);
+    let table = prepare_simple_testing_table(&client, format).await?;
+
+    let batch = RecordBatch::try_new(
+        Arc::new(table.schema.project(&[2, 1])?),
+        vec![
+            Arc::new(Int32Array::from_iter_values(vec![24])),
+            Arc::new(StringArray::from_iter_values(vec!["Tom"])),
+        ],
+    )?;
+    table.insert(&[batch]).await?;
+
+    let table_str = full_table_scan(&table).await?;
+    println!("{table_str}");
+    assert_eq!(
+        table_str,
+        r#"+-------------------+---------+-----+
+| _indexlake_row_id | name    | age |
++-------------------+---------+-----+
+| 1                 | Alice   | 20  |
+| 2                 | Bob     | 21  |
+| 3                 | Charlie | 22  |
+| 4                 | David   | 23  |
+| 5                 | Tom     | 24  |
++-------------------+---------+-----+"#,
     );
 
     Ok(())

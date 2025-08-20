@@ -17,7 +17,7 @@ use datafusion::{
 use futures::StreamExt;
 use indexlake::{
     catalog::INTERNAL_ROW_ID_FIELD_NAME,
-    table::{Table, check_insert_batch_schema},
+    table::{Table, check_and_rewrite_insert_batches},
     utils::schema_without_row_id,
 };
 
@@ -45,11 +45,10 @@ impl IndexLakeInsertExec {
         }
 
         let input_schema = input.schema();
-        check_insert_batch_schema(
-            &schema_without_row_id(&input_schema),
-            &schema_without_row_id(&table.schema),
-        )
-        .map_err(|e| DataFusionError::Plan(e.to_string()))?;
+        let input_schema_without_row_id = Arc::new(schema_without_row_id(&input_schema));
+        let empty_batch = RecordBatch::new_empty(input_schema_without_row_id);
+        check_and_rewrite_insert_batches(&[empty_batch], &table.schema, &table.field_records)
+            .map_err(|e| DataFusionError::Plan(e.to_string()))?;
 
         let cache = PlanProperties::new(
             EquivalenceProperties::new(input_schema),

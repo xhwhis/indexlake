@@ -6,7 +6,7 @@ mod scan;
 mod search;
 mod update;
 
-use arrow_schema::Schema;
+use arrow_schema::{Field, Schema};
 pub use create::*;
 pub(crate) use delete::*;
 pub(crate) use dump::*;
@@ -62,20 +62,20 @@ impl Table {
     }
 
     pub async fn insert(&self, batches: &[RecordBatch]) -> ILResult<()> {
-        let expected_schema = schema_without_row_id(&self.schema);
-        let mut total_rows = 0;
-        for batch in batches {
-            total_rows += batch.num_rows();
-            check_insert_batch_schema(batch.schema_ref(), &expected_schema)?;
-        }
+        let rewritten_batches =
+            check_and_rewrite_insert_batches(batches, &self.schema, &self.field_records)?;
+        let total_rows = rewritten_batches
+            .iter()
+            .map(|batch| batch.num_rows())
+            .sum::<usize>();
 
         if total_rows >= self.config.inline_row_count_limit {
             let mut tx_helper = self.transaction_helper().await?;
-            process_bypass_insert(&mut tx_helper, self, batches, total_rows).await?;
+            process_bypass_insert(&mut tx_helper, self, &rewritten_batches, total_rows).await?;
             tx_helper.commit().await?;
         } else {
             let mut tx_helper = self.transaction_helper().await?;
-            process_insert_into_inline_rows(&mut tx_helper, self, batches).await?;
+            process_insert_into_inline_rows(&mut tx_helper, self, &rewritten_batches).await?;
             tx_helper.commit().await?;
 
             try_run_dump_task(self).await?;
@@ -316,26 +316,71 @@ impl Default for TableConfig {
     }
 }
 
-pub fn check_insert_batch_schema(batch_schema: &Schema, expected_schema: &Schema) -> ILResult<()> {
-    if batch_schema.fields().len() != expected_schema.fields().len() {
-        return Err(ILError::invalid_input(format!(
-            "Invalid record schema: {batch_schema:?}, expected schema: {expected_schema:?}",
-        )));
-    }
-
-    for (table_field, batch_field) in expected_schema
-        .fields()
+pub fn check_and_rewrite_insert_batches(
+    batches: &[RecordBatch],
+    table_schema: &Schema,
+    field_records: &[FieldRecord],
+) -> ILResult<Vec<RecordBatch>> {
+    let expected_schema = schema_without_row_id(table_schema);
+    let field_name_to_default_value = field_records
         .iter()
-        .zip(batch_schema.fields().iter())
-    {
-        if table_field.name() != batch_field.name()
-            || table_field.data_type() != batch_field.data_type()
-            || table_field.is_nullable() != batch_field.is_nullable()
-        {
+        .filter(|record| record.default_value.is_some())
+        .map(|record| (&record.field_name, record.default_value.as_ref().unwrap()))
+        .collect::<HashMap<_, _>>();
+
+    let mut rewritten_batches = Vec::with_capacity(batches.len());
+    for batch in batches {
+        let batch_schema = batch.schema_ref();
+
+        let mut fields = Vec::with_capacity(expected_schema.fields().len());
+        let mut arrays = Vec::with_capacity(expected_schema.fields().len());
+        let mut accessed_batch_field_count = 0;
+
+        for table_field in expected_schema.fields() {
+            let table_field_name = table_field.name();
+
+            if let Ok(batch_field_idx) = batch_schema.index_of(table_field_name) {
+                let batch_field = batch_schema
+                    .fields
+                    .get(batch_field_idx)
+                    .cloned()
+                    .expect("field index should be valid");
+                check_insert_batch_field(&batch_field, table_field)?;
+
+                fields.push(batch_field);
+                arrays.push(batch.column(batch_field_idx).clone());
+                accessed_batch_field_count += 1;
+            } else if let Some(default_value) = field_name_to_default_value.get(table_field_name) {
+                fields.push(table_field.clone());
+                arrays.push(default_value.to_array_of_size(batch.num_rows())?);
+            } else {
+                return Err(ILError::invalid_input(format!(
+                    "Not found field {table_field_name} in batch schema",
+                )));
+            }
+        }
+
+        if accessed_batch_field_count != batch.num_columns() {
             return Err(ILError::invalid_input(format!(
-                "Invalid record schema: {batch_schema:?}, expected schema: {expected_schema:?}",
+                "Invalid batch schema: {batch_schema}, expected schema: {expected_schema}",
             )));
         }
+
+        let rewritten_batch = RecordBatch::try_new(Arc::new(Schema::new(fields)), arrays)?;
+        rewritten_batches.push(rewritten_batch);
+    }
+
+    Ok(rewritten_batches)
+}
+
+pub fn check_insert_batch_field(batch_field: &Field, table_field: &Field) -> ILResult<()> {
+    if batch_field.name() != table_field.name()
+        || batch_field.data_type() != table_field.data_type()
+        || batch_field.is_nullable() != table_field.is_nullable()
+    {
+        return Err(ILError::invalid_input(format!(
+            "Invalid batch field: {batch_field:?}, expected field: {table_field:?}",
+        )));
     }
 
     Ok(())
