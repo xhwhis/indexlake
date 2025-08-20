@@ -7,18 +7,20 @@ use arrow::array::{
     Array, ArrayRef, AsArray, BinaryArray, BinaryViewArray, BooleanArray, FixedSizeBinaryArray,
     Float32Array, Float64Array, GenericListArray, Int8Array, Int16Array, Int32Array, Int64Array,
     LargeBinaryArray, LargeStringArray, ListArray, RecordBatch, StringArray, StringViewArray,
-    UInt8Array, UInt16Array, UInt32Array, UInt64Array, new_null_array,
+    TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
+    TimestampSecondArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array, new_null_array,
 };
 use arrow::buffer::OffsetBuffer;
 use arrow::compute::CastOptions;
 use arrow::datatypes::{
-    DataType, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type,
-    UInt16Type, UInt32Type, UInt64Type,
+    DataType, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type, Int64Type,
+    TimestampMicrosecondType, TimestampMillisecondType, TimestampNanosecondType,
+    TimestampSecondType, UInt8Type, UInt16Type, UInt32Type, UInt64Type,
 };
 use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
 use arrow::util::display::{ArrayFormatter, FormatOptions};
-use arrow_schema::{Field, Schema};
+use arrow_schema::{Field, Schema, TimeUnit};
 use derive_visitor::{Drive, DriveMut};
 
 use crate::{ILError, ILResult, catalog::CatalogDatabase};
@@ -44,6 +46,14 @@ pub enum Scalar {
     FixedSizeBinary(i32, Option<Vec<u8>>),
     LargeBinary(Option<Vec<u8>>),
     #[drive(skip)]
+    TimestampSecond(Option<i64>, Option<Arc<str>>),
+    #[drive(skip)]
+    TimestampMillisecond(Option<i64>, Option<Arc<str>>),
+    #[drive(skip)]
+    TimestampMicrosecond(Option<i64>, Option<Arc<str>>),
+    #[drive(skip)]
+    TimestampNanosecond(Option<i64>, Option<Arc<str>>),
+    #[drive(skip)]
     List(Arc<ListArray>),
 }
 
@@ -68,6 +78,16 @@ impl Scalar {
             DataType::BinaryView => Scalar::BinaryView(None),
             DataType::FixedSizeBinary(size) => Scalar::FixedSizeBinary(*size, None),
             DataType::LargeBinary => Scalar::LargeBinary(None),
+            DataType::Timestamp(TimeUnit::Second, tz) => Scalar::TimestampSecond(None, tz.clone()),
+            DataType::Timestamp(TimeUnit::Millisecond, tz) => {
+                Scalar::TimestampMillisecond(None, tz.clone())
+            }
+            DataType::Timestamp(TimeUnit::Microsecond, tz) => {
+                Scalar::TimestampMicrosecond(None, tz.clone())
+            }
+            DataType::Timestamp(TimeUnit::Nanosecond, tz) => {
+                Scalar::TimestampNanosecond(None, tz.clone())
+            }
             DataType::List(field_ref) => {
                 Scalar::List(Arc::new(GenericListArray::new_null(field_ref.clone(), 1)))
             }
@@ -96,6 +116,10 @@ impl Scalar {
             | Scalar::BinaryView(v)
             | Scalar::FixedSizeBinary(_, v)
             | Scalar::LargeBinary(v) => v.is_none(),
+            Scalar::TimestampSecond(v, _)
+            | Scalar::TimestampMillisecond(v, _)
+            | Scalar::TimestampMicrosecond(v, _)
+            | Scalar::TimestampNanosecond(v, _) => v.is_none(),
             Scalar::List(v) => v.len() == v.null_count(),
         }
     }
@@ -131,6 +155,30 @@ impl Scalar {
             | Scalar::FixedSizeBinary(_, v)
             | Scalar::LargeBinary(v) => match v {
                 Some(value) => Ok(database.sql_binary_value(value)),
+                None => Ok("null".to_string()),
+            },
+            Scalar::TimestampSecond(v, _) => match v {
+                Some(value) => Err(ILError::not_supported(format!(
+                    "Not supported to convert timestamp second scalar to sql: {value:?}"
+                ))),
+                None => Ok("null".to_string()),
+            },
+            Scalar::TimestampMillisecond(v, _) => match v {
+                Some(value) => Err(ILError::not_supported(format!(
+                    "Not supported to convert timestamp millisecond scalar to sql: {value:?}"
+                ))),
+                None => Ok("null".to_string()),
+            },
+            Scalar::TimestampMicrosecond(v, _) => match v {
+                Some(value) => Err(ILError::not_supported(format!(
+                    "Not supported to convert timestamp microsecond scalar to sql: {value:?}"
+                ))),
+                None => Ok("null".to_string()),
+            },
+            Scalar::TimestampNanosecond(v, _) => match v {
+                Some(value) => Err(ILError::not_supported(format!(
+                    "Not supported to convert timestamp nanosecond scalar to sql: {value:?}"
+                ))),
                 None => Ok("null".to_string()),
             },
             Scalar::List(_) => {
@@ -234,6 +282,41 @@ impl Scalar {
                 Some(value) => Arc::new(LargeBinaryArray::from_iter_values(repeat_n(value, size))),
                 None => new_null_array(&DataType::LargeBinary, size),
             },
+            Scalar::TimestampSecond(e, tz) => match e {
+                Some(value) => Arc::new(
+                    TimestampSecondArray::from_value(*value, size).with_timezone_opt(tz.clone()),
+                ),
+                None => new_null_array(&DataType::Timestamp(TimeUnit::Second, tz.clone()), size),
+            },
+            Scalar::TimestampMillisecond(e, tz) => match e {
+                Some(value) => Arc::new(
+                    TimestampMillisecondArray::from_value(*value, size)
+                        .with_timezone_opt(tz.clone()),
+                ),
+                None => new_null_array(
+                    &DataType::Timestamp(TimeUnit::Millisecond, tz.clone()),
+                    size,
+                ),
+            },
+            Scalar::TimestampMicrosecond(e, tz) => match e {
+                Some(value) => Arc::new(
+                    TimestampMicrosecondArray::from_value(*value, size)
+                        .with_timezone_opt(tz.clone()),
+                ),
+                None => new_null_array(
+                    &DataType::Timestamp(TimeUnit::Microsecond, tz.clone()),
+                    size,
+                ),
+            },
+            Scalar::TimestampNanosecond(e, tz) => match e {
+                Some(value) => Arc::new(
+                    TimestampNanosecondArray::from_value(*value, size)
+                        .with_timezone_opt(tz.clone()),
+                ),
+                None => {
+                    new_null_array(&DataType::Timestamp(TimeUnit::Nanosecond, tz.clone()), size)
+                }
+            },
             Scalar::List(arr) => {
                 if size == 1 {
                     return Ok(Arc::clone(arr) as Arc<dyn Array>);
@@ -330,6 +413,22 @@ impl Scalar {
                 let array = array.as_binary::<i64>();
                 Scalar::LargeBinary(Some(array.value(index).to_vec()))
             }
+            DataType::Timestamp(TimeUnit::Second, tz) => {
+                let array = array.as_primitive::<TimestampSecondType>();
+                Scalar::TimestampSecond(Some(array.value(index)), tz.clone())
+            }
+            DataType::Timestamp(TimeUnit::Millisecond, tz) => {
+                let array = array.as_primitive::<TimestampMillisecondType>();
+                Scalar::TimestampMillisecond(Some(array.value(index)), tz.clone())
+            }
+            DataType::Timestamp(TimeUnit::Microsecond, tz) => {
+                let array = array.as_primitive::<TimestampMicrosecondType>();
+                Scalar::TimestampMicrosecond(Some(array.value(index)), tz.clone())
+            }
+            DataType::Timestamp(TimeUnit::Nanosecond, tz) => {
+                let array = array.as_primitive::<TimestampNanosecondType>();
+                Scalar::TimestampNanosecond(Some(array.value(index)), tz.clone())
+            }
             DataType::List(field_ref) => {
                 let array = array.as_list::<i32>();
                 let ele = array.value(index);
@@ -366,6 +465,16 @@ impl Scalar {
             Scalar::BinaryView(_) => DataType::BinaryView,
             Scalar::FixedSizeBinary(size, _) => DataType::FixedSizeBinary(*size),
             Scalar::LargeBinary(_) => DataType::LargeBinary,
+            Scalar::TimestampSecond(_, tz) => DataType::Timestamp(TimeUnit::Second, tz.clone()),
+            Scalar::TimestampMillisecond(_, tz) => {
+                DataType::Timestamp(TimeUnit::Millisecond, tz.clone())
+            }
+            Scalar::TimestampMicrosecond(_, tz) => {
+                DataType::Timestamp(TimeUnit::Microsecond, tz.clone())
+            }
+            Scalar::TimestampNanosecond(_, tz) => {
+                DataType::Timestamp(TimeUnit::Nanosecond, tz.clone())
+            }
             Scalar::List(arr) => arr.data_type().clone(),
         }
     }
@@ -482,6 +591,14 @@ impl PartialEq for Scalar {
             (Scalar::FixedSizeBinary(_, _), _) => false,
             (Scalar::LargeBinary(v1), Scalar::LargeBinary(v2)) => v1.eq(v2),
             (Scalar::LargeBinary(_), _) => false,
+            (Scalar::TimestampSecond(v1, _), Scalar::TimestampSecond(v2, _)) => v1.eq(v2),
+            (Scalar::TimestampSecond(_, _), _) => false,
+            (Scalar::TimestampMillisecond(v1, _), Scalar::TimestampMillisecond(v2, _)) => v1.eq(v2),
+            (Scalar::TimestampMillisecond(_, _), _) => false,
+            (Scalar::TimestampMicrosecond(v1, _), Scalar::TimestampMicrosecond(v2, _)) => v1.eq(v2),
+            (Scalar::TimestampMicrosecond(_, _), _) => false,
+            (Scalar::TimestampNanosecond(v1, _), Scalar::TimestampNanosecond(v2, _)) => v1.eq(v2),
+            (Scalar::TimestampNanosecond(_, _), _) => false,
             (Scalar::List(v1), Scalar::List(v2)) => v1.eq(v2),
             (Scalar::List(_), _) => false,
         }
@@ -535,6 +652,20 @@ impl PartialOrd for Scalar {
             (Scalar::FixedSizeBinary(_, _), _) => None,
             (Scalar::LargeBinary(v1), Scalar::LargeBinary(v2)) => v1.partial_cmp(v2),
             (Scalar::LargeBinary(_), _) => None,
+            (Scalar::TimestampSecond(v1, _), Scalar::TimestampSecond(v2, _)) => v1.partial_cmp(v2),
+            (Scalar::TimestampSecond(_, _), _) => None,
+            (Scalar::TimestampMillisecond(v1, _), Scalar::TimestampMillisecond(v2, _)) => {
+                v1.partial_cmp(v2)
+            }
+            (Scalar::TimestampMillisecond(_, _), _) => None,
+            (Scalar::TimestampMicrosecond(v1, _), Scalar::TimestampMicrosecond(v2, _)) => {
+                v1.partial_cmp(v2)
+            }
+            (Scalar::TimestampMicrosecond(_, _), _) => None,
+            (Scalar::TimestampNanosecond(v1, _), Scalar::TimestampNanosecond(v2, _)) => {
+                v1.partial_cmp(v2)
+            }
+            (Scalar::TimestampNanosecond(_, _), _) => None,
             (Scalar::List(arr1), Scalar::List(arr2)) => {
                 partial_cmp_list(arr1.as_ref(), arr2.as_ref())
             }
@@ -601,43 +732,41 @@ fn first_array_for_list(arr: &dyn Array) -> ArrayRef {
     }
 }
 
+macro_rules! format_option {
+    ($F:expr, $EXPR:expr) => {{
+        match $EXPR {
+            Some(e) => write!($F, "{e}"),
+            None => write!($F, "null"),
+        }
+    }};
+}
+
 impl Display for Scalar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Scalar::Boolean(Some(value)) => write!(f, "{value}"),
-            Scalar::Boolean(None) => write!(f, "null"),
-            Scalar::Int8(Some(value)) => write!(f, "{value}"),
-            Scalar::Int8(None) => write!(f, "null"),
-            Scalar::Int16(Some(value)) => write!(f, "{value}"),
-            Scalar::Int16(None) => write!(f, "null"),
-            Scalar::Int32(Some(value)) => write!(f, "{value}"),
-            Scalar::Int32(None) => write!(f, "null"),
-            Scalar::Int64(Some(value)) => write!(f, "{value}"),
-            Scalar::Int64(None) => write!(f, "null"),
-            Scalar::UInt8(Some(value)) => write!(f, "{value}"),
-            Scalar::UInt8(None) => write!(f, "null"),
-            Scalar::UInt16(Some(value)) => write!(f, "{value}"),
-            Scalar::UInt16(None) => write!(f, "null"),
-            Scalar::UInt32(Some(value)) => write!(f, "{value}"),
-            Scalar::UInt32(None) => write!(f, "null"),
-            Scalar::UInt64(Some(value)) => write!(f, "{value}"),
-            Scalar::UInt64(None) => write!(f, "null"),
-            Scalar::Float32(Some(value)) => write!(f, "{value}"),
-            Scalar::Float32(None) => write!(f, "null"),
-            Scalar::Float64(Some(value)) => write!(f, "{value}"),
-            Scalar::Float64(None) => write!(f, "null"),
-            Scalar::Utf8(v) | Scalar::Utf8View(v) | Scalar::LargeUtf8(v) => match v {
-                Some(value) => write!(f, "{value}"),
+            Scalar::Boolean(v) => format_option!(f, v),
+            Scalar::Int8(v) => format_option!(f, v),
+            Scalar::Int16(v) => format_option!(f, v),
+            Scalar::Int32(v) => format_option!(f, v),
+            Scalar::Int64(v) => format_option!(f, v),
+            Scalar::UInt8(v) => format_option!(f, v),
+            Scalar::UInt16(v) => format_option!(f, v),
+            Scalar::UInt32(v) => format_option!(f, v),
+            Scalar::UInt64(v) => format_option!(f, v),
+            Scalar::Float32(v) => format_option!(f, v),
+            Scalar::Float64(v) => format_option!(f, v),
+            Scalar::Utf8(v) | Scalar::Utf8View(v) | Scalar::LargeUtf8(v) => format_option!(f, v),
+            Scalar::Binary(v)
+            | Scalar::BinaryView(v)
+            | Scalar::FixedSizeBinary(_, v)
+            | Scalar::LargeBinary(v) => match v {
+                Some(v) => write!(f, "{}", hex::encode(v)),
                 None => write!(f, "null"),
             },
-            Scalar::Binary(Some(value)) => write!(f, "{}", hex::encode(value)),
-            Scalar::Binary(None) => write!(f, "null"),
-            Scalar::BinaryView(Some(value)) => write!(f, "{}", hex::encode(value)),
-            Scalar::BinaryView(None) => write!(f, "null"),
-            Scalar::FixedSizeBinary(_, Some(value)) => write!(f, "{}", hex::encode(value)),
-            Scalar::FixedSizeBinary(_, None) => write!(f, "null"),
-            Scalar::LargeBinary(Some(value)) => write!(f, "{}", hex::encode(value)),
-            Scalar::LargeBinary(None) => write!(f, "null"),
+            Scalar::TimestampSecond(v, _)
+            | Scalar::TimestampMillisecond(v, _)
+            | Scalar::TimestampMicrosecond(v, _)
+            | Scalar::TimestampNanosecond(v, _) => format_option!(f, v),
             Scalar::List(arr) => fmt_list(arr.to_owned() as ArrayRef, f),
         }
     }
@@ -736,6 +865,14 @@ mod tests {
         assert_scalar_serialization(Scalar::FixedSizeBinary(3, None));
         assert_scalar_serialization(Scalar::LargeBinary(Some(vec![1u8, 2, 3])));
         assert_scalar_serialization(Scalar::LargeBinary(None));
+        assert_scalar_serialization(Scalar::TimestampSecond(Some(1), Some("utc".into())));
+        assert_scalar_serialization(Scalar::TimestampSecond(None, None));
+        assert_scalar_serialization(Scalar::TimestampMillisecond(Some(1), Some("utc".into())));
+        assert_scalar_serialization(Scalar::TimestampMillisecond(None, None));
+        assert_scalar_serialization(Scalar::TimestampMicrosecond(Some(1), Some("utc".into())));
+        assert_scalar_serialization(Scalar::TimestampMicrosecond(None, None));
+        assert_scalar_serialization(Scalar::TimestampNanosecond(Some(1), Some("utc".into())));
+        assert_scalar_serialization(Scalar::TimestampNanosecond(None, None));
         assert_scalar_serialization(Scalar::List(Arc::new(ListArray::from_iter_primitive::<
             Int32Type,
             _,

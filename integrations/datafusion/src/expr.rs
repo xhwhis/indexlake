@@ -224,6 +224,16 @@ pub fn datafusion_scalar_to_indexlake_scalar(
         ScalarValue::BinaryView(v) => Ok(ILScalar::BinaryView(v.clone())),
         ScalarValue::FixedSizeBinary(s, v) => Ok(ILScalar::FixedSizeBinary(*s, v.clone())),
         ScalarValue::LargeBinary(v) => Ok(ILScalar::LargeBinary(v.clone())),
+        ScalarValue::TimestampSecond(v, tz) => Ok(ILScalar::TimestampSecond(*v, tz.clone())),
+        ScalarValue::TimestampMillisecond(v, tz) => {
+            Ok(ILScalar::TimestampMillisecond(*v, tz.clone()))
+        }
+        ScalarValue::TimestampMicrosecond(v, tz) => {
+            Ok(ILScalar::TimestampMicrosecond(*v, tz.clone()))
+        }
+        ScalarValue::TimestampNanosecond(v, tz) => {
+            Ok(ILScalar::TimestampNanosecond(*v, tz.clone()))
+        }
         ScalarValue::List(v) => Ok(ILScalar::List(v.clone())),
         _ => Err(DataFusionError::NotImplemented(format!(
             "Unsupported scalar: {scalar}"
@@ -253,6 +263,16 @@ pub fn indexlake_scalar_to_datafusion_scalar(
         ILScalar::BinaryView(v) => Ok(ScalarValue::BinaryView(v.clone())),
         ILScalar::FixedSizeBinary(s, v) => Ok(ScalarValue::FixedSizeBinary(*s, v.clone())),
         ILScalar::LargeBinary(v) => Ok(ScalarValue::LargeBinary(v.clone())),
+        ILScalar::TimestampSecond(v, tz) => Ok(ScalarValue::TimestampSecond(*v, tz.clone())),
+        ILScalar::TimestampMillisecond(v, tz) => {
+            Ok(ScalarValue::TimestampMillisecond(*v, tz.clone()))
+        }
+        ILScalar::TimestampMicrosecond(v, tz) => {
+            Ok(ScalarValue::TimestampMicrosecond(*v, tz.clone()))
+        }
+        ILScalar::TimestampNanosecond(v, tz) => {
+            Ok(ScalarValue::TimestampNanosecond(*v, tz.clone()))
+        }
         ILScalar::List(v) => Ok(ScalarValue::List(v.clone())),
     }
 }
