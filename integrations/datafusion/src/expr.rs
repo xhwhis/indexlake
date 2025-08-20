@@ -221,6 +221,10 @@ pub fn datafusion_scalar_to_indexlake_scalar(
         ScalarValue::Utf8View(v) => Ok(ILScalar::Utf8View(v.clone())),
         ScalarValue::LargeUtf8(v) => Ok(ILScalar::LargeUtf8(v.clone())),
         ScalarValue::Binary(v) => Ok(ILScalar::Binary(v.clone())),
+        ScalarValue::BinaryView(v) => Ok(ILScalar::BinaryView(v.clone())),
+        ScalarValue::FixedSizeBinary(s, v) => Ok(ILScalar::FixedSizeBinary(*s, v.clone())),
+        ScalarValue::LargeBinary(v) => Ok(ILScalar::LargeBinary(v.clone())),
+        ScalarValue::List(v) => Ok(ILScalar::List(v.clone())),
         _ => Err(DataFusionError::NotImplemented(format!(
             "Unsupported scalar: {scalar}"
         ))),
@@ -246,6 +250,9 @@ pub fn indexlake_scalar_to_datafusion_scalar(
         ILScalar::Utf8View(v) => Ok(ScalarValue::Utf8View(v.clone())),
         ILScalar::LargeUtf8(v) => Ok(ScalarValue::LargeUtf8(v.clone())),
         ILScalar::Binary(v) => Ok(ScalarValue::Binary(v.clone())),
+        ILScalar::BinaryView(v) => Ok(ScalarValue::BinaryView(v.clone())),
+        ILScalar::FixedSizeBinary(s, v) => Ok(ScalarValue::FixedSizeBinary(*s, v.clone())),
+        ILScalar::LargeBinary(v) => Ok(ScalarValue::LargeBinary(v.clone())),
         ILScalar::List(v) => Ok(ScalarValue::List(v.clone())),
     }
 }

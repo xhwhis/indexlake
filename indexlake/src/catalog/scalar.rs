@@ -4,10 +4,10 @@ use std::iter::repeat_n;
 use std::sync::Arc;
 
 use arrow::array::{
-    Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Float32Array, Float64Array,
-    GenericListArray, Int8Array, Int16Array, Int32Array, Int64Array, LargeStringArray, ListArray,
-    RecordBatch, StringArray, StringViewArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
-    new_null_array,
+    Array, ArrayRef, AsArray, BinaryArray, BinaryViewArray, BooleanArray, FixedSizeBinaryArray,
+    Float32Array, Float64Array, GenericListArray, Int8Array, Int16Array, Int32Array, Int64Array,
+    LargeBinaryArray, LargeStringArray, ListArray, RecordBatch, StringArray, StringViewArray,
+    UInt8Array, UInt16Array, UInt32Array, UInt64Array, new_null_array,
 };
 use arrow::buffer::OffsetBuffer;
 use arrow::compute::CastOptions;
@@ -40,6 +40,9 @@ pub enum Scalar {
     Utf8View(Option<String>),
     LargeUtf8(Option<String>),
     Binary(Option<Vec<u8>>),
+    BinaryView(Option<Vec<u8>>),
+    FixedSizeBinary(i32, Option<Vec<u8>>),
+    LargeBinary(Option<Vec<u8>>),
     #[drive(skip)]
     List(Arc<ListArray>),
 }
@@ -62,6 +65,9 @@ impl Scalar {
             DataType::Utf8View => Scalar::Utf8View(None),
             DataType::LargeUtf8 => Scalar::LargeUtf8(None),
             DataType::Binary => Scalar::Binary(None),
+            DataType::BinaryView => Scalar::BinaryView(None),
+            DataType::FixedSizeBinary(size) => Scalar::FixedSizeBinary(*size, None),
+            DataType::LargeBinary => Scalar::LargeBinary(None),
             DataType::List(field_ref) => {
                 Scalar::List(Arc::new(GenericListArray::new_null(field_ref.clone(), 1)))
             }
@@ -85,10 +91,11 @@ impl Scalar {
             Scalar::UInt64(v) => v.is_none(),
             Scalar::Float32(v) => v.is_none(),
             Scalar::Float64(v) => v.is_none(),
-            Scalar::Utf8(v) => v.is_none(),
-            Scalar::Utf8View(v) => v.is_none(),
-            Scalar::LargeUtf8(v) => v.is_none(),
-            Scalar::Binary(v) => v.is_none(),
+            Scalar::Utf8(v) | Scalar::Utf8View(v) | Scalar::LargeUtf8(v) => v.is_none(),
+            Scalar::Binary(v)
+            | Scalar::BinaryView(v)
+            | Scalar::FixedSizeBinary(_, v)
+            | Scalar::LargeBinary(v) => v.is_none(),
             Scalar::List(v) => v.len() == v.null_count(),
         }
     }
@@ -119,8 +126,13 @@ impl Scalar {
                 Some(value) => Ok(database.sql_string_value(value)),
                 None => Ok("null".to_string()),
             },
-            Scalar::Binary(Some(value)) => Ok(database.sql_binary_value(value)),
-            Scalar::Binary(None) => Ok("null".to_string()),
+            Scalar::Binary(v)
+            | Scalar::BinaryView(v)
+            | Scalar::FixedSizeBinary(_, v)
+            | Scalar::LargeBinary(v) => match v {
+                Some(value) => Ok(database.sql_binary_value(value)),
+                None => Ok("null".to_string()),
+            },
             Scalar::List(_) => {
                 if self.is_null() {
                     Ok("null".to_string())
@@ -197,6 +209,30 @@ impl Scalar {
                     Arc::new(repeat_n(Some(value.as_slice()), size).collect::<BinaryArray>())
                 }
                 None => Arc::new(repeat_n(None::<&str>, size).collect::<BinaryArray>()),
+            },
+            Scalar::BinaryView(e) => match e {
+                Some(value) => Arc::new(BinaryViewArray::from_iter_values(repeat_n(value, size))),
+                None => new_null_array(&DataType::BinaryView, size),
+            },
+            Scalar::FixedSizeBinary(s, e) => match e {
+                Some(value) => Arc::new(
+                    FixedSizeBinaryArray::try_from_sparse_iter_with_size(
+                        repeat_n(Some(value.as_slice()), size),
+                        *s,
+                    )
+                    .unwrap(),
+                ),
+                None => Arc::new(
+                    FixedSizeBinaryArray::try_from_sparse_iter_with_size(
+                        repeat_n(None::<&[u8]>, size),
+                        *s,
+                    )
+                    .unwrap(),
+                ),
+            },
+            Scalar::LargeBinary(e) => match e {
+                Some(value) => Arc::new(LargeBinaryArray::from_iter_values(repeat_n(value, size))),
+                None => new_null_array(&DataType::LargeBinary, size),
             },
             Scalar::List(arr) => {
                 if size == 1 {
@@ -282,6 +318,18 @@ impl Scalar {
                 let array = array.as_binary::<i32>();
                 Scalar::Binary(Some(array.value(index).to_vec()))
             }
+            DataType::BinaryView => {
+                let array = array.as_binary_view();
+                Scalar::BinaryView(Some(array.value(index).to_vec()))
+            }
+            DataType::FixedSizeBinary(size) => {
+                let array = array.as_fixed_size_binary();
+                Scalar::FixedSizeBinary(*size, Some(array.value(index).to_vec()))
+            }
+            DataType::LargeBinary => {
+                let array = array.as_binary::<i64>();
+                Scalar::LargeBinary(Some(array.value(index).to_vec()))
+            }
             DataType::List(field_ref) => {
                 let array = array.as_list::<i32>();
                 let ele = array.value(index);
@@ -315,6 +363,9 @@ impl Scalar {
             Scalar::Utf8View(_) => DataType::Utf8View,
             Scalar::LargeUtf8(_) => DataType::LargeUtf8,
             Scalar::Binary(_) => DataType::Binary,
+            Scalar::BinaryView(_) => DataType::BinaryView,
+            Scalar::FixedSizeBinary(size, _) => DataType::FixedSizeBinary(*size),
+            Scalar::LargeBinary(_) => DataType::LargeBinary,
             Scalar::List(arr) => arr.data_type().clone(),
         }
     }
@@ -425,6 +476,12 @@ impl PartialEq for Scalar {
             (Scalar::LargeUtf8(_), _) => false,
             (Scalar::Binary(v1), Scalar::Binary(v2)) => v1.eq(v2),
             (Scalar::Binary(_), _) => false,
+            (Scalar::BinaryView(v1), Scalar::BinaryView(v2)) => v1.eq(v2),
+            (Scalar::BinaryView(_), _) => false,
+            (Scalar::FixedSizeBinary(_, v1), Scalar::FixedSizeBinary(_, v2)) => v1.eq(v2),
+            (Scalar::FixedSizeBinary(_, _), _) => false,
+            (Scalar::LargeBinary(v1), Scalar::LargeBinary(v2)) => v1.eq(v2),
+            (Scalar::LargeBinary(_), _) => false,
             (Scalar::List(v1), Scalar::List(v2)) => v1.eq(v2),
             (Scalar::List(_), _) => false,
         }
@@ -472,6 +529,12 @@ impl PartialOrd for Scalar {
             (Scalar::LargeUtf8(_), _) => None,
             (Scalar::Binary(v1), Scalar::Binary(v2)) => v1.partial_cmp(v2),
             (Scalar::Binary(_), _) => None,
+            (Scalar::BinaryView(v1), Scalar::BinaryView(v2)) => v1.partial_cmp(v2),
+            (Scalar::BinaryView(_), _) => None,
+            (Scalar::FixedSizeBinary(_, v1), Scalar::FixedSizeBinary(_, v2)) => v1.partial_cmp(v2),
+            (Scalar::FixedSizeBinary(_, _), _) => None,
+            (Scalar::LargeBinary(v1), Scalar::LargeBinary(v2)) => v1.partial_cmp(v2),
+            (Scalar::LargeBinary(_), _) => None,
             (Scalar::List(arr1), Scalar::List(arr2)) => {
                 partial_cmp_list(arr1.as_ref(), arr2.as_ref())
             }
@@ -569,6 +632,12 @@ impl Display for Scalar {
             },
             Scalar::Binary(Some(value)) => write!(f, "{}", hex::encode(value)),
             Scalar::Binary(None) => write!(f, "null"),
+            Scalar::BinaryView(Some(value)) => write!(f, "{}", hex::encode(value)),
+            Scalar::BinaryView(None) => write!(f, "null"),
+            Scalar::FixedSizeBinary(_, Some(value)) => write!(f, "{}", hex::encode(value)),
+            Scalar::FixedSizeBinary(_, None) => write!(f, "null"),
+            Scalar::LargeBinary(Some(value)) => write!(f, "{}", hex::encode(value)),
+            Scalar::LargeBinary(None) => write!(f, "null"),
             Scalar::List(arr) => fmt_list(arr.to_owned() as ArrayRef, f),
         }
     }
@@ -661,6 +730,12 @@ mod tests {
         assert_scalar_serialization(Scalar::LargeUtf8(None));
         assert_scalar_serialization(Scalar::Binary(Some(vec![1u8, 2, 3])));
         assert_scalar_serialization(Scalar::Binary(None));
+        assert_scalar_serialization(Scalar::BinaryView(Some(vec![1u8, 2, 3])));
+        assert_scalar_serialization(Scalar::BinaryView(None));
+        assert_scalar_serialization(Scalar::FixedSizeBinary(3, Some(vec![1u8, 2, 3])));
+        assert_scalar_serialization(Scalar::FixedSizeBinary(3, None));
+        assert_scalar_serialization(Scalar::LargeBinary(Some(vec![1u8, 2, 3])));
+        assert_scalar_serialization(Scalar::LargeBinary(None));
         assert_scalar_serialization(Scalar::List(Arc::new(ListArray::from_iter_primitive::<
             Int32Type,
             _,
