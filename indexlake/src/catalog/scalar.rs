@@ -4,17 +4,18 @@ use std::iter::repeat_n;
 use std::sync::Arc;
 
 use arrow::array::{
-    Array, ArrayRef, AsArray, BinaryArray, BinaryViewArray, BooleanArray, FixedSizeBinaryArray,
-    Float32Array, Float64Array, GenericListArray, Int8Array, Int16Array, Int32Array, Int64Array,
-    LargeBinaryArray, LargeStringArray, ListArray, RecordBatch, StringArray, StringViewArray,
-    TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
-    TimestampSecondArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array, new_null_array,
+    Array, ArrayRef, AsArray, BinaryArray, BinaryViewArray, BooleanArray, Date32Array, Date64Array,
+    FixedSizeBinaryArray, Float32Array, Float64Array, GenericListArray, Int8Array, Int16Array,
+    Int32Array, Int64Array, LargeBinaryArray, LargeStringArray, ListArray, RecordBatch,
+    StringArray, StringViewArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+    TimestampNanosecondArray, TimestampSecondArray, UInt8Array, UInt16Array, UInt32Array,
+    UInt64Array, new_null_array,
 };
 use arrow::buffer::OffsetBuffer;
 use arrow::compute::CastOptions;
 use arrow::datatypes::{
-    DataType, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type, Int64Type,
-    TimestampMicrosecondType, TimestampMillisecondType, TimestampNanosecondType,
+    DataType, Date32Type, Date64Type, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type,
+    Int64Type, TimestampMicrosecondType, TimestampMillisecondType, TimestampNanosecondType,
     TimestampSecondType, UInt8Type, UInt16Type, UInt32Type, UInt64Type,
 };
 use arrow::ipc::reader::StreamReader;
@@ -48,6 +49,8 @@ pub enum Scalar {
     TimestampMillisecond(Option<i64>, Option<Arc<str>>),
     TimestampMicrosecond(Option<i64>, Option<Arc<str>>),
     TimestampNanosecond(Option<i64>, Option<Arc<str>>),
+    Date32(Option<i32>),
+    Date64(Option<i64>),
     List(Arc<ListArray>),
 }
 
@@ -82,6 +85,8 @@ impl Scalar {
             DataType::Timestamp(TimeUnit::Nanosecond, tz) => {
                 Scalar::TimestampNanosecond(None, tz.clone())
             }
+            DataType::Date32 => Scalar::Date32(None),
+            DataType::Date64 => Scalar::Date64(None),
             DataType::List(field_ref) => {
                 Scalar::List(Arc::new(GenericListArray::new_null(field_ref.clone(), 1)))
             }
@@ -114,6 +119,8 @@ impl Scalar {
             | Scalar::TimestampMillisecond(v, _)
             | Scalar::TimestampMicrosecond(v, _)
             | Scalar::TimestampNanosecond(v, _) => v.is_none(),
+            Scalar::Date32(v) => v.is_none(),
+            Scalar::Date64(v) => v.is_none(),
             Scalar::List(v) => v.len() == v.null_count(),
         }
     }
@@ -172,6 +179,18 @@ impl Scalar {
             Scalar::TimestampNanosecond(v, _) => match v {
                 Some(value) => Err(ILError::not_supported(format!(
                     "Not supported to convert timestamp nanosecond scalar to sql: {value:?}"
+                ))),
+                None => Ok("null".to_string()),
+            },
+            Scalar::Date32(v) => match v {
+                Some(value) => Err(ILError::not_supported(format!(
+                    "Not supported to convert date32 scalar to sql: {value:?}"
+                ))),
+                None => Ok("null".to_string()),
+            },
+            Scalar::Date64(v) => match v {
+                Some(value) => Err(ILError::not_supported(format!(
+                    "Not supported to convert date64 scalar to sql: {value:?}"
                 ))),
                 None => Ok("null".to_string()),
             },
@@ -311,6 +330,14 @@ impl Scalar {
                     new_null_array(&DataType::Timestamp(TimeUnit::Nanosecond, tz.clone()), size)
                 }
             },
+            Scalar::Date32(e) => match e {
+                Some(value) => Arc::new(Date32Array::from_value(*value, size)),
+                None => new_null_array(&DataType::Date32, size),
+            },
+            Scalar::Date64(e) => match e {
+                Some(value) => Arc::new(Date64Array::from_value(*value, size)),
+                None => new_null_array(&DataType::Date64, size),
+            },
             Scalar::List(arr) => {
                 if size == 1 {
                     return Ok(Arc::clone(arr) as Arc<dyn Array>);
@@ -423,6 +450,14 @@ impl Scalar {
                 let array = array.as_primitive::<TimestampNanosecondType>();
                 Scalar::TimestampNanosecond(Some(array.value(index)), tz.clone())
             }
+            DataType::Date32 => {
+                let array = array.as_primitive::<Date32Type>();
+                Scalar::Date32(Some(array.value(index)))
+            }
+            DataType::Date64 => {
+                let array = array.as_primitive::<Date64Type>();
+                Scalar::Date64(Some(array.value(index)))
+            }
             DataType::List(field_ref) => {
                 let array = array.as_list::<i32>();
                 let ele = array.value(index);
@@ -469,6 +504,8 @@ impl Scalar {
             Scalar::TimestampNanosecond(_, tz) => {
                 DataType::Timestamp(TimeUnit::Nanosecond, tz.clone())
             }
+            Scalar::Date32(_) => DataType::Date32,
+            Scalar::Date64(_) => DataType::Date64,
             Scalar::List(arr) => arr.data_type().clone(),
         }
     }
@@ -593,6 +630,10 @@ impl PartialEq for Scalar {
             (Scalar::TimestampMicrosecond(_, _), _) => false,
             (Scalar::TimestampNanosecond(v1, _), Scalar::TimestampNanosecond(v2, _)) => v1.eq(v2),
             (Scalar::TimestampNanosecond(_, _), _) => false,
+            (Scalar::Date32(v1), Scalar::Date32(v2)) => v1.eq(v2),
+            (Scalar::Date32(_), _) => false,
+            (Scalar::Date64(v1), Scalar::Date64(v2)) => v1.eq(v2),
+            (Scalar::Date64(_), _) => false,
             (Scalar::List(v1), Scalar::List(v2)) => v1.eq(v2),
             (Scalar::List(_), _) => false,
         }
@@ -660,6 +701,10 @@ impl PartialOrd for Scalar {
                 v1.partial_cmp(v2)
             }
             (Scalar::TimestampNanosecond(_, _), _) => None,
+            (Scalar::Date32(v1), Scalar::Date32(v2)) => v1.partial_cmp(v2),
+            (Scalar::Date32(_), _) => None,
+            (Scalar::Date64(v1), Scalar::Date64(v2)) => v1.partial_cmp(v2),
+            (Scalar::Date64(_), _) => None,
             (Scalar::List(arr1), Scalar::List(arr2)) => {
                 partial_cmp_list(arr1.as_ref(), arr2.as_ref())
             }
@@ -761,6 +806,8 @@ impl Display for Scalar {
             | Scalar::TimestampMillisecond(v, _)
             | Scalar::TimestampMicrosecond(v, _)
             | Scalar::TimestampNanosecond(v, _) => format_option!(f, v),
+            Scalar::Date32(v) => format_option!(f, v),
+            Scalar::Date64(v) => format_option!(f, v),
             Scalar::List(arr) => fmt_list(arr.to_owned() as ArrayRef, f),
         }
     }
@@ -850,6 +897,8 @@ mod tests {
         assert(&DataType::Timestamp(TimeUnit::Millisecond, None));
         assert(&DataType::Timestamp(TimeUnit::Microsecond, None));
         assert(&DataType::Timestamp(TimeUnit::Nanosecond, None));
+        assert(&DataType::Date32);
+        assert(&DataType::Date64);
         assert(&DataType::List(Arc::new(Field::new(
             "item",
             DataType::Int32,
@@ -913,6 +962,10 @@ mod tests {
         assert(Scalar::TimestampMicrosecond(None, None));
         assert(Scalar::TimestampNanosecond(Some(1), Some("utc".into())));
         assert(Scalar::TimestampNanosecond(None, None));
+        assert(Scalar::Date32(Some(1)));
+        assert(Scalar::Date32(None));
+        assert(Scalar::Date64(Some(1)));
+        assert(Scalar::Date64(None));
         assert(Scalar::List(Arc::new(ListArray::from_iter_primitive::<
             Int32Type,
             _,
