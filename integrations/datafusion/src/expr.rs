@@ -236,6 +236,10 @@ pub fn datafusion_scalar_to_indexlake_scalar(
         }
         ScalarValue::Date32(v) => Ok(ILScalar::Date32(*v)),
         ScalarValue::Date64(v) => Ok(ILScalar::Date64(*v)),
+        ScalarValue::Time32Second(v) => Ok(ILScalar::Time32Second(*v)),
+        ScalarValue::Time32Millisecond(v) => Ok(ILScalar::Time32Millisecond(*v)),
+        ScalarValue::Time64Microsecond(v) => Ok(ILScalar::Time64Microsecond(*v)),
+        ScalarValue::Time64Nanosecond(v) => Ok(ILScalar::Time64Nanosecond(*v)),
         ScalarValue::List(v) => Ok(ILScalar::List(v.clone())),
         _ => Err(DataFusionError::NotImplemented(format!(
             "Unsupported scalar: {scalar}"
@@ -277,6 +281,10 @@ pub fn indexlake_scalar_to_datafusion_scalar(
         }
         ILScalar::Date32(v) => Ok(ScalarValue::Date32(*v)),
         ILScalar::Date64(v) => Ok(ScalarValue::Date64(*v)),
+        ILScalar::Time32Second(v) => Ok(ScalarValue::Time32Second(*v)),
+        ILScalar::Time32Millisecond(v) => Ok(ScalarValue::Time32Millisecond(*v)),
+        ILScalar::Time64Microsecond(v) => Ok(ScalarValue::Time64Microsecond(*v)),
+        ILScalar::Time64Nanosecond(v) => Ok(ScalarValue::Time64Nanosecond(*v)),
         ILScalar::List(v) => Ok(ScalarValue::List(v.clone())),
     }
 }
