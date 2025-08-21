@@ -14,12 +14,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
-pub struct CaseExpr {
+pub struct Case {
     pub when_then: Vec<(Box<Expr>, Box<Expr>)>,
     pub else_expr: Option<Box<Expr>>,
 }
 
-impl CaseExpr {
+impl Case {
     pub fn data_type(&self, schema: &Schema) -> ILResult<DataType> {
         // since all then results have the same data type, we can choose any one as the
         // return data type except for the null.
@@ -112,7 +112,7 @@ impl CaseExpr {
     }
 }
 
-impl std::fmt::Display for CaseExpr {
+impl std::fmt::Display for Case {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "CASE")?;
         for (when, then) in &self.when_then {
@@ -144,7 +144,7 @@ mod tests {
             (Box::new(col("a").eq(lit("foo"))), Box::new(lit(123i32))),
             (Box::new(col("a").eq(lit("bar"))), Box::new(lit(456i32))),
         ];
-        let case_expr = CaseExpr {
+        let case_expr = Case {
             when_then,
             else_expr: Some(Box::new(lit(999i32))),
         };
@@ -167,7 +167,7 @@ mod tests {
             (Box::new(col("a").eq(lit("foo"))), Box::new(lit(123i32))),
             (Box::new(col("a").eq(lit("bar"))), Box::new(lit(456i32))),
         ];
-        let case_expr = CaseExpr {
+        let case_expr = Case {
             when_then,
             else_expr: None,
         };

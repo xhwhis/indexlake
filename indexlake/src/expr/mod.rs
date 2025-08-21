@@ -47,7 +47,7 @@ pub enum Expr {
     /// A named reference
     Column(String),
     /// A constant value
-    Literal(Scalar),
+    Literal(Literal),
     /// A binary expression such as "age > 21"
     BinaryExpr(BinaryExpr),
     /// Negation of an expression. The expression's type must be a boolean to make sense
@@ -63,7 +63,7 @@ pub enum Expr {
     Cast(Cast),
     TryCast(TryCast),
     Negative(Box<Expr>),
-    Case(CaseExpr),
+    Case(Case),
 }
 
 impl Expr {
@@ -73,7 +73,7 @@ impl Expr {
                 let index = batch.schema().index_of(name)?;
                 Ok(ColumnarValue::Array(batch.column(index).clone()))
             }
-            Expr::Literal(scalar) => Ok(ColumnarValue::Scalar(scalar.clone())),
+            Expr::Literal(literal) => Ok(ColumnarValue::Scalar(literal.value.clone())),
             Expr::BinaryExpr(binary_expr) => binary_expr.eval(batch),
             Expr::Not(expr) => match expr.eval(batch)? {
                 ColumnarValue::Array(array) => {
@@ -227,9 +227,9 @@ impl Expr {
         }
     }
 
-    pub fn as_literal(self) -> ILResult<Scalar> {
+    pub fn as_literal(self) -> ILResult<Literal> {
         match self {
-            Expr::Literal(scalar) => Ok(scalar),
+            Expr::Literal(literal) => Ok(literal),
             _ => Err(ILError::internal("Expr is not a literal")),
         }
     }
@@ -240,7 +240,7 @@ impl Expr {
                 let index = schema.index_of(name)?;
                 Ok(schema.field(index).data_type().clone())
             }
-            Expr::Literal(scalar) => Ok(scalar.data_type()),
+            Expr::Literal(literal) => Ok(literal.value.data_type()),
             Expr::BinaryExpr(binary_expr) => binary_expr.data_type(schema),
             Expr::Not(_) => Ok(DataType::Boolean),
             Expr::IsNull(_) => Ok(DataType::Boolean),
@@ -258,7 +258,7 @@ impl Expr {
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> ILResult<String> {
         match self {
             Expr::Column(name) => Ok(database.sql_identifier(name)),
-            Expr::Literal(scalar) => scalar.to_sql(database),
+            Expr::Literal(literal) => literal.value.to_sql(database),
             Expr::BinaryExpr(binary_expr) => binary_expr.to_sql(database),
             Expr::Not(expr) => Ok(format!("NOT {}", expr.to_sql(database)?)),
             Expr::IsNull(expr) => Ok(format!("{} IS NULL", expr.to_sql(database)?)),
@@ -300,7 +300,7 @@ impl std::fmt::Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::Column(name) => write!(f, "{name}"),
-            Expr::Literal(scalar) => write!(f, "{scalar}"),
+            Expr::Literal(literal) => write!(f, "{}", literal.value),
             Expr::BinaryExpr(binary_expr) => write!(f, "{binary_expr}"),
             Expr::Not(expr) => write!(f, "NOT {expr}"),
             Expr::IsNull(expr) => write!(f, "{expr} IS NULL"),
@@ -376,6 +376,12 @@ impl ArrowPredicate for ExprPredicate {
             Ok(bool_array)
         }
     }
+}
+
+#[derive(Debug, Clone, Drive, DriveMut, PartialEq, Eq)]
+pub struct Literal {
+    #[drive(skip)]
+    pub value: Scalar,
 }
 
 /// InList expression

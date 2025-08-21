@@ -21,11 +21,10 @@ use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
 use arrow::util::display::{ArrayFormatter, FormatOptions};
 use arrow_schema::{Field, Schema, TimeUnit};
-use derive_visitor::{Drive, DriveMut};
 
 use crate::{ILError, ILResult, catalog::CatalogDatabase};
 
-#[derive(Debug, Clone, Drive, DriveMut)]
+#[derive(Debug, Clone)]
 pub enum Scalar {
     Boolean(Option<bool>),
     Int8(Option<i8>),
@@ -45,15 +44,10 @@ pub enum Scalar {
     BinaryView(Option<Vec<u8>>),
     FixedSizeBinary(i32, Option<Vec<u8>>),
     LargeBinary(Option<Vec<u8>>),
-    #[drive(skip)]
     TimestampSecond(Option<i64>, Option<Arc<str>>),
-    #[drive(skip)]
     TimestampMillisecond(Option<i64>, Option<Arc<str>>),
-    #[drive(skip)]
     TimestampMicrosecond(Option<i64>, Option<Arc<str>>),
-    #[drive(skip)]
     TimestampNanosecond(Option<i64>, Option<Arc<str>>),
-    #[drive(skip)]
     List(Arc<ListArray>),
 }
 

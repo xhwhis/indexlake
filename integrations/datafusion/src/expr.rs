@@ -16,7 +16,7 @@ pub fn datafusion_expr_to_indexlake_expr(
     match expr {
         Expr::Alias(alias) => datafusion_expr_to_indexlake_expr(&alias.expr, schema),
         Expr::Column(col) => Ok(ILExpr::Column(col.name.clone())),
-        Expr::Literal(lit, _) => Ok(ILExpr::Literal(datafusion_scalar_to_indexlake_scalar(lit)?)),
+        Expr::Literal(lit, _) => Ok(datafusion_scalar_to_indexlake_scalar(lit)?.into()),
         Expr::BinaryExpr(binary) => {
             let left = Box::new(datafusion_expr_to_indexlake_expr(&binary.left, schema)?);
             let op = datafusion_operator_to_indexlake_operator(&binary.op)?;
@@ -76,7 +76,7 @@ pub fn datafusion_expr_to_indexlake_expr(
             Ok(ILExpr::BinaryExpr(indexlake::expr::BinaryExpr {
                 left: expr,
                 op: ILOperator::IsNotDistinctFrom,
-                right: Box::new(ILExpr::Literal(ILScalar::Boolean(None))),
+                right: Box::new(ILScalar::Boolean(None).into()),
             }))
         }
         Expr::IsNotUnknown(expr) => {
@@ -84,7 +84,7 @@ pub fn datafusion_expr_to_indexlake_expr(
             Ok(ILExpr::BinaryExpr(indexlake::expr::BinaryExpr {
                 left: expr,
                 op: ILOperator::IsDistinctFrom,
-                right: Box::new(ILExpr::Literal(ILScalar::Boolean(None))),
+                right: Box::new(ILScalar::Boolean(None).into()),
             }))
         }
         Expr::Between(between) => {
@@ -172,7 +172,7 @@ pub fn datafusion_expr_to_indexlake_expr(
                 Some(expr) => Some(Box::new(datafusion_expr_to_indexlake_expr(expr, schema)?)),
                 None => None,
             };
-            Ok(ILExpr::Case(indexlake::expr::CaseExpr {
+            Ok(ILExpr::Case(indexlake::expr::Case {
                 when_then,
                 else_expr,
             }))

@@ -4,7 +4,7 @@ use arrow_schema::Schema;
 use crate::{
     ILError, ILResult,
     catalog::Scalar,
-    expr::{BinaryExpr, BinaryOp, Expr, Function, TryCast, like::Like},
+    expr::{BinaryExpr, BinaryOp, Case, Cast, Expr, Function, Literal, TryCast, like::Like},
 };
 
 impl Expr {
@@ -106,7 +106,9 @@ pub fn col(name: &str) -> Expr {
 }
 
 pub fn lit(value: impl Into<Scalar>) -> Expr {
-    Expr::Literal(value.into())
+    Expr::Literal(Literal {
+        value: value.into(),
+    })
 }
 
 pub fn func(name: impl Into<String>, args: Vec<Expr>, return_type: DataType) -> Expr {
@@ -130,5 +132,41 @@ pub fn try_cast(expr: Expr, schema: &Schema, cast_type: DataType) -> ILResult<Ex
         Err(ILError::not_supported(format!(
             "Unsupported TRY_CAST from {expr_type} to {cast_type}"
         )))
+    }
+}
+
+impl From<Scalar> for Expr {
+    fn from(value: Scalar) -> Self {
+        Expr::Literal(Literal { value })
+    }
+}
+
+impl From<BinaryExpr> for Expr {
+    fn from(value: BinaryExpr) -> Self {
+        Expr::BinaryExpr(value)
+    }
+}
+
+impl From<Cast> for Expr {
+    fn from(value: Cast) -> Self {
+        Expr::Cast(value)
+    }
+}
+
+impl From<TryCast> for Expr {
+    fn from(value: TryCast) -> Self {
+        Expr::TryCast(value)
+    }
+}
+
+impl From<Like> for Expr {
+    fn from(value: Like) -> Self {
+        Expr::Like(value)
+    }
+}
+
+impl From<Case> for Expr {
+    fn from(value: Case) -> Self {
+        Expr::Case(value)
     }
 }

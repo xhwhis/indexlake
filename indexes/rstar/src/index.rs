@@ -45,8 +45,8 @@ impl Index for RStarIndex {
                 return_type: _,
             }) => {
                 if name == "intersects" {
-                    let scalar = args[1].clone().as_literal()?;
-                    let Scalar::Binary(Some(wkb)) = scalar else {
+                    let literal = args[1].clone().as_literal()?;
+                    let Scalar::Binary(Some(wkb)) = literal.value else {
                         return Err(ILError::internal(
                             "Intersects function must have a literal binary as the second argument",
                         ));

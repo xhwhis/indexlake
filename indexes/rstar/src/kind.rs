@@ -101,12 +101,12 @@ fn check_intersects_function(
     }
 
     let arg1 = &args[1];
-    let Expr::Literal(scalar) = arg1 else {
+    let Expr::Literal(literal) = arg1 else {
         return Err(ILError::index(
             "Intersects function must have a literal binary as the second argument",
         ));
     };
-    if !matches!(scalar, Scalar::Binary(Some(_))) {
+    if !matches!(literal.value, Scalar::Binary(Some(_))) {
         return Err(ILError::index(
             "Intersects function must have a literal binary as the second argument",
         ));
