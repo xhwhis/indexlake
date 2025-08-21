@@ -391,6 +391,50 @@ async fn duplicated_table_name(
 #[case(async { catalog_sqlite() }, async { storage_fs() })]
 #[case(async { catalog_postgres().await }, async { storage_s3().await })]
 #[tokio::test(flavor = "multi_thread")]
+async fn create_table_with_invalid_column_default_value(
+    #[future(awt)]
+    #[case]
+    catalog: Arc<dyn Catalog>,
+    #[future(awt)]
+    #[case]
+    storage: Arc<Storage>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    init_env_logger();
+
+    let client = Client::new(catalog, storage);
+
+    let namespace_name = uuid::Uuid::new_v4().to_string();
+    client.create_namespace(&namespace_name, true).await?;
+
+    let expected_schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+
+    let table_name = uuid::Uuid::new_v4().to_string();
+    let mut table_creation = TableCreation {
+        namespace_name: namespace_name.clone(),
+        table_name: table_name.clone(),
+        schema: expected_schema.clone(),
+        default_values: HashMap::from([("id".to_string(), indexlake::catalog::Scalar::from(1i32))]),
+        config: TableConfig::default(),
+        if_not_exists: false,
+    };
+
+    let res = client.create_table(table_creation.clone()).await;
+    assert!(res.is_err());
+
+    table_creation.default_values = HashMap::from([(
+        "id".to_string(),
+        indexlake::catalog::Scalar::try_new_null(&DataType::Int64)?,
+    )]);
+    let result = client.create_table(table_creation).await;
+    assert!(result.is_err());
+
+    Ok(())
+}
+
+#[rstest::rstest]
+#[case(async { catalog_sqlite() }, async { storage_fs() })]
+#[case(async { catalog_postgres().await }, async { storage_s3().await })]
+#[tokio::test(flavor = "multi_thread")]
 async fn truncate_table(
     #[future(awt)]
     #[case]

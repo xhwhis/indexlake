@@ -50,6 +50,21 @@ pub(crate) async fn process_create_table(
         };
     }
 
+    for (field_name, default_value) in &creation.default_values {
+        let default_value_type = default_value.data_type();
+        let field = creation.schema.field_with_name(field_name)?;
+        if &default_value_type != field.data_type() {
+            return Err(ILError::invalid_input(format!(
+                "Default value data type {default_value_type} does not match field {field}",
+            )));
+        }
+        if default_value.is_null() && !field.is_nullable() {
+            return Err(ILError::invalid_input(format!(
+                "Default value is null for non-nullable field {field}",
+            )));
+        }
+    }
+
     let table_id = Uuid::now_v7();
     tx_helper
         .insert_table(&TableRecord {
