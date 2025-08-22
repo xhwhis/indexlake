@@ -4,7 +4,7 @@ use std::{
 };
 
 use arrow::datatypes::SchemaRef;
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -27,6 +27,7 @@ pub struct TableScan {
     pub filters: Vec<Expr>,
     pub batch_size: usize,
     pub partition: TableScanPartition,
+    pub concurrency: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,6 +89,7 @@ impl Default for TableScan {
             filters: vec![],
             batch_size: 1024,
             partition: TableScanPartition::single_partition(),
+            concurrency: num_cpus::get(),
         }
     }
 }
@@ -142,32 +144,32 @@ async fn process_table_scan(
         .get_partitioned_data_files(&table.table_id, offset, limit)
         .await?;
 
-    let mut handles = Vec::with_capacity(data_file_records.len());
+    let mut futs = Vec::with_capacity(data_file_records.len());
     for data_file_record in data_file_records {
         let storage = table.storage.clone();
         let table_schema = table.schema.clone();
         let projection = scan.projection.clone();
         let filters = scan.filters.clone();
-        let handle = tokio::spawn(async move {
-            let stream = read_data_file_by_record(
+        let batch_size = scan.batch_size;
+        let fut = async move {
+            read_data_file_by_record(
                 &storage,
                 &table_schema,
                 &data_file_record,
-                projection.clone(),
-                filters.clone(),
+                projection,
+                filters,
                 None,
-                scan.batch_size,
+                batch_size,
             )
-            .await?;
-            Ok::<_, ILError>(stream)
-        });
-        handles.push(handle);
+            .await
+        };
+        futs.push(fut);
     }
+    let stream = futures::stream::iter(futs)
+        .buffer_unordered(scan.concurrency)
+        .try_flatten();
 
-    for handle in handles {
-        let stream = handle.await??;
-        streams.push(stream);
-    }
+    streams.push(Box::pin(stream));
 
     Ok(Box::pin(futures::stream::select_all(streams)))
 }
@@ -212,17 +214,30 @@ async fn process_index_scan(
         .get_partitioned_data_files(&table.table_id, offset, limit)
         .await?;
 
+    let mut futs = Vec::with_capacity(data_file_records.len());
     for data_file_record in data_file_records {
-        let stream = index_scan_data_file(
-            catalog_helper,
-            table,
-            &scan,
-            &data_file_record,
-            &index_filter_assignment,
-        )
-        .await?;
-        streams.push(stream);
+        let catalog_helper = catalog_helper.clone();
+        let table = table.clone();
+        let scan = scan.clone();
+        let index_filter_assignment = index_filter_assignment.clone();
+        let fut = async move {
+            index_scan_data_file(
+                &catalog_helper,
+                &table,
+                &scan,
+                &data_file_record,
+                &index_filter_assignment,
+            )
+            .await
+        };
+        futs.push(fut);
     }
+    let stream = futures::stream::iter(futs)
+        .buffer_unordered(scan.concurrency)
+        .try_flatten();
+
+    streams.push(Box::pin(stream));
+
     Ok(Box::pin(futures::stream::select_all(streams)))
 }
 

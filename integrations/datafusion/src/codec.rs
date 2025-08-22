@@ -71,6 +71,7 @@ impl PhysicalExtensionCodec for IndexLakePhysicalCodec {
                 Ok(Arc::new(IndexLakeScanExec::try_new(
                     Arc::new(table),
                     node.partition_count as usize,
+                    node.concurrency.map(|c| c as usize),
                     projection,
                     filters,
                     node.limit.map(|l| l as usize),
@@ -145,6 +146,7 @@ impl PhysicalExtensionCodec for IndexLakePhysicalCodec {
                         namespace_name: exec.table.namespace_name.clone(),
                         table_name: exec.table.table_name.clone(),
                         partition_count: exec.partition_count as u32,
+                        concurrency: exec.concurrency.map(|c| c as u32),
                         projection,
                         filters,
                         limit: exec.limit.map(|l| l as u32),

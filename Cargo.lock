@@ -3580,6 +3580,7 @@ dependencies = [
  "lance-file 0.32.0",
  "lance-io 0.32.0",
  "log",
+ "num_cpus",
  "opendal",
  "parquet",
  "rand 0.9.1",

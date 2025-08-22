@@ -23,6 +23,7 @@ pub struct IndexLakeTable {
     table: Arc<Table>,
     partition_count: usize,
     column_defaults: HashMap<String, Expr>,
+    concurrency: Option<usize>,
 }
 
 impl IndexLakeTable {
@@ -41,11 +42,17 @@ impl IndexLakeTable {
             table,
             partition_count: num_cpus::get(),
             column_defaults,
+            concurrency: None,
         })
     }
 
     pub fn with_partition_count(mut self, partition_count: usize) -> Self {
         self.partition_count = partition_count;
+        self
+    }
+
+    pub fn with_concurrency(mut self, concurrency: usize) -> Self {
+        self.concurrency = Some(concurrency);
         self
     }
 }
@@ -78,6 +85,7 @@ impl TableProvider for IndexLakeTable {
         let exec = IndexLakeScanExec::try_new(
             self.table.clone(),
             self.partition_count,
+            self.concurrency,
             projection.cloned(),
             filters.to_vec(),
             limit,

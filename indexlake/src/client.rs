@@ -96,9 +96,11 @@ impl Client {
                 ))
             })?;
 
-        let field_records = catalog_helper
-            .get_table_fields(&table_record.table_id)
-            .await?;
+        let field_records = Arc::new(
+            catalog_helper
+                .get_table_fields(&table_record.table_id)
+                .await?,
+        );
 
         let mut fields = field_records
             .iter()

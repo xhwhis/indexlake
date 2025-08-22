@@ -28,11 +28,13 @@ pub struct IndexLakeScanExecNode {
     pub table_name: ::prost::alloc::string::String,
     #[prost(uint32, tag = "3")]
     pub partition_count: u32,
-    #[prost(message, optional, tag = "4")]
+    #[prost(uint32, optional, tag = "4")]
+    pub concurrency: ::core::option::Option<u32>,
+    #[prost(message, optional, tag = "5")]
     pub projection: ::core::option::Option<Projection>,
-    #[prost(message, repeated, tag = "5")]
+    #[prost(message, repeated, tag = "6")]
     pub filters: ::prost::alloc::vec::Vec<::datafusion_proto::protobuf::LogicalExprNode>,
-    #[prost(uint32, optional, tag = "6")]
+    #[prost(uint32, optional, tag = "7")]
     pub limit: ::core::option::Option<u32>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]

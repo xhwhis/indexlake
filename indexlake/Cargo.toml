@@ -27,6 +27,7 @@ lance-encoding = { workspace = true, optional = true }
 lance-file = { workspace = true, optional = true }
 lance-io = { workspace = true, optional = true }
 log = { workspace = true }
+num_cpus = { workspace = true }
 opendal = { workspace = true, features = ["services-fs", "services-s3"] }
 parquet = { workspace = true, features = ["async"] }
 rand = { workspace = true }

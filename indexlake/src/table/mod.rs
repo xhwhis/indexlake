@@ -41,7 +41,7 @@ pub struct Table {
     pub namespace_name: String,
     pub table_id: Uuid,
     pub table_name: String,
-    pub field_records: Vec<FieldRecord>,
+    pub field_records: Arc<Vec<FieldRecord>>,
     pub schema: SchemaRef,
     pub config: Arc<TableConfig>,
     pub catalog: Arc<dyn Catalog>,

@@ -25,6 +25,7 @@ use crate::datafusion_expr_to_indexlake_expr;
 pub struct IndexLakeScanExec {
     pub table: Arc<Table>,
     pub partition_count: usize,
+    pub concurrency: Option<usize>,
     pub projection: Option<Vec<usize>>,
     pub filters: Vec<Expr>,
     pub limit: Option<usize>,
@@ -35,6 +36,7 @@ impl IndexLakeScanExec {
     pub fn try_new(
         table: Arc<Table>,
         partition_count: usize,
+        concurrency: Option<usize>,
         projection: Option<Vec<usize>>,
         filters: Vec<Expr>,
         limit: Option<usize>,
@@ -49,6 +51,7 @@ impl IndexLakeScanExec {
         Ok(Self {
             table,
             partition_count,
+            concurrency,
             projection,
             filters,
             limit,
@@ -110,6 +113,12 @@ impl ExecutionPlan for IndexLakeScanExec {
 
         if let Some(limit) = self.limit {
             scan.batch_size = limit;
+            scan.concurrency = limit / 10000 + 1;
+        }
+
+        // Override auto concurrency
+        if let Some(concurrency) = self.concurrency {
+            scan.concurrency = concurrency;
         }
 
         let projected_schema = self.schema();
@@ -159,6 +168,7 @@ impl ExecutionPlan for IndexLakeScanExec {
         match IndexLakeScanExec::try_new(
             self.table.clone(),
             self.partition_count,
+            self.concurrency,
             self.projection.clone(),
             self.filters.clone(),
             limit,
