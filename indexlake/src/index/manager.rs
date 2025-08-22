@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::{
     ILError, ILResult,
     expr::Expr,
-    index::{IndexBuilder, IndexDefinationRef, IndexKind},
+    index::{FilterSupport, IndexBuilder, IndexDefinationRef, IndexKind},
 };
 
 #[derive(Debug, Clone)]
@@ -37,17 +37,20 @@ impl IndexManager {
         self.kinds.get(kind)
     }
 
-    pub(crate) fn supports_filter(&self, filter: &Expr) -> ILResult<bool> {
+    pub(crate) fn supports_filter(&self, filter: &Expr) -> ILResult<FilterSupport> {
+        let mut supports = FilterSupport::Unsupported;
         for index_def in &self.indexes {
             let index_kind = self
                 .kinds
                 .get(&index_def.kind)
                 .expect("Index kind not found");
-            if index_kind.supports_filter(index_def, filter)? {
-                return Ok(true);
+            match index_kind.supports_filter(index_def, filter)? {
+                FilterSupport::Exact => return Ok(FilterSupport::Exact),
+                FilterSupport::Inexact => supports = FilterSupport::Inexact,
+                FilterSupport::Unsupported => (),
             }
         }
-        Ok(false)
+        Ok(supports)
     }
 
     pub(crate) fn iter_index_and_kind(

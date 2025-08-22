@@ -10,7 +10,10 @@ use datafusion::{
     physical_plan::ExecutionPlan,
     prelude::Expr,
 };
-use indexlake::table::{Table, TableScanPartition};
+use indexlake::{
+    index::FilterSupport,
+    table::{Table, TableScanPartition},
+};
 use log::warn;
 
 use crate::{
@@ -104,10 +107,16 @@ impl TableProvider for IndexLakeTable {
                 supports.push(TableProviderFilterPushDown::Unsupported);
                 continue;
             };
-            if self.table.supports_filter(&il_expr).is_ok() {
-                supports.push(TableProviderFilterPushDown::Exact);
-            } else {
-                supports.push(TableProviderFilterPushDown::Unsupported);
+            let support = self
+                .table
+                .supports_filter(&il_expr)
+                .map_err(|e| DataFusionError::Internal(e.to_string()))?;
+            match support {
+                FilterSupport::Exact => supports.push(TableProviderFilterPushDown::Exact),
+                FilterSupport::Inexact => supports.push(TableProviderFilterPushDown::Inexact),
+                FilterSupport::Unsupported => {
+                    supports.push(TableProviderFilterPushDown::Unsupported)
+                }
             }
         }
         Ok(supports)

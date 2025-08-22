@@ -4,6 +4,10 @@ use arrow::{
     array::{ArrayRef, RecordBatch, RecordBatchOptions},
     util::pretty::pretty_format_batches_with_schema,
 };
+use datafusion::{
+    physical_plan::{collect, display::DisplayableExecutionPlan},
+    prelude::SessionContext,
+};
 use futures::TryStreamExt;
 use indexlake::{
     ILError, ILResult,
@@ -60,4 +64,39 @@ pub async fn table_search(table: &Table, search: TableSearch) -> ILResult<String
     let batches = stream.try_collect::<Vec<_>>().await?;
     let table_str = pretty_format_batches_with_schema(batch_schema, &batches)?.to_string();
     Ok(table_str)
+}
+
+pub async fn datafusion_insert(ctx: &SessionContext, sql: &str) -> String {
+    datafusion_exec_and_sort(ctx, sql, None).await
+}
+
+pub async fn datafusion_scan(ctx: &SessionContext, sql: &str) -> String {
+    datafusion_exec_and_sort(ctx, sql, Some(INTERNAL_ROW_ID_FIELD_NAME)).await
+}
+
+pub async fn datafusion_exec_and_sort(
+    ctx: &SessionContext,
+    sql: &str,
+    sort_col: Option<&str>,
+) -> String {
+    let df = ctx.sql(sql).await.unwrap();
+    let plan = df.create_physical_plan().await.unwrap();
+    println!(
+        "plan: {}",
+        DisplayableExecutionPlan::new(plan.as_ref()).indent(true)
+    );
+    let plan_schema = plan.schema();
+    let batches = collect(plan, ctx.task_ctx()).await.unwrap();
+    let sorted_batches = if batches.is_empty() {
+        vec![]
+    } else if let Some(sort_col) = sort_col {
+        vec![sort_record_batches(&batches, sort_col).unwrap()]
+    } else {
+        batches
+    };
+    let result_str = pretty_format_batches_with_schema(plan_schema, &sorted_batches)
+        .unwrap()
+        .to_string();
+    println!("{}", result_str);
+    result_str
 }

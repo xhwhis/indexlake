@@ -9,7 +9,8 @@ use indexlake::{
     catalog::Scalar,
     expr::{Expr, Function},
     index::{
-        IndexBuilder, IndexDefination, IndexDefinationRef, IndexKind, IndexParams, SearchQuery,
+        FilterSupport, IndexBuilder, IndexDefination, IndexDefinationRef, IndexKind, IndexParams,
+        SearchQuery,
     },
 };
 
@@ -60,7 +61,11 @@ impl IndexKind for RStarIndexKind {
         Ok(false)
     }
 
-    fn supports_filter(&self, index_def: &IndexDefination, filter: &Expr) -> ILResult<bool> {
+    fn supports_filter(
+        &self,
+        index_def: &IndexDefination,
+        filter: &Expr,
+    ) -> ILResult<FilterSupport> {
         match filter {
             Expr::Function(Function {
                 name,
@@ -68,9 +73,9 @@ impl IndexKind for RStarIndexKind {
                 return_type,
             }) => match name.as_str() {
                 "intersects" => check_intersects_function(index_def, args, return_type),
-                _ => Ok(false),
+                _ => Ok(FilterSupport::Unsupported),
             },
-            _ => Ok(false),
+            _ => Ok(FilterSupport::Unsupported),
         }
     }
 }
@@ -79,39 +84,29 @@ fn check_intersects_function(
     index_def: &IndexDefination,
     args: &[Expr],
     _return_type: &DataType,
-) -> ILResult<bool> {
+) -> ILResult<FilterSupport> {
     if args.len() != 2 {
-        return Err(ILError::index(
-            "Intersects function must have two arguments",
-        ));
+        return Ok(FilterSupport::Unsupported);
     }
 
     let arg0 = &args[0];
     let Expr::Column(col) = arg0 else {
-        return Err(ILError::index(
-            "Intersects function must have a column as the first argument",
-        ));
+        return Ok(FilterSupport::Unsupported);
     };
     let key_column_name = &index_def.key_columns[0];
     let key_field = index_def.table_schema.field_with_name(key_column_name)?;
     if key_field.name() != col {
-        return Err(ILError::index(
-            "Intersects function must have a column with the same name as the key column",
-        ));
+        return Ok(FilterSupport::Unsupported);
     }
 
     let arg1 = &args[1];
     let Expr::Literal(literal) = arg1 else {
-        return Err(ILError::index(
-            "Intersects function must have a literal binary as the second argument",
-        ));
+        return Ok(FilterSupport::Unsupported);
     };
     if !matches!(literal.value, Scalar::Binary(Some(_))) {
-        return Err(ILError::index(
-            "Intersects function must have a literal binary as the second argument",
-        ));
+        return Ok(FilterSupport::Unsupported);
     }
-    Ok(true)
+    Ok(FilterSupport::Inexact)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

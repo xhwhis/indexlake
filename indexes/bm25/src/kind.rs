@@ -5,7 +5,8 @@ use indexlake::{
     ILError, ILResult,
     expr::Expr,
     index::{
-        IndexBuilder, IndexDefination, IndexDefinationRef, IndexKind, IndexParams, SearchQuery,
+        FilterSupport, IndexBuilder, IndexDefination, IndexDefinationRef, IndexKind, IndexParams,
+        SearchQuery,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -55,8 +56,8 @@ impl IndexKind for BM25IndexKind {
         }
     }
 
-    fn supports_filter(&self, _: &IndexDefination, _: &Expr) -> ILResult<bool> {
-        Ok(false)
+    fn supports_filter(&self, _: &IndexDefination, _: &Expr) -> ILResult<FilterSupport> {
+        Ok(FilterSupport::Unsupported)
     }
 }
 

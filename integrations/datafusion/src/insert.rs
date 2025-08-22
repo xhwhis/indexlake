@@ -5,6 +5,7 @@ use datafusion::{
         array::{ArrayRef, RecordBatch, UInt64Array},
         datatypes::{DataType, Field, Schema, SchemaRef},
     },
+    common::stats::Precision,
     error::DataFusionError,
     execution::{SendableRecordBatchStream, TaskContext},
     logical_expr::dml::InsertOp,
@@ -51,7 +52,7 @@ impl IndexLakeInsertExec {
             .map_err(|e| DataFusionError::Plan(e.to_string()))?;
 
         let cache = PlanProperties::new(
-            EquivalenceProperties::new(input_schema),
+            EquivalenceProperties::new(make_count_schema()),
             Partitioning::UnknownPartitioning(input.output_partitioning().partition_count()),
             input.pipeline_behavior(),
             input.boundedness(),
@@ -159,13 +160,19 @@ fn make_count_schema() -> SchemaRef {
 }
 
 impl DisplayAs for IndexLakeInsertExec {
-    fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match t {
-            DisplayFormatType::Default
-            | DisplayFormatType::Verbose
-            | DisplayFormatType::TreeRender => {
-                write!(f, "IndexLakeInsertExec: table={}", self.table.table_id)
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "IndexLakeInsertExec: table={}.{}",
+            self.table.namespace_name, self.table.table_name
+        )?;
+        if let Ok(stats) = self.input.partition_statistics(None) {
+            match stats.num_rows {
+                Precision::Exact(rows) => write!(f, ", rows={rows}")?,
+                Precision::Inexact(rows) => write!(f, ", rows~={rows}")?,
+                Precision::Absent => {}
             }
         }
+        Ok(())
     }
 }

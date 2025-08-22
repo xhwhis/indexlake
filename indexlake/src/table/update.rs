@@ -93,7 +93,6 @@ pub(crate) async fn update_data_file_rows_by_matched_rows(
         let updated_batch = update_record_batch(&batch, set_map)?;
         process_insert_into_inline_rows(tx_helper, table, &[updated_batch]).await?;
     }
-    // TODO parallel update bug
     tx_helper
         .update_data_file_rows_as_invalid(data_file_record, &updated_row_ids)
         .await?;

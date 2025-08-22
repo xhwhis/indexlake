@@ -14,7 +14,7 @@ use indexlake::{
 use indexlake_datafusion::IndexLakePhysicalCodec;
 use indexlake_datafusion::IndexLakeTable;
 use indexlake_integration_tests::data::prepare_simple_testing_table;
-use indexlake_integration_tests::utils::sort_record_batches;
+use indexlake_integration_tests::utils::{datafusion_insert, datafusion_scan, sort_record_batches};
 use indexlake_integration_tests::{
     catalog_postgres, catalog_sqlite, init_env_logger, storage_fs, storage_s3,
 };
@@ -44,11 +44,7 @@ async fn datafusion_full_scan(
     let df_table = IndexLakeTable::try_new(Arc::new(table))?;
     let session = SessionContext::new();
     session.register_table("indexlake_table", Arc::new(df_table))?;
-    let df = session.sql("SELECT * FROM indexlake_table").await?;
-    let batches = df.collect().await?;
-    let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME)?;
-    let table_str = pretty_format_batches(&vec![sorted_batch])?.to_string();
-    println!("{}", table_str);
+    let table_str = datafusion_scan(&session, "SELECT * FROM indexlake_table").await;
     assert_eq!(
         table_str,
         r#"+-------------------+---------+-----+
@@ -87,13 +83,11 @@ async fn datafusion_scan_with_projection(
     let df_table = IndexLakeTable::try_new(Arc::new(table))?;
     let session = SessionContext::new();
     session.register_table("indexlake_table", Arc::new(df_table))?;
-    let df = session
-        .sql("SELECT _indexlake_row_id, name FROM indexlake_table")
-        .await?;
-    let batches = df.collect().await?;
-    let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME)?;
-    let table_str = pretty_format_batches(&vec![sorted_batch])?.to_string();
-    println!("{}", table_str);
+    let table_str = datafusion_scan(
+        &session,
+        "SELECT _indexlake_row_id, name FROM indexlake_table",
+    )
+    .await;
     assert_eq!(
         table_str,
         r#"+-------------------+---------+
@@ -132,13 +126,7 @@ async fn datafusion_scan_with_filters(
     let df_table = IndexLakeTable::try_new(Arc::new(table))?;
     let session = SessionContext::new();
     session.register_table("indexlake_table", Arc::new(df_table))?;
-    let df = session
-        .sql("SELECT * FROM indexlake_table where age > 21")
-        .await?;
-    let batches = df.collect().await?;
-    let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME)?;
-    let table_str = pretty_format_batches(&vec![sorted_batch])?.to_string();
-    println!("{}", table_str);
+    let table_str = datafusion_scan(&session, "SELECT * FROM indexlake_table where age > 21").await;
     assert_eq!(
         table_str,
         r#"+-------------------+---------+-----+
@@ -176,7 +164,12 @@ async fn datafusion_scan_with_limit(
     let session = SessionContext::new();
     session.register_table("indexlake_table", Arc::new(df_table))?;
     let df = session.sql("SELECT * FROM indexlake_table limit 2").await?;
-    let batches = df.collect().await?;
+    let plan = df.create_physical_plan().await?;
+    println!(
+        "plan: {}",
+        DisplayableExecutionPlan::new(plan.as_ref()).indent(true)
+    );
+    let batches = collect(plan, session.task_ctx()).await?;
     let num_rows = batches.iter().map(|batch| batch.num_rows()).sum::<usize>();
     assert_eq!(num_rows, 2);
 
@@ -206,12 +199,12 @@ async fn datafusion_full_insert(
     let df_table = IndexLakeTable::try_new(Arc::new(table))?;
     let session = SessionContext::new();
     session.register_table("indexlake_table", Arc::new(df_table))?;
-    let df = session
-        .sql("INSERT INTO indexlake_table (name, age) VALUES ('Eve', 24)")
-        .await?;
-    let batches = df.collect().await?;
-    let table_str = pretty_format_batches(&batches)?.to_string();
-    println!("{}", table_str);
+
+    let table_str = datafusion_insert(
+        &session,
+        "INSERT INTO indexlake_table (name, age) VALUES ('Eve', 24)",
+    )
+    .await;
     assert_eq!(
         table_str,
         r#"+-------+
@@ -221,12 +214,11 @@ async fn datafusion_full_insert(
 +-------+"#,
     );
 
-    let df = session
-        .sql("INSERT INTO indexlake_table (age, name) VALUES (25, 'Frank')")
-        .await?;
-    let batches = df.collect().await?;
-    let table_str = pretty_format_batches(&batches)?.to_string();
-    println!("{}", table_str);
+    let table_str = datafusion_insert(
+        &session,
+        "INSERT INTO indexlake_table (age, name) VALUES (25, 'Frank')",
+    )
+    .await;
     assert_eq!(
         table_str,
         r#"+-------+
@@ -238,11 +230,7 @@ async fn datafusion_full_insert(
 
     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 
-    let df = session.sql("SELECT * FROM indexlake_table").await?;
-    let batches = df.collect().await?;
-    let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME)?;
-    let table_str = pretty_format_batches(&vec![sorted_batch])?.to_string();
-    println!("{}", table_str);
+    let table_str = datafusion_scan(&session, "SELECT * FROM indexlake_table").await;
     assert_eq!(
         table_str,
         r#"+-------------------+---------+-----+
@@ -307,12 +295,12 @@ async fn datafusion_partial_insert(
     let df_table = IndexLakeTable::try_new(Arc::new(table))?;
     let session = SessionContext::new();
     session.register_table("indexlake_table", Arc::new(df_table))?;
-    let df = session
-        .sql("INSERT INTO indexlake_table (name) VALUES ('Eve')")
-        .await?;
-    let batches = df.collect().await?;
-    let table_str = pretty_format_batches(&batches)?.to_string();
-    println!("{}", table_str);
+
+    let table_str = datafusion_insert(
+        &session,
+        "INSERT INTO indexlake_table (name) VALUES ('Eve')",
+    )
+    .await;
     assert_eq!(
         table_str,
         r#"+-------+
@@ -322,11 +310,7 @@ async fn datafusion_partial_insert(
 +-------+"#,
     );
 
-    let df = session.sql("SELECT * FROM indexlake_table").await?;
-    let batches = df.collect().await?;
-    let sorted_batch = sort_record_batches(&batches, INTERNAL_ROW_ID_FIELD_NAME)?;
-    let table_str = pretty_format_batches(&vec![sorted_batch])?.to_string();
-    println!("{}", table_str);
+    let table_str = datafusion_scan(&session, "SELECT * FROM indexlake_table").await;
     assert_eq!(
         table_str,
         r#"+-------------------+------+-----+

@@ -28,7 +28,11 @@ pub trait IndexKind: Debug + Send + Sync {
         query: &dyn SearchQuery,
     ) -> ILResult<bool>;
 
-    fn supports_filter(&self, index_def: &IndexDefination, filter: &Expr) -> ILResult<bool>;
+    fn supports_filter(
+        &self,
+        index_def: &IndexDefination,
+        filter: &Expr,
+    ) -> ILResult<FilterSupport>;
 }
 
 #[async_trait::async_trait]
@@ -72,6 +76,13 @@ pub struct RowIdScore {
 #[derive(Debug, Clone)]
 pub struct FilterIndexEntries {
     pub row_ids: Int64Array,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum FilterSupport {
+    Unsupported,
+    Exact,
+    Inexact,
 }
 
 pub trait SearchQuery: Debug + Send + Sync {

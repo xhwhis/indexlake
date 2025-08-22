@@ -15,7 +15,7 @@ use crate::{
         rows_to_record_batch,
     },
     expr::{Expr, split_conjunction_filters},
-    index::IndexManager,
+    index::{FilterSupport, IndexManager},
     storage::read_data_file_by_record,
     table::Table,
     utils::project_schema,
@@ -463,14 +463,25 @@ fn assign_index_filters(
 ) -> ILResult<HashMap<String, Vec<usize>>> {
     let mut index_filter_assignment: HashMap<String, Vec<usize>> = HashMap::new();
     for (filter_idx, filter) in filters.iter().enumerate() {
+        let mut index_name = None;
         for (index_def, index_kind) in index_manager.iter_index_and_kind() {
-            let supported = index_kind.supports_filter(index_def, filter)?;
-            if supported {
-                index_filter_assignment
-                    .entry(index_def.name.clone())
-                    .or_default()
-                    .push(filter_idx);
+            match index_kind.supports_filter(index_def, filter)? {
+                // prioritize to assign filter to exact supported index
+                FilterSupport::Exact => {
+                    index_name = Some(index_def.name.clone());
+                    break;
+                }
+                FilterSupport::Inexact => {
+                    index_name = Some(index_def.name.clone());
+                }
+                FilterSupport::Unsupported => {}
             }
+        }
+        if let Some(index_name) = index_name {
+            index_filter_assignment
+                .entry(index_name)
+                .or_default()
+                .push(filter_idx);
         }
     }
     Ok(index_filter_assignment)

@@ -3,7 +3,8 @@ use std::{any::Any, sync::Arc};
 use arrow::datatypes::DataType;
 use indexlake::ILError;
 use indexlake::index::{
-    IndexBuilder, IndexDefination, IndexDefinationRef, IndexKind, IndexParams, SearchQuery,
+    FilterSupport, IndexBuilder, IndexDefination, IndexDefinationRef, IndexKind, IndexParams,
+    SearchQuery,
 };
 use indexlake::{ILResult, expr::Expr};
 use serde::{Deserialize, Serialize};
@@ -62,8 +63,12 @@ impl IndexKind for HnswIndexKind {
         Ok(true)
     }
 
-    fn supports_filter(&self, _index_def: &IndexDefination, _filter: &Expr) -> ILResult<bool> {
-        Err(ILError::not_supported("HnswIndex does not support filter"))
+    fn supports_filter(
+        &self,
+        _index_def: &IndexDefination,
+        _filter: &Expr,
+    ) -> ILResult<FilterSupport> {
+        Ok(FilterSupport::Unsupported)
     }
 }
 

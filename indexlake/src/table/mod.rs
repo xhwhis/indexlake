@@ -21,7 +21,7 @@ use crate::RecordBatchStream;
 use crate::catalog::{CatalogHelper, DataFileRecord, Scalar};
 use crate::catalog::{FieldRecord, IndexFileRecord};
 use crate::expr::Expr;
-use crate::index::IndexManager;
+use crate::index::{FilterSupport, IndexManager};
 use crate::storage::DataFileFormat;
 use crate::utils::schema_without_row_id;
 use crate::{
@@ -259,10 +259,10 @@ impl Table {
         Ok(())
     }
 
-    pub fn supports_filter(&self, filter: &Expr) -> ILResult<bool> {
+    pub fn supports_filter(&self, filter: &Expr) -> ILResult<FilterSupport> {
         match filter {
             Expr::Function(_) => self.index_manager.supports_filter(filter),
-            _ => Ok(true),
+            _ => Ok(FilterSupport::Exact),
         }
     }
 }

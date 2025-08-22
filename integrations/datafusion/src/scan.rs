@@ -1,12 +1,13 @@
 use std::any::Any;
 use std::sync::Arc;
 
-use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::datatypes::{Schema, SchemaRef};
 use datafusion::common::stats::Precision;
 use datafusion::common::{DFSchema, Statistics, project_schema};
 use datafusion::error::DataFusionError;
 use datafusion::execution::{SendableRecordBatchStream, TaskContext};
 use datafusion::physical_expr::EquivalenceProperties;
+use datafusion::physical_plan::display::ProjectSchemaDisplay;
 use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType};
 use datafusion::physical_plan::limit::LimitStream;
 use datafusion::physical_plan::metrics::{BaselineMetrics, ExecutionPlanMetricsSet};
@@ -188,8 +189,44 @@ impl ExecutionPlan for IndexLakeScanExec {
 
 impl DisplayAs for IndexLakeScanExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "IndexLakeScanExec")
+        write!(
+            f,
+            "IndexLakeScanExec: table={}.{}, partitions={}",
+            self.table.namespace_name, self.table.table_name, self.partition_count
+        )?;
+        let projected_schema = self.schema();
+        if !schema_projection_equals(&projected_schema, &self.table.schema) {
+            write!(
+                f,
+                ", projection={}",
+                ProjectSchemaDisplay(&projected_schema)
+            )?;
+        }
+        if !self.filters.is_empty() {
+            write!(
+                f,
+                ", filters=[{}]",
+                self.filters
+                    .iter()
+                    .map(|f| f.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )?;
+        }
+        if let Some(limit) = self.limit {
+            write!(f, ", limit={limit}")?;
+        }
+        if let Some(concurrency) = self.concurrency {
+            write!(f, ", concurrency={concurrency}")?;
+        }
+        Ok(())
     }
+}
+
+fn schema_projection_equals(left: &Schema, right: &Schema) -> bool {
+    let left_fields = left.fields.iter().map(|f| f.name()).collect::<Vec<_>>();
+    let right_fields = right.fields.iter().map(|f| f.name()).collect::<Vec<_>>();
+    left_fields == right_fields
 }
 
 async fn get_batch_stream(
