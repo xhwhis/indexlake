@@ -206,8 +206,8 @@ impl CatalogSchema {
                     CatalogDataType::Float32 => values.push("0.0".to_string()),
                     CatalogDataType::Float64 => values.push("0.0".to_string()),
                     CatalogDataType::Utf8 => values.push("''".to_string()),
-                    CatalogDataType::Binary => values.push(database.sql_binary_value(&[0u8])),
-                    CatalogDataType::Uuid => values.push(database.sql_uuid_value(&Uuid::nil())),
+                    CatalogDataType::Binary => values.push(database.sql_binary_literal(&[0u8])),
+                    CatalogDataType::Uuid => values.push(database.sql_uuid_literal(&Uuid::nil())),
                 }
             }
         }

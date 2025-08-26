@@ -5,10 +5,10 @@ use std::sync::Arc;
 
 use arrow::array::{
     Array, ArrayRef, AsArray, BinaryArray, BinaryViewArray, BooleanArray, Date32Array, Date64Array,
-    FixedSizeBinaryArray, Float32Array, Float64Array, GenericListArray, Int8Array, Int16Array,
-    Int32Array, Int64Array, LargeBinaryArray, LargeStringArray, ListArray, RecordBatch,
-    StringArray, StringViewArray, Time32MillisecondArray, Time32SecondArray,
-    Time64MicrosecondArray, Time64NanosecondArray, TimestampMicrosecondArray,
+    FixedSizeBinaryArray, FixedSizeListArray, Float32Array, Float64Array, GenericListArray,
+    Int8Array, Int16Array, Int32Array, Int64Array, LargeBinaryArray, LargeListArray,
+    LargeStringArray, ListArray, RecordBatch, StringArray, StringViewArray, Time32MillisecondArray,
+    Time32SecondArray, Time64MicrosecondArray, Time64NanosecondArray, TimestampMicrosecondArray,
     TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt8Array,
     UInt16Array, UInt32Array, UInt64Array, new_null_array,
 };
@@ -58,6 +58,8 @@ pub enum Scalar {
     Time64Microsecond(Option<i64>),
     Time64Nanosecond(Option<i64>),
     List(Arc<ListArray>),
+    FixedSizeList(Arc<FixedSizeListArray>),
+    LargeList(Arc<LargeListArray>),
 }
 
 impl Scalar {
@@ -100,6 +102,12 @@ impl Scalar {
             DataType::List(field_ref) => {
                 Scalar::List(Arc::new(GenericListArray::new_null(field_ref.clone(), 1)))
             }
+            DataType::FixedSizeList(field_ref, size) => Scalar::FixedSizeList(Arc::new(
+                FixedSizeListArray::new_null(field_ref.clone(), *size, 1),
+            )),
+            DataType::LargeList(field_ref) => {
+                Scalar::LargeList(Arc::new(LargeListArray::new_null(field_ref.clone(), 1)))
+            }
             _ => {
                 return Err(ILError::not_supported(format!(
                     "Cannot create null scalar for data type: {data_type}",
@@ -134,6 +142,8 @@ impl Scalar {
             Scalar::Time32Second(v) | Scalar::Time32Millisecond(v) => v.is_none(),
             Scalar::Time64Microsecond(v) | Scalar::Time64Nanosecond(v) => v.is_none(),
             Scalar::List(v) => v.len() == v.null_count(),
+            Scalar::FixedSizeList(v) => v.len() == v.null_count(),
+            Scalar::LargeList(v) => v.len() == v.null_count(),
         }
     }
 
@@ -163,14 +173,14 @@ impl Scalar {
             | Scalar::Float32(_)
             | Scalar::Float64(_) => Ok(self.to_string()),
             Scalar::Utf8(v) | Scalar::Utf8View(v) | Scalar::LargeUtf8(v) => match v {
-                Some(value) => Ok(database.sql_string_value(value)),
+                Some(value) => Ok(database.sql_string_literal(value)),
                 None => Ok("null".to_string()),
             },
             Scalar::Binary(v)
             | Scalar::BinaryView(v)
             | Scalar::FixedSizeBinary(_, v)
             | Scalar::LargeBinary(v) => match v {
-                Some(value) => Ok(database.sql_binary_value(value)),
+                Some(value) => Ok(database.sql_binary_literal(value)),
                 None => Ok("null".to_string()),
             },
             Scalar::TimestampSecond(_, _)
@@ -183,7 +193,9 @@ impl Scalar {
             | Scalar::Time32Millisecond(_)
             | Scalar::Time64Microsecond(_)
             | Scalar::Time64Nanosecond(_)
-            | Scalar::List(_) => Err(ILError::not_supported(
+            | Scalar::List(_)
+            | Scalar::FixedSizeList(_)
+            | Scalar::LargeList(_) => Err(ILError::not_supported(
                 "Not supported to convert scalar {self:?} to sql",
             )),
         }
@@ -343,6 +355,18 @@ impl Scalar {
                 }
                 Self::list_to_array_of_size(arr.as_ref() as &dyn Array, size)?
             }
+            Scalar::FixedSizeList(arr) => {
+                if size == 1 {
+                    return Ok(Arc::clone(arr) as Arc<dyn Array>);
+                }
+                Self::list_to_array_of_size(arr.as_ref() as &dyn Array, size)?
+            }
+            Scalar::LargeList(arr) => {
+                if size == 1 {
+                    return Ok(Arc::clone(arr) as Arc<dyn Array>);
+                }
+                Self::list_to_array_of_size(arr.as_ref() as &dyn Array, size)?
+            }
         })
     }
 
@@ -480,6 +504,20 @@ impl Scalar {
                 let list = ListArray::new(field_ref.clone(), offsets, ele, None);
                 Scalar::List(Arc::new(list))
             }
+            DataType::FixedSizeList(field_ref, _) => {
+                let array = array.as_fixed_size_list();
+                let ele = array.value(index);
+                let list_size = ele.len();
+                let list = FixedSizeListArray::new(field_ref.clone(), list_size as i32, ele, None);
+                Scalar::FixedSizeList(Arc::new(list))
+            }
+            DataType::LargeList(field_ref) => {
+                let array = array.as_list::<i64>();
+                let ele = array.value(index);
+                let offsets = OffsetBuffer::from_lengths([ele.len()]);
+                let list = LargeListArray::new(field_ref.clone(), offsets, ele, None);
+                Scalar::LargeList(Arc::new(list))
+            }
             _ => {
                 return Err(ILError::not_supported(format!(
                     "Unsupported array: {}",
@@ -526,6 +564,8 @@ impl Scalar {
             Scalar::Time64Microsecond(_) => DataType::Time64(TimeUnit::Microsecond),
             Scalar::Time64Nanosecond(_) => DataType::Time64(TimeUnit::Nanosecond),
             Scalar::List(arr) => arr.data_type().clone(),
+            Scalar::FixedSizeList(arr) => arr.data_type().clone(),
+            Scalar::LargeList(arr) => arr.data_type().clone(),
         }
     }
 
@@ -663,6 +703,10 @@ impl PartialEq for Scalar {
             (Scalar::Time64Nanosecond(_), _) => false,
             (Scalar::List(v1), Scalar::List(v2)) => v1.eq(v2),
             (Scalar::List(_), _) => false,
+            (Scalar::FixedSizeList(v1), Scalar::FixedSizeList(v2)) => v1.eq(v2),
+            (Scalar::FixedSizeList(_), _) => false,
+            (Scalar::LargeList(v1), Scalar::LargeList(v2)) => v1.eq(v2),
+            (Scalar::LargeList(_), _) => false,
         }
     }
 }
@@ -744,6 +788,14 @@ impl PartialOrd for Scalar {
                 partial_cmp_list(arr1.as_ref(), arr2.as_ref())
             }
             (Scalar::List(_), _) => None,
+            (Scalar::FixedSizeList(v1), Scalar::FixedSizeList(v2)) => {
+                partial_cmp_list(v1.as_ref(), v2.as_ref())
+            }
+            (Scalar::FixedSizeList(_), _) => None,
+            (Scalar::LargeList(v1), Scalar::LargeList(v2)) => {
+                partial_cmp_list(v1.as_ref(), v2.as_ref())
+            }
+            (Scalar::LargeList(_), _) => None,
         }
     }
 }
@@ -848,6 +900,8 @@ impl Display for Scalar {
             Scalar::Time64Microsecond(v) => format_option!(f, v),
             Scalar::Time64Nanosecond(v) => format_option!(f, v),
             Scalar::List(arr) => fmt_list(arr.to_owned() as ArrayRef, f),
+            Scalar::FixedSizeList(arr) => fmt_list(arr.to_owned() as ArrayRef, f),
+            Scalar::LargeList(arr) => fmt_list(arr.to_owned() as ArrayRef, f),
         }
     }
 }
@@ -947,6 +1001,15 @@ mod tests {
             DataType::Int32,
             false,
         ))));
+        assert(&DataType::FixedSizeList(
+            Arc::new(Field::new("item", DataType::Int32, false)),
+            3,
+        ));
+        assert(&DataType::LargeList(Arc::new(Field::new(
+            "item",
+            DataType::Int32,
+            false,
+        ))));
     }
 
     #[test]
@@ -1028,6 +1091,34 @@ mod tests {
         ])]))));
         assert(
             Scalar::try_new_null(&DataType::List(Arc::new(Field::new(
+                "item",
+                DataType::Int32,
+                false,
+            ))))
+            .unwrap(),
+        );
+        assert(Scalar::FixedSizeList(Arc::new(
+            FixedSizeListArray::from_iter_primitive::<Int32Type, _, _>(
+                vec![Some(vec![Some(0), Some(1), Some(2)])],
+                3,
+            ),
+        )));
+        assert(
+            Scalar::try_new_null(&DataType::FixedSizeList(
+                Arc::new(Field::new("item", DataType::Int32, false)),
+                3,
+            ))
+            .unwrap(),
+        );
+        assert(Scalar::LargeList(Arc::new(
+            LargeListArray::from_iter_primitive::<Int32Type, _, _>(vec![Some(vec![
+                Some(0),
+                Some(1),
+                Some(2),
+            ])]),
+        )));
+        assert(
+            Scalar::try_new_null(&DataType::LargeList(Arc::new(Field::new(
                 "item",
                 DataType::Int32,
                 false,

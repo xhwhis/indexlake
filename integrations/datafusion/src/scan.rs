@@ -224,9 +224,15 @@ impl DisplayAs for IndexLakeScanExec {
 }
 
 fn schema_projection_equals(left: &Schema, right: &Schema) -> bool {
-    let left_fields = left.fields.iter().map(|f| f.name()).collect::<Vec<_>>();
-    let right_fields = right.fields.iter().map(|f| f.name()).collect::<Vec<_>>();
-    left_fields == right_fields
+    if left.fields.len() != right.fields.len() {
+        return false;
+    }
+    for (left_field, right_field) in left.fields.iter().zip(right.fields.iter()) {
+        if left_field.name() != right_field.name() {
+            return false;
+        }
+    }
+    true
 }
 
 async fn get_batch_stream(

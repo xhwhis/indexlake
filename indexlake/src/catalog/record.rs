@@ -35,9 +35,9 @@ impl TableRecord {
         })?;
         Ok(format!(
             "({}, '{}', {}, '{}', '{}')",
-            database.sql_uuid_value(&self.table_id),
+            database.sql_uuid_literal(&self.table_id),
             self.table_name,
-            database.sql_uuid_value(&self.namespace_id),
+            database.sql_uuid_literal(&self.namespace_id),
             config_str,
             schema_metadata_str,
         ))
@@ -112,7 +112,7 @@ impl FieldRecord {
         let default_value_sql = match self.default_value.as_ref() {
             Some(value) => {
                 let bytes = serialize_scalar(value)?;
-                database.sql_binary_value(&bytes)
+                database.sql_binary_literal(&bytes)
             }
             None => "null".to_string(),
         };
@@ -120,8 +120,8 @@ impl FieldRecord {
             .map_err(|e| ILError::internal(format!("Failed to serialize field metadata: {e:?}")))?;
         Ok(format!(
             "({}, {}, '{}', '{}', {}, {}, '{}')",
-            database.sql_uuid_value(&self.field_id),
-            database.sql_uuid_value(&self.table_id),
+            database.sql_uuid_literal(&self.field_id),
+            database.sql_uuid_literal(&self.table_id),
             self.field_name,
             data_type_str,
             self.nullable,
@@ -198,13 +198,13 @@ impl DataFileRecord {
         let validity_bytes = Self::validity_to_bytes(&self.validity);
         format!(
             "({}, {}, '{}', '{}', {}, {}, {})",
-            database.sql_uuid_value(&self.data_file_id),
-            database.sql_uuid_value(&self.table_id),
+            database.sql_uuid_literal(&self.data_file_id),
+            database.sql_uuid_literal(&self.table_id),
             self.format,
             self.relative_path,
             self.record_count,
-            database.sql_binary_value(&row_ids_bytes),
-            database.sql_binary_value(&validity_bytes),
+            database.sql_binary_literal(&row_ids_bytes),
+            database.sql_binary_literal(&validity_bytes),
         )
     }
 
@@ -351,8 +351,8 @@ impl IndexRecord {
             .join(",");
         format!(
             "({}, {}, '{}', '{}', '{}', '{}')",
-            database.sql_uuid_value(&self.index_id),
-            database.sql_uuid_value(&self.table_id),
+            database.sql_uuid_literal(&self.index_id),
+            database.sql_uuid_literal(&self.table_id),
             self.index_name,
             self.index_kind,
             key_field_ids_str,
@@ -406,10 +406,10 @@ impl IndexFileRecord {
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
         format!(
             "({}, {}, {}, {}, '{}')",
-            database.sql_uuid_value(&self.index_file_id),
-            database.sql_uuid_value(&self.table_id),
-            database.sql_uuid_value(&self.index_id),
-            database.sql_uuid_value(&self.data_file_id),
+            database.sql_uuid_literal(&self.index_file_id),
+            database.sql_uuid_literal(&self.table_id),
+            database.sql_uuid_literal(&self.index_id),
+            database.sql_uuid_literal(&self.data_file_id),
             self.relative_path
         )
     }
@@ -457,8 +457,8 @@ impl InlineIndexRecord {
     pub(crate) fn to_sql(&self, database: CatalogDatabase) -> String {
         format!(
             "({}, {})",
-            database.sql_uuid_value(&self.index_id),
-            database.sql_binary_value(&self.index_data)
+            database.sql_uuid_literal(&self.index_id),
+            database.sql_binary_literal(&self.index_data)
         )
     }
 

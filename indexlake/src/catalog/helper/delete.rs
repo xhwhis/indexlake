@@ -64,7 +64,7 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "DELETE FROM indexlake_dump_task WHERE table_id = {}",
-                self.database.sql_uuid_value(table_id)
+                self.database.sql_uuid_literal(table_id)
             ))
             .await
     }
@@ -73,7 +73,7 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "DELETE FROM indexlake_data_file WHERE table_id = {}",
-                self.database.sql_uuid_value(table_id)
+                self.database.sql_uuid_literal(table_id)
             ))
             .await
     }
@@ -82,7 +82,7 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "DELETE FROM indexlake_index_file WHERE table_id = {}",
-                self.database.sql_uuid_value(table_id)
+                self.database.sql_uuid_literal(table_id)
             ))
             .await
     }
@@ -91,7 +91,7 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "DELETE FROM indexlake_index_file WHERE index_id = {}",
-                self.database.sql_uuid_value(index_id)
+                self.database.sql_uuid_literal(index_id)
             ))
             .await
     }
@@ -100,7 +100,7 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "DELETE FROM indexlake_table WHERE table_id = {}",
-                self.database.sql_uuid_value(table_id)
+                self.database.sql_uuid_literal(table_id)
             ))
             .await
     }
@@ -109,7 +109,7 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "DELETE FROM indexlake_field WHERE table_id = {}",
-                self.database.sql_uuid_value(table_id)
+                self.database.sql_uuid_literal(table_id)
             ))
             .await
     }
@@ -118,7 +118,7 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "DELETE FROM indexlake_index WHERE table_id = {}",
-                self.database.sql_uuid_value(table_id)
+                self.database.sql_uuid_literal(table_id)
             ))
             .await
     }
@@ -127,7 +127,7 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "DELETE FROM indexlake_index WHERE index_id = {}",
-                self.database.sql_uuid_value(index_id)
+                self.database.sql_uuid_literal(index_id)
             ))
             .await
     }
@@ -142,7 +142,7 @@ impl TransactionHelper {
                 "DELETE FROM indexlake_inline_index WHERE index_id IN ({})",
                 index_ids
                     .iter()
-                    .map(|id| self.database.sql_uuid_value(id))
+                    .map(|id| self.database.sql_uuid_literal(id))
                     .collect::<Vec<_>>()
                     .join(", ")
             ))

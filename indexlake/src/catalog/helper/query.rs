@@ -52,7 +52,7 @@ impl TransactionHelper {
             CatalogDataType::Uuid,
             false,
         )]));
-        let rows = self.query_rows(&format!("SELECT table_id FROM indexlake_table WHERE namespace_id = {} AND table_name = '{table_name}'", self.database.sql_uuid_value(namespace_id)), schema).await?;
+        let rows = self.query_rows(&format!("SELECT table_id FROM indexlake_table WHERE namespace_id = {} AND table_name = '{table_name}'", self.database.sql_uuid_literal(namespace_id)), schema).await?;
         if rows.is_empty() {
             Ok(None)
         } else {
@@ -137,7 +137,7 @@ impl TransactionHelper {
                 &format!(
                     "SELECT {} FROM indexlake_data_file WHERE table_id = {}",
                     schema.select_items(self.database).join(", "),
-                    self.database.sql_uuid_value(table_id),
+                    self.database.sql_uuid_literal(table_id),
                 ),
                 schema,
             )
@@ -159,7 +159,7 @@ impl TransactionHelper {
             CatalogDataType::Uuid,
             false,
         )]));
-        let rows = self.query_rows(&format!("SELECT index_id FROM indexlake_index WHERE table_id = {} AND index_name = '{index_name}'", self.database.sql_uuid_value(table_id)), schema).await?;
+        let rows = self.query_rows(&format!("SELECT index_id FROM indexlake_index WHERE table_id = {} AND index_name = '{index_name}'", self.database.sql_uuid_literal(table_id)), schema).await?;
         if rows.is_empty() {
             Ok(None)
         } else {
@@ -202,7 +202,7 @@ impl CatalogHelper {
                 &format!(
                     "SELECT {} FROM indexlake_table WHERE namespace_id = {} AND table_name = '{table_name}'",
                     schema.select_items(self.catalog.database()).join(", "),
-                    self.catalog.database().sql_uuid_value(namespace_id)
+                    self.catalog.database().sql_uuid_literal(namespace_id)
                 ),
                 schema,
             )
@@ -223,7 +223,7 @@ impl CatalogHelper {
                     catalog_schema
                         .select_items(self.catalog.database())
                         .join(", "),
-                    self.catalog.database().sql_uuid_value(table_id)
+                    self.catalog.database().sql_uuid_literal(table_id)
                 ),
                 catalog_schema,
             )
@@ -244,7 +244,7 @@ impl CatalogHelper {
                     catalog_schema
                         .select_items(self.catalog.database())
                         .join(", "),
-                    self.catalog.database().sql_uuid_value(table_id)
+                    self.catalog.database().sql_uuid_literal(table_id)
                 ),
                 catalog_schema,
             )
@@ -328,7 +328,7 @@ impl CatalogHelper {
             .query_rows(
                 &format!(
                     "SELECT COUNT(1) FROM indexlake_data_file WHERE table_id = {}",
-                    self.catalog.database().sql_uuid_value(table_id)
+                    self.catalog.database().sql_uuid_literal(table_id)
                 ),
                 schema,
             )
@@ -349,7 +349,7 @@ impl CatalogHelper {
                 &format!(
                     "SELECT {} FROM indexlake_data_file WHERE table_id = {} ORDER BY data_file_id ASC LIMIT {limit} OFFSET {offset}",
                     schema.select_items(self.catalog.database()).join(", "),
-                    self.catalog.database().sql_uuid_value(table_id),
+                    self.catalog.database().sql_uuid_literal(table_id),
                 ),
                 schema,
             )
@@ -368,7 +368,7 @@ impl CatalogHelper {
                 &format!(
                     "SELECT {} FROM indexlake_data_file WHERE table_id = {}",
                     schema.select_items(self.catalog.database()).join(", "),
-                    self.catalog.database().sql_uuid_value(table_id)
+                    self.catalog.database().sql_uuid_literal(table_id)
                 ),
                 schema,
             )
@@ -390,7 +390,7 @@ impl CatalogHelper {
                 &format!(
                     "SELECT {} FROM indexlake_index_file WHERE table_id = {}",
                     schema.select_items(self.catalog.database()).join(", "),
-                    self.catalog.database().sql_uuid_value(table_id)
+                    self.catalog.database().sql_uuid_literal(table_id)
                 ),
                 schema,
             )
@@ -412,7 +412,7 @@ impl CatalogHelper {
                 &format!(
                     "SELECT {} FROM indexlake_index_file WHERE index_id = {}",
                     schema.select_items(self.catalog.database()).join(", "),
-                    self.catalog.database().sql_uuid_value(index_id)
+                    self.catalog.database().sql_uuid_literal(index_id)
                 ),
                 schema,
             )
@@ -434,7 +434,7 @@ impl CatalogHelper {
                 &format!(
                     "SELECT {} FROM indexlake_index_file WHERE data_file_id = {}",
                     schema.select_items(self.catalog.database()).join(", "),
-                    self.catalog.database().sql_uuid_value(data_file_id)
+                    self.catalog.database().sql_uuid_literal(data_file_id)
                 ),
                 schema,
             )
@@ -457,8 +457,8 @@ impl CatalogHelper {
                 &format!(
                     "SELECT {} FROM indexlake_index_file WHERE index_id = {} AND data_file_id = {}",
                     schema.select_items(self.catalog.database()).join(", "),
-                    self.catalog.database().sql_uuid_value(index_id),
-                    self.catalog.database().sql_uuid_value(data_file_id)
+                    self.catalog.database().sql_uuid_literal(index_id),
+                    self.catalog.database().sql_uuid_literal(data_file_id)
                 ),
                 schema,
             )
@@ -480,7 +480,7 @@ impl CatalogHelper {
             .query_rows(
                 &format!(
                     "SELECT table_id FROM indexlake_dump_task WHERE table_id = {}",
-                    self.catalog.database().sql_uuid_value(table_id)
+                    self.catalog.database().sql_uuid_literal(table_id)
                 ),
                 schema,
             )
@@ -503,7 +503,7 @@ impl CatalogHelper {
                     schema.select_items(self.catalog.database()).join(", "),
                     index_ids
                         .iter()
-                        .map(|id| self.catalog.database().sql_uuid_value(id))
+                        .map(|id| self.catalog.database().sql_uuid_literal(id))
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),

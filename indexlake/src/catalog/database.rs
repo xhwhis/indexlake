@@ -14,21 +14,21 @@ impl CatalogDatabase {
         }
     }
 
-    pub fn sql_binary_value(&self, value: &[u8]) -> String {
+    pub fn sql_binary_literal(&self, value: &[u8]) -> String {
         match self {
             CatalogDatabase::Sqlite => format!("X'{}'", hex::encode(value)),
             CatalogDatabase::Postgres => format!("E'\\\\x{}'", hex::encode(value)),
         }
     }
 
-    pub fn sql_uuid_value(&self, value: &Uuid) -> String {
+    pub fn sql_uuid_literal(&self, value: &Uuid) -> String {
         match self {
-            CatalogDatabase::Sqlite => self.sql_binary_value(value.as_bytes()),
+            CatalogDatabase::Sqlite => self.sql_binary_literal(value.as_bytes()),
             CatalogDatabase::Postgres => format!("'{value}'"),
         }
     }
 
-    pub fn sql_string_value(&self, value: &str) -> String {
+    pub fn sql_string_literal(&self, value: &str) -> String {
         let value = value.replace("'", "''");
         match self {
             CatalogDatabase::Sqlite => format!("'{value}'"),

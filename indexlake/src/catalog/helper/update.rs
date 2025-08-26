@@ -43,8 +43,8 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "UPDATE indexlake_data_file SET validity = {} WHERE data_file_id = {}",
-                self.database.sql_binary_value(&validity_bytes),
-                self.database.sql_uuid_value(data_file_id)
+                self.database.sql_binary_literal(&validity_bytes),
+                self.database.sql_uuid_literal(data_file_id)
             ))
             .await
     }

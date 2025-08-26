@@ -17,7 +17,7 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "INSERT INTO indexlake_namespace (namespace_id, namespace_name) VALUES ({}, '{namespace_name}')",
-                self.database.sql_uuid_value(namespace_id)
+                self.database.sql_uuid_literal(namespace_id)
             ))
             .await?;
         Ok(())
@@ -81,7 +81,7 @@ impl TransactionHelper {
         self.transaction
             .execute(&format!(
                 "INSERT INTO indexlake_dump_task (table_id) VALUES ({})",
-                self.database.sql_uuid_value(table_id)
+                self.database.sql_uuid_literal(table_id)
             ))
             .await
     }
