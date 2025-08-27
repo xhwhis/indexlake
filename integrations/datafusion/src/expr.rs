@@ -243,6 +243,8 @@ pub fn datafusion_scalar_to_indexlake_scalar(
         ScalarValue::List(v) => Ok(ILScalar::List(v.clone())),
         ScalarValue::FixedSizeList(v) => Ok(ILScalar::FixedSizeList(v.clone())),
         ScalarValue::LargeList(v) => Ok(ILScalar::LargeList(v.clone())),
+        ScalarValue::Decimal128(v, p, s) => Ok(ILScalar::Decimal128(*v, *p, *s)),
+        ScalarValue::Decimal256(v, p, s) => Ok(ILScalar::Decimal256(*v, *p, *s)),
         _ => Err(DataFusionError::NotImplemented(format!(
             "Unsupported scalar: {scalar}"
         ))),
@@ -290,6 +292,8 @@ pub fn indexlake_scalar_to_datafusion_scalar(
         ILScalar::List(v) => Ok(ScalarValue::List(v.clone())),
         ILScalar::FixedSizeList(v) => Ok(ScalarValue::FixedSizeList(v.clone())),
         ILScalar::LargeList(v) => Ok(ScalarValue::LargeList(v.clone())),
+        ILScalar::Decimal128(v, p, s) => Ok(ScalarValue::Decimal128(*v, *p, *s)),
+        ILScalar::Decimal256(v, p, s) => Ok(ScalarValue::Decimal256(*v, *p, *s)),
     }
 }
 

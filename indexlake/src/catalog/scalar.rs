@@ -5,20 +5,22 @@ use std::sync::Arc;
 
 use arrow::array::{
     Array, ArrayRef, AsArray, BinaryArray, BinaryViewArray, BooleanArray, Date32Array, Date64Array,
-    FixedSizeBinaryArray, FixedSizeListArray, Float32Array, Float64Array, GenericListArray,
-    Int8Array, Int16Array, Int32Array, Int64Array, LargeBinaryArray, LargeListArray,
-    LargeStringArray, ListArray, RecordBatch, StringArray, StringViewArray, Time32MillisecondArray,
-    Time32SecondArray, Time64MicrosecondArray, Time64NanosecondArray, TimestampMicrosecondArray,
-    TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt8Array,
-    UInt16Array, UInt32Array, UInt64Array, new_null_array,
+    Decimal128Array, Decimal256Array, FixedSizeBinaryArray, FixedSizeListArray, Float32Array,
+    Float64Array, GenericListArray, Int8Array, Int16Array, Int32Array, Int64Array,
+    LargeBinaryArray, LargeListArray, LargeStringArray, ListArray, RecordBatch, StringArray,
+    StringViewArray, Time32MillisecondArray, Time32SecondArray, Time64MicrosecondArray,
+    Time64NanosecondArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+    TimestampNanosecondArray, TimestampSecondArray, UInt8Array, UInt16Array, UInt32Array,
+    UInt64Array, new_null_array,
 };
 use arrow::buffer::OffsetBuffer;
 use arrow::compute::CastOptions;
 use arrow::datatypes::{
-    DataType, Date32Type, Date64Type, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type,
-    Int64Type, Time32MillisecondType, Time32SecondType, Time64MicrosecondType,
-    Time64NanosecondType, TimestampMicrosecondType, TimestampMillisecondType,
-    TimestampNanosecondType, TimestampSecondType, UInt8Type, UInt16Type, UInt32Type, UInt64Type,
+    DataType, Date32Type, Date64Type, Decimal128Type, Decimal256Type, DecimalType, Float32Type,
+    Float64Type, Int8Type, Int16Type, Int32Type, Int64Type, Time32MillisecondType,
+    Time32SecondType, Time64MicrosecondType, Time64NanosecondType, TimestampMicrosecondType,
+    TimestampMillisecondType, TimestampNanosecondType, TimestampSecondType, UInt8Type, UInt16Type,
+    UInt32Type, UInt64Type, i256,
 };
 use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
@@ -60,6 +62,8 @@ pub enum Scalar {
     List(Arc<ListArray>),
     FixedSizeList(Arc<FixedSizeListArray>),
     LargeList(Arc<LargeListArray>),
+    Decimal128(Option<i128>, u8, i8),
+    Decimal256(Option<i256>, u8, i8),
 }
 
 impl Scalar {
@@ -108,6 +112,8 @@ impl Scalar {
             DataType::LargeList(field_ref) => {
                 Scalar::LargeList(Arc::new(LargeListArray::new_null(field_ref.clone(), 1)))
             }
+            DataType::Decimal128(precision, scale) => Scalar::Decimal128(None, *precision, *scale),
+            DataType::Decimal256(precision, scale) => Scalar::Decimal256(None, *precision, *scale),
             _ => {
                 return Err(ILError::not_supported(format!(
                     "Cannot create null scalar for data type: {data_type}",
@@ -144,6 +150,8 @@ impl Scalar {
             Scalar::List(v) => v.len() == v.null_count(),
             Scalar::FixedSizeList(v) => v.len() == v.null_count(),
             Scalar::LargeList(v) => v.len() == v.null_count(),
+            Scalar::Decimal128(v, _, _) => v.is_none(),
+            Scalar::Decimal256(v, _, _) => v.is_none(),
         }
     }
 
@@ -181,6 +189,14 @@ impl Scalar {
             | Scalar::FixedSizeBinary(_, v)
             | Scalar::LargeBinary(v) => match v {
                 Some(value) => Ok(database.sql_binary_literal(value)),
+                None => Ok("null".to_string()),
+            },
+            Scalar::Decimal128(v, precision, scale) => match v {
+                Some(value) => Ok(Decimal128Type::format_decimal(*value, *precision, *scale)),
+                None => Ok("null".to_string()),
+            },
+            Scalar::Decimal256(v, precision, scale) => match v {
+                Some(value) => Ok(Decimal256Type::format_decimal(*value, *precision, *scale)),
                 None => Ok("null".to_string()),
             },
             Scalar::TimestampSecond(_, _)
@@ -367,6 +383,20 @@ impl Scalar {
                 }
                 Self::list_to_array_of_size(arr.as_ref() as &dyn Array, size)?
             }
+            Scalar::Decimal128(e, precision, scale) => match e {
+                Some(value) => Arc::new(
+                    Decimal128Array::from_value(*value, size)
+                        .with_precision_and_scale(*precision, *scale)?,
+                ),
+                None => new_null_array(&DataType::Decimal128(*precision, *scale), size),
+            },
+            Scalar::Decimal256(e, precision, scale) => match e {
+                Some(value) => Arc::new(
+                    Decimal256Array::from_value(*value, size)
+                        .with_precision_and_scale(*precision, *scale)?,
+                ),
+                None => new_null_array(&DataType::Decimal256(*precision, *scale), size),
+            },
         })
     }
 
@@ -518,6 +548,14 @@ impl Scalar {
                 let list = LargeListArray::new(field_ref.clone(), offsets, ele, None);
                 Scalar::LargeList(Arc::new(list))
             }
+            DataType::Decimal128(precision, scale) => {
+                let array = array.as_primitive::<Decimal128Type>();
+                Scalar::Decimal128(Some(array.value(index)), *precision, *scale)
+            }
+            DataType::Decimal256(precision, scale) => {
+                let array = array.as_primitive::<Decimal256Type>();
+                Scalar::Decimal256(Some(array.value(index)), *precision, *scale)
+            }
             _ => {
                 return Err(ILError::not_supported(format!(
                     "Unsupported array: {}",
@@ -566,6 +604,8 @@ impl Scalar {
             Scalar::List(arr) => arr.data_type().clone(),
             Scalar::FixedSizeList(arr) => arr.data_type().clone(),
             Scalar::LargeList(arr) => arr.data_type().clone(),
+            Scalar::Decimal128(_, precision, scale) => DataType::Decimal128(*precision, *scale),
+            Scalar::Decimal256(_, precision, scale) => DataType::Decimal256(*precision, *scale),
         }
     }
 
@@ -707,6 +747,14 @@ impl PartialEq for Scalar {
             (Scalar::FixedSizeList(_), _) => false,
             (Scalar::LargeList(v1), Scalar::LargeList(v2)) => v1.eq(v2),
             (Scalar::LargeList(_), _) => false,
+            (Scalar::Decimal128(v1, p1, s1), Scalar::Decimal128(v2, p2, s2)) => {
+                v1.eq(v2) && p1 == p2 && s1 == s2
+            }
+            (Scalar::Decimal128(_, _, _), _) => false,
+            (Scalar::Decimal256(v1, p1, s1), Scalar::Decimal256(v2, p2, s2)) => {
+                v1.eq(v2) && p1 == p2 && s1 == s2
+            }
+            (Scalar::Decimal256(_, _, _), _) => false,
         }
     }
 }
@@ -796,6 +844,24 @@ impl PartialOrd for Scalar {
                 partial_cmp_list(v1.as_ref(), v2.as_ref())
             }
             (Scalar::LargeList(_), _) => None,
+            (Scalar::Decimal128(v1, p1, s1), Scalar::Decimal128(v2, p2, s2)) => {
+                if p1.eq(p2) && s1.eq(s2) {
+                    v1.partial_cmp(v2)
+                } else {
+                    // Two decimal values can be compared if they have the same precision and scale.
+                    None
+                }
+            }
+            (Scalar::Decimal128(_, _, _), _) => None,
+            (Scalar::Decimal256(v1, p1, s1), Scalar::Decimal256(v2, p2, s2)) => {
+                if p1.eq(p2) && s1.eq(s2) {
+                    v1.partial_cmp(v2)
+                } else {
+                    // Two decimal values can be compared if they have the same precision and scale.
+                    None
+                }
+            }
+            (Scalar::Decimal256(_, _, _), _) => None,
         }
     }
 }
@@ -902,6 +968,12 @@ impl Display for Scalar {
             Scalar::List(arr) => fmt_list(arr.to_owned() as ArrayRef, f),
             Scalar::FixedSizeList(arr) => fmt_list(arr.to_owned() as ArrayRef, f),
             Scalar::LargeList(arr) => fmt_list(arr.to_owned() as ArrayRef, f),
+            Scalar::Decimal128(v, p, s) => {
+                write!(f, "{v:?},{p:?},{s:?}")
+            }
+            Scalar::Decimal256(v, p, s) => {
+                write!(f, "{v:?},{p:?},{s:?}")
+            }
         }
     }
 }
@@ -1010,6 +1082,8 @@ mod tests {
             DataType::Int32,
             false,
         ))));
+        assert(&DataType::Decimal128(10, 2));
+        assert(&DataType::Decimal256(38, 18));
     }
 
     #[test]
@@ -1125,5 +1199,9 @@ mod tests {
             ))))
             .unwrap(),
         );
+        assert(Scalar::Decimal128(Some(1i128), 10, 2));
+        assert(Scalar::Decimal128(None, 10, 2));
+        assert(Scalar::Decimal256(Some(i256::from_i128(1)), 38, 18));
+        assert(Scalar::Decimal256(None, 38, 18));
     }
 }
