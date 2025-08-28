@@ -187,30 +187,36 @@ impl CatalogSchema {
             .collect::<Vec<_>>()
     }
 
-    pub fn placeholder_sql_values(&self, database: CatalogDatabase) -> Vec<String> {
-        let mut values = Vec::with_capacity(self.columns.len());
+    pub fn placeholder_row_sql_values(
+        &self,
+        database: CatalogDatabase,
+        num_rows: usize,
+    ) -> Vec<Vec<String>> {
+        let mut columns = Vec::with_capacity(self.columns.len());
         for col in self.columns.iter() {
-            if col.nullable {
-                values.push("NULL".to_string());
+            let placeholder = if col.nullable {
+                "NULL".to_string()
             } else {
                 match col.data_type {
-                    CatalogDataType::Boolean => values.push("FALSE".to_string()),
-                    CatalogDataType::Int8 => values.push("0".to_string()),
-                    CatalogDataType::Int16 => values.push("0".to_string()),
-                    CatalogDataType::Int32 => values.push("0".to_string()),
-                    CatalogDataType::Int64 => values.push("0".to_string()),
-                    CatalogDataType::UInt8 => values.push("0".to_string()),
-                    CatalogDataType::UInt16 => values.push("0".to_string()),
-                    CatalogDataType::UInt32 => values.push("0".to_string()),
-                    CatalogDataType::UInt64 => values.push("0".to_string()),
-                    CatalogDataType::Float32 => values.push("0.0".to_string()),
-                    CatalogDataType::Float64 => values.push("0.0".to_string()),
-                    CatalogDataType::Utf8 => values.push("''".to_string()),
-                    CatalogDataType::Binary => values.push(database.sql_binary_literal(&[0u8])),
-                    CatalogDataType::Uuid => values.push(database.sql_uuid_literal(&Uuid::nil())),
+                    CatalogDataType::Boolean => "FALSE".to_string(),
+                    CatalogDataType::Int8 => "0".to_string(),
+                    CatalogDataType::Int16 => "0".to_string(),
+                    CatalogDataType::Int32 => "0".to_string(),
+                    CatalogDataType::Int64 => "0".to_string(),
+                    CatalogDataType::UInt8 => "0".to_string(),
+                    CatalogDataType::UInt16 => "0".to_string(),
+                    CatalogDataType::UInt32 => "0".to_string(),
+                    CatalogDataType::UInt64 => "0".to_string(),
+                    CatalogDataType::Float32 => "0.0".to_string(),
+                    CatalogDataType::Float64 => "0.0".to_string(),
+                    CatalogDataType::Utf8 => "''".to_string(),
+                    CatalogDataType::Binary => database.sql_binary_literal(&[0u8]),
+                    CatalogDataType::Uuid => database.sql_uuid_literal(&Uuid::nil()),
                 }
-            }
+            };
+
+            columns.push(vec![placeholder; num_rows]);
         }
-        values
+        columns
     }
 }

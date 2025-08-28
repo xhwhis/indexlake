@@ -1,7 +1,7 @@
 use uuid::Uuid;
 
 use crate::{
-    ILResult,
+    ILError, ILResult,
     catalog::{
         DataFileRecord, FieldRecord, IndexFileRecord, IndexRecord, InlineIndexRecord, TableRecord,
         TransactionHelper, inline_row_table_name,
@@ -60,8 +60,35 @@ impl TransactionHelper {
         &mut self,
         table_id: &Uuid,
         field_names: &[String],
-        values: Vec<String>,
+        values: Vec<Vec<String>>,
     ) -> ILResult<()> {
+        if values.is_empty() {
+            return Ok(());
+        }
+        if field_names.len() != values.len() {
+            return Err(ILError::internal(format!(
+                "field_names and values must have the same length, got {} and {}",
+                field_names.len(),
+                values.len()
+            )));
+        }
+
+        let num_columns = field_names.len();
+        let num_rows = values[0].len();
+
+        if num_rows == 0 {
+            return Ok(());
+        }
+
+        let mut values_strs = Vec::with_capacity(num_rows);
+        for row_idx in 0..num_rows {
+            let mut row_values = Vec::with_capacity(num_columns);
+            for col in values.iter() {
+                row_values.push(col[row_idx].as_str());
+            }
+            values_strs.push(format!("({})", row_values.join(",")));
+        }
+
         self.transaction
             .execute(&format!(
                 "INSERT INTO {} ({}) VALUES {}",
@@ -71,7 +98,7 @@ impl TransactionHelper {
                     .map(|name| self.database.sql_identifier(name))
                     .collect::<Vec<_>>()
                     .join(", "),
-                values.join(", ")
+                values_strs.join(", ")
             ))
             .await?;
         Ok(())

@@ -15,6 +15,7 @@ use crate::{
         INTERNAL_ROW_ID_FIELD_NAME, IndexFileRecord, InlineIndexRecord, TransactionHelper,
         rows_to_record_batch,
     },
+    expr::{col, lit},
     index::IndexBuilder,
     storage::{DataFileFormat, build_parquet_writer},
     table::Table,
@@ -34,16 +35,21 @@ pub(crate) async fn process_insert_into_inline_rows(
     let mut non_mergeable_index_builders =
         table.index_manager.new_non_mergeable_index_builders()?;
 
+    let flag = format!("location_{}", uuid::Uuid::new_v4());
+
     // insert inline rows
     for batch in batches {
-        let sql_values = record_batch_to_sql_values(batch, tx_helper.database)?;
+        let mut sql_values = record_batch_to_sql_values(batch, tx_helper.database)?;
+        let flag_values = vec![flag.clone(); batch.num_rows()];
+        sql_values.push(flag_values);
 
-        let inline_field_names = batch
+        let mut inline_field_names = batch
             .schema()
             .fields()
             .iter()
             .map(|field| field.name().clone())
             .collect::<Vec<_>>();
+        inline_field_names.push(INTERNAL_FLAG_FIELD_NAME.to_string());
 
         tx_helper
             .insert_inline_rows(&table.table_id, &inline_field_names, sql_values)
@@ -51,11 +57,15 @@ pub(crate) async fn process_insert_into_inline_rows(
     }
 
     // append index builders
-    for batch in batches {
-        for builder in mergeable_index_builders.iter_mut() {
-            builder.append(batch)?;
-        }
-    }
+    append_mergeable_index_builders(
+        tx_helper,
+        &table.table_id,
+        &table.schema,
+        &flag,
+        &mut mergeable_index_builders,
+    )
+    .await?;
+
     append_non_mergeable_index_builders(
         tx_helper,
         &table.table_id,
@@ -204,12 +214,9 @@ pub(crate) async fn reserve_row_ids(
 
     let flag = format!("placeholder_{}", uuid::Uuid::new_v4());
 
-    let mut sql_values = Vec::with_capacity(count);
-    for _ in 0..count {
-        let mut placeholder_values = catalog_schema.placeholder_sql_values(tx_helper.database);
-        placeholder_values.push(format!("'{flag}'"));
-        sql_values.push(format!("({})", placeholder_values.join(", ")));
-    }
+    let mut sql_values = catalog_schema.placeholder_row_sql_values(tx_helper.database, count);
+    let flag_values = vec![flag.clone(); count];
+    sql_values.push(flag_values);
 
     tx_helper
         .insert_inline_rows(&table.table_id, &inline_field_names, sql_values)
@@ -325,7 +332,7 @@ macro_rules! extract_sql_values {
 pub(crate) fn record_batch_to_sql_values(
     record: &RecordBatch,
     database: CatalogDatabase,
-) -> ILResult<Vec<String>> {
+) -> ILResult<Vec<Vec<String>>> {
     let mut column_values_list = Vec::with_capacity(record.num_columns());
     for (i, field) in record.schema().fields().iter().enumerate() {
         let array = record.column(i);
@@ -486,16 +493,36 @@ pub(crate) fn record_batch_to_sql_values(
             };
         column_values_list.push(column_values);
     }
-    let mut sql_values = Vec::with_capacity(record.num_rows());
-    for row_idx in 0..record.num_rows() {
-        let mut row_values = Vec::with_capacity(record.num_columns());
-        for column_values in column_values_list.iter() {
-            row_values.push(column_values[row_idx].clone());
+    Ok(column_values_list)
+}
+
+pub(crate) async fn append_mergeable_index_builders(
+    tx_helper: &mut TransactionHelper,
+    table_id: &Uuid,
+    table_schema: &SchemaRef,
+    flag: &str,
+    index_builders: &mut Vec<Box<dyn IndexBuilder>>,
+) -> ILResult<()> {
+    let catalog_schema = Arc::new(CatalogSchema::from_arrow(table_schema)?);
+
+    let filter = col(INTERNAL_FLAG_FIELD_NAME).eq(lit(flag));
+    let row_stream = tx_helper
+        .scan_inline_rows(table_id, &catalog_schema, &[filter], None)
+        .await?;
+
+    let mut inline_stream = row_stream.chunks(100).map(move |rows| {
+        let rows = rows.into_iter().collect::<ILResult<Vec<_>>>()?;
+        let batch = rows_to_record_batch(table_schema, &rows)?;
+        Ok::<_, ILError>(batch)
+    });
+
+    while let Some(batch) = inline_stream.next().await {
+        let batch = batch?;
+        for builder in index_builders.iter_mut() {
+            builder.append(&batch)?;
         }
-        let row_values_str = row_values.join(", ");
-        sql_values.push(format!("({row_values_str})"));
     }
-    Ok(sql_values)
+    Ok(())
 }
 
 pub(crate) async fn append_non_mergeable_index_builders(
