@@ -40,7 +40,7 @@ pub(crate) async fn process_insert_into_inline_rows(
     // insert inline rows
     for batch in batches {
         let mut sql_values = record_batch_to_sql_values(batch, tx_helper.database)?;
-        let flag_values = vec![flag.clone(); batch.num_rows()];
+        let flag_values = vec![format!("'{flag}'"); batch.num_rows()];
         sql_values.push(flag_values);
 
         let mut inline_field_names = batch
@@ -215,7 +215,7 @@ pub(crate) async fn reserve_row_ids(
     let flag = format!("placeholder_{}", uuid::Uuid::new_v4());
 
     let mut sql_values = catalog_schema.placeholder_row_sql_values(tx_helper.database, count);
-    let flag_values = vec![flag.clone(); count];
+    let flag_values = vec![format!("'{flag}'"); count];
     sql_values.push(flag_values);
 
     tx_helper
