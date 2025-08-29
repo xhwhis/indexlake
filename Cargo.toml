@@ -4,6 +4,7 @@ members = [
     "catalogs/postgres",
     "catalogs/sqlite",
     "indexes/bm25",
+    "indexes/btree",
     "indexes/hnsw",
     "indexes/rstar",
     "indexlake",
@@ -27,6 +28,7 @@ indexlake-catalog-postgres = { path = "catalogs/postgres", version = "0.1.0" }
 indexlake-catalog-sqlite = { path = "catalogs/sqlite", version = "0.1.0" }
 indexlake-datafusion = { path = "integrations/datafusion", version = "0.1.0" }
 indexlake-index-bm25 = { path = "indexes/bm25", version = "0.1.0" }
+indexlake-index-btree = { path = "indexes/btree", version = "0.1.0" }
 indexlake-index-hnsw = { path = "indexes/hnsw", version = "0.1.0" }
 indexlake-index-rstar = { path = "indexes/rstar", version = "0.1.0" }
 indexlake-integration-tests = { path = "integration-tests", version = "0.1.0" }

@@ -3583,11 +3583,9 @@ dependencies = [
  "num_cpus",
  "opendal",
  "parquet",
- "rand 0.9.1",
  "serde",
  "serde_json",
  "tokio",
- "url",
  "uuid",
 ]
 
@@ -3596,21 +3594,17 @@ name = "indexlake-benchmarks"
 version = "0.1.0"
 dependencies = [
  "arrow",
- "bytes",
  "delta_kernel",
  "deltalake",
  "deltalake-aws",
  "futures",
  "indexlake",
- "indexlake-catalog-postgres",
- "indexlake-catalog-sqlite",
  "indexlake-index-bm25",
+ "indexlake-index-btree",
  "indexlake-index-hnsw",
- "indexlake-index-rstar",
  "indexlake-integration-tests",
  "lance",
  "lance-index",
- "num_cpus",
  "rand 0.9.1",
  "tokio",
  "uuid",
@@ -3634,7 +3628,6 @@ dependencies = [
 name = "indexlake-catalog-sqlite"
 version = "0.1.0"
 dependencies = [
- "arrow",
  "async-trait",
  "futures",
  "indexlake",
@@ -3680,13 +3673,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "indexlake-index-btree"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "async-trait",
+ "futures",
+ "indexlake",
+ "parquet",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "indexlake-index-hnsw"
 version = "0.1.0"
 dependencies = [
  "arrow",
  "async-trait",
  "bincode",
- "bytes",
  "hnsw",
  "indexlake",
  "rand_pcg",
@@ -3728,9 +3733,9 @@ dependencies = [
  "indexlake-catalog-sqlite",
  "indexlake-datafusion",
  "indexlake-index-bm25",
+ "indexlake-index-btree",
  "indexlake-index-hnsw",
  "indexlake-index-rstar",
- "log",
  "opendal",
  "rstest",
  "rusqlite",
